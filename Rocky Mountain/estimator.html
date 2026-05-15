@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rocky Mountain Services – Job Cost Estimator</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <style>
+    :root {
+      --black:   #0d0d0d;
+      --orange:  #e05a1b;
+      --orange2: #c94e16;
+      --white:   #ffffff;
+      --cream:   #f5efe6;
+      --gray:    #e0d8cf;
+      --dgray:   #333333;
+      --lgray:   #f0ebe4;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--cream);
+      color: var(--black);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--black);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 18px 36px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 3px 12px rgba(0,0,0,.5);
+    }
+    header img { height: 64px; width: 64px; border-radius: 50%; object-fit: cover; }
+    header .htext h1 { color: var(--orange); font-size: 1.55rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    header .htext p  { color: #aaa; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+
+    /* ── Tab Nav ── */
+    .tab-nav {
+      background: var(--black);
+      display: flex;
+      gap: 4px;
+      padding: 0 36px 0;
+      border-bottom: 3px solid var(--orange);
+    }
+    .tab-btn {
+      background: none; border: none; cursor: pointer;
+      color: #aaa;
+      padding: 13px 28px;
+      font-size: .95rem;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -3px;
+      transition: color .2s, border-color .2s;
+    }
+    .tab-btn:hover   { color: var(--white); }
+    .tab-btn.active  { color: var(--orange); border-bottom-color: var(--orange); }
+
+    /* ── Layout ── */
+    .tab-panel { display: none; padding: 32px 36px 60px; max-width: 1300px; margin: 0 auto; }
+    .tab-panel.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--white);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: var(--black);
+      color: var(--orange);
+      padding: 12px 22px;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-header .icon { font-size: 1.1rem; }
+    .card-body { padding: 22px; }
+
+    /* ── Form grid ── */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: .78rem; font-weight: 700; color: var(--dgray); letter-spacing: .05em; text-transform: uppercase; }
+    input[type=text], input[type=number], select, textarea {
+      border: 1.5px solid var(--gray);
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-size: .93rem;
+      color: var(--black);
+      background: var(--lgray);
+      transition: border-color .2s;
+      width: 100%;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--orange);
+      background: #fff;
+    }
+
+    /* ── Cost Tables ── */
+    .cost-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .cost-table th {
+      background: var(--black);
+      color: var(--orange);
+      padding: 9px 12px;
+      text-align: left;
+      font-weight: 700;
+      letter-spacing: .05em;
+      font-size: .78rem;
+      text-transform: uppercase;
+    }
+    .cost-table td { padding: 7px 10px; border-bottom: 1px solid var(--gray); vertical-align: middle; }
+    .cost-table tr:last-child td { border-bottom: none; }
+    .cost-table tr:hover td { background: #faf6f1; }
+    .cost-table input, .cost-table select {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: .88rem;
+      width: 100%;
+      background: var(--lgray);
+    }
+    .cost-table .num { text-align: right; }
+    .cost-table td.computed { font-weight: 600; color: var(--black); text-align: right; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: .85rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      transition: background .2s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary   { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: var(--orange2); }
+    .btn-dark      { background: var(--black); color: #fff; }
+    .btn-dark:hover { background: #222; }
+    .btn-danger    { background: #e53935; color: #fff; font-size: .78rem; padding: 5px 10px; }
+    .btn-danger:hover { background: #c62828; }
+    .btn-sm        { padding: 5px 12px; font-size: .78rem; }
+    .btn-add { margin-top: 10px; }
+
+    /* ── Summary Box ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+    .summary-row {
+      display: contents;
+    }
+    .summary-row .s-label,
+    .summary-row .s-value {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--gray);
+      font-size: .95rem;
+    }
+    .summary-row .s-label { color: var(--dgray); font-weight: 500; }
+    .summary-row .s-value { text-align: right; font-weight: 600; }
+    .summary-row.total-row .s-label { background: var(--black); color: var(--orange); font-weight: 800; font-size: 1.1rem; }
+    .summary-row.total-row .s-value { background: var(--orange); color: #fff; font-weight: 800; font-size: 1.1rem; }
+    .summary-row.sub-row .s-label { padding-left: 32px; color: #666; font-size: .88rem; }
+    .summary-row.sub-row .s-value { color: #666; font-size: .88rem; }
+
+    .margin-row {
+      display: flex; align-items: center; gap: 16px;
+      padding: 18px;
+      background: var(--lgray);
+      border-top: 2px solid var(--orange);
+    }
+    .margin-row label { font-size: .88rem; font-weight: 700; white-space: nowrap; margin: 0; }
+    .margin-row input { max-width: 100px; }
+    .margin-row .margin-info { font-size: .82rem; color: #666; }
+
+    /* ── Per-unit box ── */
+    .per-unit-bar {
+      background: var(--black);
+      color: var(--white);
+      padding: 14px 22px;
+      border-radius: 8px;
+      display: flex;
+      gap: 36px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .per-unit-bar .pu-item { display: flex; flex-direction: column; gap: 2px; }
+    .per-unit-bar .pu-label { font-size: .72rem; color: #aaa; letter-spacing: .08em; text-transform: uppercase; }
+    .per-unit-bar .pu-value { font-size: 1.2rem; font-weight: 800; color: var(--orange); }
+
+    /* ── Historical Tab ── */
+    .hist-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+    .hist-tab-btn {
+      padding: 8px 18px; border-radius: 20px; border: 2px solid var(--black);
+      background: none; cursor: pointer; font-weight: 700; font-size: .82rem;
+      text-transform: uppercase; letter-spacing: .04em; color: var(--black);
+      transition: all .2s;
+    }
+    .hist-tab-btn.active, .hist-tab-btn:hover { background: var(--black); color: var(--orange); }
+
+    .hist-panel { display: none; }
+    .hist-panel.active { display: block; }
+
+    .hist-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .hist-table th {
+      background: var(--dgray); color: #fff; padding: 8px 12px;
+      text-align: left; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .hist-table td { padding: 7px 10px; border-bottom: 1px solid var(--gray); }
+    .hist-table tr:nth-child(even) td { background: var(--lgray); }
+    .hist-table input, .hist-table select {
+      border: 1px solid #ccc; border-radius: 4px; padding: 5px 8px; font-size: .88rem; width: 100%; background: #fff;
+    }
+    .hist-table .avg-row td { background: var(--black); color: var(--orange); font-weight: 700; }
+    .hist-table .stat-row td { background: #f9f9f9; color: #555; font-size: .82rem; font-style: italic; }
+
+    .hist-actions { display: flex; gap: 10px; margin-top: 14px; align-items: center; }
+
+    /* ── Notes / misc ── */
+    .note { font-size: .8rem; color: #888; margin-top: 6px; }
+    .section-divider { border: none; border-top: 2px solid var(--gray); margin: 8px 0 20px; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width: 700px) { .row-2 { grid-template-columns: 1fr; } .summary-grid { grid-template-columns: 1fr; } }
+
+    /* ── Avg cards ── */
+    .avg-metric {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray);
+    }
+    .avg-metric:last-of-type { border-bottom: none; }
+    .avg-label { font-size: .82rem; color: #666; font-weight: 500; }
+    .avg-value { font-size: 1.15rem; font-weight: 800; color: var(--black); }
+    .avg-meta  { margin-top: 12px; font-size: .75rem; color: #aaa; font-style: italic; }
+
+    @keyframes flashCard {
+      0%   { box-shadow: 0 0 0 3px var(--orange); }
+      100% { box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    }
+    .card-flash { animation: flashCard .7s ease-out forwards; }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 48px; height: 48px;
+      border: 5px solid rgba(255,255,255,.25);
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Unit cost cell ── */
+    .uc-wrap { display: flex; align-items: center; gap: 4px; }
+    .uc-input { flex: 1; min-width: 0; }
+    .uc-input.avg-mode {
+      background: #edf7ed;
+      color: #2e7d32;
+      font-weight: 700;
+      border-color: #a5d6a7;
+      cursor: default;
+    }
+    .uc-input.override-mode {
+      background: #fff8f0;
+      border-color: var(--orange);
+      color: var(--black);
+      font-weight: 600;
+    }
+    .uc-toggle {
+      flex-shrink: 0;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #f0f0f0;
+      cursor: pointer;
+      font-size: .7rem;
+      white-space: nowrap;
+      color: #555;
+      line-height: 1;
+      transition: all .15s;
+    }
+    .uc-toggle:hover { background: #e0e0e0; }
+    .uc-toggle.is-override { border-color: var(--orange); background: #fff0e6; color: var(--orange2); font-weight: 700; }
+
+    /* ── Print ── */
+    @media print {
+      /* Force every element to print its background colors/images */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      @page { margin: 0.45in; }
+
+      body { background: var(--cream) !important; font-size: 11px; }
+
+      /* Hide chrome UI */
+      .tab-nav,
+      .btn-danger,
+      .btn-add,
+      .uc-toggle,
+      input[type=file],
+      #importedFileName,
+      #importOverlay { display: none !important; }
+
+      /* Show only the estimator tab */
+      #tab-historical { display: none !important; }
+      #tab-estimator  { display: block !important; padding: 20px 0 40px; max-width: 100%; }
+
+      /* Header */
+      header {
+        position: static !important;
+        padding: 14px 24px;
+        background: var(--black) !important;
+        box-shadow: none;
+        margin-bottom: 18px;
+      }
+
+      /* Cards */
+      .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc;
+        break-inside: avoid;
+        margin-bottom: 16px;
+      }
+      .card-header {
+        background: var(--black) !important;
+        color: var(--orange) !important;
+        padding: 10px 18px;
+      }
+      .card-body { padding: 14px 18px; }
+
+      /* Form inputs — look like filled fields, not interactive */
+      input, select, textarea {
+        border: 1px solid #ccc !important;
+        background: var(--lgray) !important;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      select { padding-right: 8px; }
+
+      /* Avg-mode unit cost */
+      .uc-input.avg-mode  { background: #edf7ed !important; color: #2e7d32 !important; }
+      .uc-input.override-mode { background: #fff8f0 !important; }
+
+      /* Summary */
+      .summary-row.total-row .s-label {
+        background: var(--black) !important;
+        color: var(--orange) !important;
+      }
+      .summary-row.total-row .s-value {
+        background: var(--orange) !important;
+        color: #fff !important;
+      }
+      .margin-row { background: var(--lgray) !important; }
+
+      /* Per-unit bar */
+      .per-unit-bar { background: var(--black) !important; }
+      .per-unit-bar .pu-label { color: #aaa !important; }
+      .per-unit-bar .pu-value { color: var(--orange) !important; }
+
+      /* Cost table */
+      .cost-table th {
+        background: var(--black) !important;
+        color: var(--orange) !important;
+      }
+
+      /* Print/reset buttons row — hide completely */
+      .card-body > div[style*="padding:18px"] { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header>
+  <img src="447670405_1005316078263765_5653249414914125489_n.jpg" alt="Rocky Mountain Services Logo" />
+  <div class="htext">
+    <h1>Rocky Mountain Services</h1>
+    <p>Job Order Cost Estimator</p>
+  </div>
+</header>
+
+<!-- ══════════ TAB NAV ══════════ -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('estimator', this)">&#9634; Project Estimator</button>
+  <button class="tab-btn" onclick="switchTab('historical', this)">&#9632; Historical Cost Data</button>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TAB 1 — PROJECT ESTIMATOR
+══════════════════════════════════════════════ -->
+<div id="tab-estimator" class="tab-panel active">
+
+  <!-- Project Info -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#128196;</span> Project Information</div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Project / Job Name</label>
+          <input type="text" id="jobName" placeholder="e.g. Main St Parking Lot" oninput="updateSummary()" />
+        </div>
+        <div class="form-group">
+          <label>Client Name</label>
+          <input type="text" id="clientName" placeholder="Client / Company" />
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="text" id="jobDate" placeholder="MM/DD/YYYY" readonly style="cursor:pointer;" />
+        </div>
+        <div class="form-group">
+          <label>Project Location</label>
+          <input type="text" id="jobLocation" placeholder="City, State" />
+        </div>
+        <div class="form-group">
+          <label>Job Type</label>
+          <select id="jobType" onchange="updateSummary()">
+            <option value="">-- Select --</option>
+            <option>New Parking Lot</option>
+            <option>Parking Lot Overlay</option>
+            <option>Road / Street Paving</option>
+            <option>Driveway (Residential)</option>
+            <option>Driveway (Commercial)</option>
+            <option>Milling &amp; Overlay</option>
+            <option>Patching / Repair</option>
+            <option>Seal Coat &amp; Striping</option>
+            <option>Subdivision Road</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Bid / Quote #</label>
+          <input type="text" id="bidNum" placeholder="e.g. RMS-2026-001" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Dimensions -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#128207;</span> Site Dimensions</div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Total Area (sq ft)</label>
+          <input type="number" id="totalSqFt" placeholder="0" min="0" oninput="updateSummary()" />
+        </div>
+        <div class="form-group">
+          <label>Asphalt Thickness (inches)</label>
+          <select id="thickness" onchange="updateSummary()">
+            <option value="1.5">1.5″ – Light overlay</option>
+            <option value="2" selected>2″ – Standard overlay</option>
+            <option value="2.5">2.5″</option>
+            <option value="3">3″ – Full depth light</option>
+            <option value="4">4″ – Full depth standard</option>
+            <option value="4.5">4.5″</option>
+            <option value="5">5″ – Heavy duty</option>
+            <option value="6">6″ – Heavy duty plus</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="form-group" id="customThicknessGroup" style="display:none;">
+          <label>Custom Thickness (inches)</label>
+          <input type="number" id="customThickness" placeholder="0.0" min="0" step="0.25" oninput="updateSummary()" />
+        </div>
+        <div class="form-group">
+          <label>Base Material Depth (inches)</label>
+          <select id="baseDepth" onchange="updateSummary()">
+            <option value="0">No base work</option>
+            <option value="4">4″</option>
+            <option value="6" selected>6″</option>
+            <option value="8">8″</option>
+            <option value="10">10″</option>
+            <option value="12">12″</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Milling Depth (inches)</label>
+          <select id="millingDepth" onchange="updateSummary()">
+            <option value="0">No milling</option>
+            <option value="1.5">1.5″</option>
+            <option value="2">2″</option>
+            <option value="2.5">2.5″</option>
+            <option value="3">3″</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Asphalt Density (lbs/cu ft)</label>
+          <input type="number" id="density" value="145" min="100" max="160" oninput="updateSummary()" />
+          <span class="note">Typical hot mix: 140–150 lbs/cu ft</span>
+        </div>
+      </div>
+      <div id="calcDisplay" style="margin-top:14px; padding: 12px 16px; background: var(--lgray); border-radius:6px; font-size:.88rem; color:#555; display:none;">
+        <strong>Calculated tonnage:</strong> <span id="calcTons" style="color:var(--orange);font-weight:800;"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Materials -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#9646;</span> Materials</div>
+    <div class="card-body">
+      <table class="cost-table" id="materialsTable">
+        <thead>
+          <tr>
+            <th style="width:28%">Item</th>
+            <th>Qty</th>
+            <th>Unit</th>
+            <th>Unit Cost ($)</th>
+            <th style="width:14%">Subtotal ($)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="materialsTbody"></tbody>
+      </table>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addRow('materials')">+ Add Material</button>
+    </div>
+  </div>
+
+  <!-- Labor -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#128119;</span> Labor</div>
+    <div class="card-body">
+      <table class="cost-table" id="laborTable">
+        <thead>
+          <tr>
+            <th style="width:28%">Role / Task</th>
+            <th>Workers</th>
+            <th>Hours</th>
+            <th>Rate ($/hr)</th>
+            <th style="width:14%">Subtotal ($)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="laborTbody"></tbody>
+      </table>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addRow('labor')">+ Add Labor</button>
+    </div>
+  </div>
+
+  <!-- Equipment -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#9881;</span> Equipment</div>
+    <div class="card-body">
+      <table class="cost-table" id="equipTable">
+        <thead>
+          <tr>
+            <th style="width:28%">Equipment</th>
+            <th>Qty</th>
+            <th>Days / Shifts</th>
+            <th>Daily Rate ($)</th>
+            <th style="width:14%">Subtotal ($)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="equipTbody"></tbody>
+      </table>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addRow('equip')">+ Add Equipment</button>
+    </div>
+  </div>
+
+  <!-- Subcontractors -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#128101;</span> Subcontractors</div>
+    <div class="card-body">
+      <table class="cost-table" id="subTable">
+        <thead>
+          <tr>
+            <th style="width:35%">Scope of Work</th>
+            <th>Qty</th>
+            <th>Unit</th>
+            <th>Unit Cost ($)</th>
+            <th style="width:14%">Subtotal ($)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="subTbody"></tbody>
+      </table>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addRow('sub')">+ Add Subcontractor</button>
+    </div>
+  </div>
+
+  <!-- Indirect / Overhead -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#128203;</span> Overhead &amp; Indirect Costs</div>
+    <div class="card-body">
+      <table class="cost-table" id="overheadTable">
+        <thead>
+          <tr>
+            <th style="width:40%">Item</th>
+            <th>Qty</th>
+            <th>Unit</th>
+            <th>Unit Cost ($)</th>
+            <th style="width:14%">Subtotal ($)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="overheadTbody"></tbody>
+      </table>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addRow('overhead')">+ Add Overhead Item</button>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="card">
+    <div class="card-header"><span class="icon">&#128200;</span> Cost Summary &amp; Quote</div>
+    <div class="card-body" style="padding:0;">
+
+      <div class="summary-grid" id="summaryGrid">
+        <div class="summary-row"><div class="s-label">Materials</div><div class="s-value" id="s-materials">$0.00</div></div>
+        <div class="summary-row"><div class="s-label">Labor</div><div class="s-value" id="s-labor">$0.00</div></div>
+        <div class="summary-row"><div class="s-label">Equipment</div><div class="s-value" id="s-equip">$0.00</div></div>
+        <div class="summary-row"><div class="s-label">Subcontractors</div><div class="s-value" id="s-sub">$0.00</div></div>
+        <div class="summary-row"><div class="s-label">Overhead &amp; Indirect</div><div class="s-value" id="s-overhead">$0.00</div></div>
+        <div class="summary-row" style="border-top:2px solid var(--gray)">
+          <div class="s-label" style="font-weight:700;">Total Direct Cost</div>
+          <div class="s-value" id="s-direct" style="font-weight:700;">$0.00</div>
+        </div>
+      </div>
+
+      <div class="margin-row">
+        <label for="marginPct">Profit Margin %</label>
+        <input type="number" id="marginPct" value="15" min="0" max="100" step="0.5" oninput="updateSummary()" style="max-width:90px;" />
+        <div class="margin-info" id="marginInfo">$0.00 markup &nbsp;|&nbsp; <strong>$0.00</strong> quoted price</div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-row total-row">
+          <div class="s-label">&#9654; TOTAL QUOTED PRICE</div>
+          <div class="s-value" id="s-total">$0.00</div>
+        </div>
+      </div>
+
+      <div class="per-unit-bar" id="perUnitBar">
+        <div class="pu-item"><div class="pu-label">Cost / sq ft</div><div class="pu-value" id="pu-sqft">—</div></div>
+        <div class="pu-item"><div class="pu-label">Quoted / sq ft</div><div class="pu-value" id="pu-sqft-q">—</div></div>
+        <div class="pu-item"><div class="pu-label">Cost / ton</div><div class="pu-value" id="pu-ton">—</div></div>
+        <div class="pu-item"><div class="pu-label">Total Area</div><div class="pu-value" id="pu-area">—</div></div>
+        <div class="pu-item"><div class="pu-label">Est. Tonnage</div><div class="pu-value" id="pu-tons">—</div></div>
+      </div>
+
+      <div style="padding:18px; display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="window.print()">&#128424; Print / Export PDF</button>
+        <button class="btn btn-dark" onclick="resetAll()">&#8635; Reset All</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end tab-estimator -->
+
+
+<!-- ══════════════════════════════════════════════
+     TAB 2 — HISTORICAL COST DATA
+══════════════════════════════════════════════ -->
+<div id="tab-historical" class="tab-panel">
+
+  <!-- Import bar -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header"><span class="icon">&#128202;</span> Historical Cost Averages</div>
+    <div class="card-body" style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:260px;">
+        <p style="color:#555; font-size:.9rem; line-height:1.5;">
+          Import an Excel spreadsheet to update the average cost figures below.
+          Each category will refresh automatically once a file is selected.
+        </p>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+        <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleExcelImport(this)" />
+        <button class="btn btn-primary" style="font-size:1rem; padding:12px 28px;" onclick="document.getElementById('excelFileInput').click()">
+          &#128193; Import Excel File
+        </button>
+        <span id="importedFileName" style="font-size:.78rem; color:#888;">No file imported</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Average cards grid -->
+  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap:20px;">
+
+    <!-- Materials -->
+    <div class="card avg-card" id="card-materials">
+      <div class="card-header"><span class="icon">&#9646;</span> Materials</div>
+      <div class="card-body">
+        <div class="avg-metric">
+          <span class="avg-label">Avg Cost / Ton (HMA)</span>
+          <span class="avg-value" id="avg-mat-ton">$142.00</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Material Cost / Sq Ft</span>
+          <span class="avg-value" id="avg-mat-sqft">$1.18</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Total Material Cost / Job</span>
+          <span class="avg-value" id="avg-mat-job">$18,450</span>
+        </div>
+        <div class="avg-meta" id="meta-materials">Based on baseline data</div>
+      </div>
+    </div>
+
+    <!-- Labor -->
+    <div class="card avg-card" id="card-labor">
+      <div class="card-header"><span class="icon">&#128119;</span> Labor</div>
+      <div class="card-body">
+        <div class="avg-metric">
+          <span class="avg-label">Avg Labor Rate / Hour</span>
+          <span class="avg-value" id="avg-lab-hr">$38.50</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Labor Cost / Sq Ft</span>
+          <span class="avg-value" id="avg-lab-sqft">$0.72</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Total Labor Cost / Job</span>
+          <span class="avg-value" id="avg-lab-job">$11,200</span>
+        </div>
+        <div class="avg-meta" id="meta-labor">Based on baseline data</div>
+      </div>
+    </div>
+
+    <!-- Equipment -->
+    <div class="card avg-card" id="card-equip">
+      <div class="card-header"><span class="icon">&#9881;</span> Equipment</div>
+      <div class="card-body">
+        <div class="avg-metric">
+          <span class="avg-label">Avg Equipment Cost / Day</span>
+          <span class="avg-value" id="avg-eq-day">$2,850</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Equipment Cost / Sq Ft</span>
+          <span class="avg-value" id="avg-eq-sqft">$0.34</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Total Equipment Cost / Job</span>
+          <span class="avg-value" id="avg-eq-job">$8,600</span>
+        </div>
+        <div class="avg-meta" id="meta-equip">Based on baseline data</div>
+      </div>
+    </div>
+
+    <!-- Subcontractors -->
+    <div class="card avg-card" id="card-sub">
+      <div class="card-header"><span class="icon">&#128101;</span> Subcontractors</div>
+      <div class="card-body">
+        <div class="avg-metric">
+          <span class="avg-label">Avg Milling Cost / Sq Ft</span>
+          <span class="avg-value" id="avg-sub-mill">$0.48</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Striping Cost / Ln Ft</span>
+          <span class="avg-value" id="avg-sub-stripe">$0.22</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Total Sub Cost / Job</span>
+          <span class="avg-value" id="avg-sub-job">$5,300</span>
+        </div>
+        <div class="avg-meta" id="meta-sub">Based on baseline data</div>
+      </div>
+    </div>
+
+    <!-- Overhead -->
+    <div class="card avg-card" id="card-overhead">
+      <div class="card-header"><span class="icon">&#128203;</span> Overhead &amp; Indirect</div>
+      <div class="card-body">
+        <div class="avg-metric">
+          <span class="avg-label">Avg Overhead % of Direct Cost</span>
+          <span class="avg-value" id="avg-ov-pct">8.5%</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Mobilization Cost</span>
+          <span class="avg-value" id="avg-ov-mob">$1,200</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Total Overhead / Job</span>
+          <span class="avg-value" id="avg-ov-job">$3,650</span>
+        </div>
+        <div class="avg-meta" id="meta-overhead">Based on baseline data</div>
+      </div>
+    </div>
+
+    <!-- Cost / Sq Ft overall -->
+    <div class="card avg-card" id="card-sqft">
+      <div class="card-header"><span class="icon">&#128200;</span> Overall Cost / Sq Ft</div>
+      <div class="card-body">
+        <div class="avg-metric">
+          <span class="avg-label">Avg Total Cost / Sq Ft</span>
+          <span class="avg-value" id="avg-sf-cost">$3.24</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Quoted Price / Sq Ft</span>
+          <span class="avg-value" id="avg-sf-quoted">$3.82</span>
+        </div>
+        <div class="avg-metric">
+          <span class="avg-label">Avg Profit Margin</span>
+          <span class="avg-value" id="avg-sf-margin">17.9%</span>
+        </div>
+        <div class="avg-meta" id="meta-sqft">Based on baseline data</div>
+      </div>
+    </div>
+
+  </div><!-- end cards grid -->
+
+  <!-- Import overlay spinner -->
+  <div id="importOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
+    <div class="spinner"></div>
+    <div style="color:#fff; font-size:1rem; font-weight:600; letter-spacing:.05em;">Reading Excel file…</div>
+  </div>
+
+</div><!-- end tab-historical -->
+
+
+<!-- ══════════ JAVASCRIPT ══════════ -->
+<script>
+
+// ─── Default rows: [label, qty, unit, _unused, avgUnitCost] ───────────
+const defaults = {
+  materials: [
+    ['Hot Mix Asphalt (HMA)',        '',  'Tons',    '', 142.00],
+    ['Crushed Aggregate Base',       '',  'Tons',    '',  28.00],
+    ['Tack Coat / Binder',           '',  'Gallons', '',   3.50],
+    ['Crack Filler / Sealant',       '',  'Lbs',     '',   2.00],
+    ['Erosion Control / Geo-fabric', '',  'Sq Yd',   '',   1.80],
+  ],
+  labor: [
+    ['Paving Crew',                  '',  '', '',  38.50],
+    ['Laborer / Screed Operator',    '',  '', '',  32.00],
+    ['Equipment Operator',           '',  '', '',  42.00],
+    ['Foreman / Superintendent',     '1', '', '',  55.00],
+    ['Flagging / Traffic Control',   '',  '', '',  28.00],
+  ],
+  equip: [
+    ['Asphalt Paver',                '1', '', '',  850],
+    ['Vibratory Roller (Steel Drum)','1', '', '',  450],
+    ['Rubber-Tire Roller',           '1', '', '',  380],
+    ['Milling Machine',              '',  '', '', 1200],
+    ['Dump Truck / Haul Truck',      '',  '', '',  320],
+    ['Skid Steer / Loader',          '1', '', '',  280],
+    ['Water Truck',                  '',  '', '',  220],
+  ],
+  sub: [
+    ['Milling / Grinding',           '', 'Sq Ft',    '',   0.48],
+    ['Line Striping / Marking',      '', 'Ln Ft',    '',   0.22],
+    ['Utility Adjustments (Manholes)','','Each',     '', 450.00],
+    ['Concrete Curb & Gutter',       '', 'Ln Ft',    '',  28.00],
+    ['Survey / Layout',              '', 'Lump Sum', '', 2500.00],
+  ],
+  overhead: [
+    ['Mobilization / Demobilization','1', 'Lump Sum', '', 1200],
+    ['Permits & Fees',               '1', 'Lump Sum', '',  850],
+    ['Traffic Control Devices',      '',  'Days',     '',  180],
+    ['Temporary Signage',            '1', 'Lump Sum', '',  350],
+    ['Debris / Millings Disposal',   '',  'Loads',    '',  280],
+    ['Site Superintendent Overhead', '1', '%',        '',  8.5],
+    ['General & Administrative',     '1', '%',        '',  5.0],
+  ],
+};
+
+// ─── Build initial tables ──────────────────────────────────────────────
+function buildTables() {
+  ['materials','labor','equip','sub','overhead'].forEach(type => {
+    defaults[type].forEach(row => addRow(type, row));
+  });
+  // trigger initial subtotal calc for every row
+  document.querySelectorAll('[data-type]').forEach(tr => {
+    const firstNum = tr.querySelector('input[type=number]');
+    if (firstNum) calcRow(firstNum);
+  });
+  updateSummary();
+}
+
+// ─── Unit dropdowns by table type ─────────────────────────────────────
+const unitOptions = {
+  materials: ['Tons','Gallons','Lbs','Sq Ft','Sq Yd','Cu Yd','Linear Ft','Each','Lump Sum'],
+  sub:       ['Sq Ft','Linear Ft','Each','Lump Sum','Sq Yd','Tons','Mile'],
+  overhead:  ['Lump Sum','%','Days','Hours','Each','Month'],
+};
+
+function unitSelect(type, selected) {
+  const opts = unitOptions[type] || unitOptions.materials;
+  const options = opts.map(o =>
+    `<option value="${o}"${o === selected ? ' selected' : ''}>${o}</option>`
+  ).join('');
+  return `<td><select style="min-width:110px;">${options}</select></td>`;
+}
+
+function ucCell(avg, hasAvg) {
+  // hasAvg: true → locked green avg; false → blank override-mode ready to type
+  if (hasAvg) {
+    return `<td><div class="uc-wrap">
+      <input type="number" class="uc-input avg-mode" value="${avg}" data-avg="${avg}" readonly min="0" step="0.01" oninput="calcRow(this)" />
+      <button class="uc-toggle" onclick="toggleUC(this)" title="Enter your own value">&#9998;</button>
+    </div></td>`;
+  }
+  return `<td><div class="uc-wrap">
+    <input type="number" class="uc-input override-mode" value="" data-avg="0" min="0" step="0.01" placeholder="0.00" oninput="calcRow(this)" />
+    <button class="uc-toggle is-override" onclick="toggleUC(this)" title="Revert to average">&#x21A9; Avg</button>
+  </div></td>`;
+}
+
+function addRow(type, vals) {
+  const tbodyId = { materials:'materialsTbody', labor:'laborTbody', equip:'equipTbody', sub:'subTbody', overhead:'overheadTbody' }[type];
+  const tbody = document.getElementById(tbodyId);
+  const tr = document.createElement('tr');
+  tr.dataset.type = type;
+
+  const avg    = vals?.[4] ?? null;
+  const hasAvg = avg !== null && avg !== undefined;
+  const uc     = ucCell(avg ?? 0, hasAvg);
+
+  let inner = '';
+  if (type === 'materials' || type === 'sub' || type === 'overhead') {
+    inner = `
+      <td><input type="text" value="${vals?.[0]||''}" placeholder="Description" oninput="updateSummary()" /></td>
+      <td><input type="number" value="${vals?.[1]||''}" placeholder="0" min="0" oninput="calcRow(this)" /></td>
+      ${unitSelect(type, vals?.[2]||'')}
+      ${uc}
+      <td class="computed" data-sub="0">$0.00</td>
+      <td><button class="btn btn-danger" onclick="removeRow(this)">&#x2715;</button></td>`;
+  } else if (type === 'labor') {
+    inner = `
+      <td><input type="text" value="${vals?.[0]||''}" placeholder="Role" oninput="updateSummary()" /></td>
+      <td><input type="number" value="${vals?.[1]||''}" placeholder="0" min="0" oninput="calcRow(this)" /></td>
+      <td><input type="number" value="${vals?.[2]||''}" placeholder="0" min="0" oninput="calcRow(this)" /></td>
+      ${uc}
+      <td class="computed" data-sub="0">$0.00</td>
+      <td><button class="btn btn-danger" onclick="removeRow(this)">&#x2715;</button></td>`;
+  } else if (type === 'equip') {
+    inner = `
+      <td><input type="text" value="${vals?.[0]||''}" placeholder="Equipment" oninput="updateSummary()" /></td>
+      <td><input type="number" value="${vals?.[1]||''}" placeholder="0" min="0" oninput="calcRow(this)" /></td>
+      <td><input type="number" value="${vals?.[2]||''}" placeholder="0" min="0" oninput="calcRow(this)" /></td>
+      ${uc}
+      <td class="computed" data-sub="0">$0.00</td>
+      <td><button class="btn btn-danger" onclick="removeRow(this)">&#x2715;</button></td>`;
+  }
+  tr.innerHTML = inner;
+  tbody.appendChild(tr);
+}
+
+// ─── Toggle unit cost between avg-locked and manual override ──────────
+function toggleUC(btn) {
+  const input = btn.previousElementSibling;
+  if (input.classList.contains('avg-mode')) {
+    // unlock for manual entry
+    input.classList.replace('avg-mode', 'override-mode');
+    input.removeAttribute('readonly');
+    input.select();
+    btn.innerHTML = '&#x21A9; Avg';
+    btn.classList.add('is-override');
+    btn.title = 'Revert to average';
+  } else {
+    // revert to avg
+    input.value = input.dataset.avg;
+    input.classList.replace('override-mode', 'avg-mode');
+    input.setAttribute('readonly', '');
+    btn.innerHTML = '&#9998;';
+    btn.classList.remove('is-override');
+    btn.title = 'Enter your own value';
+    calcRow(input);
+  }
+}
+
+function calcRow(input) {
+  const tr = input.closest('tr');
+  const inputs = tr.querySelectorAll('input[type=number]');
+  const vals = Array.from(inputs).map(i => parseFloat(i.value) || 0);
+  const type = tr.dataset.type;
+  let sub = 0;
+  // materials/sub/overhead: [qty, unitCost] — 2 number inputs
+  if (type === 'materials' || type === 'sub' || type === 'overhead') sub = vals[0] * vals[1];
+  // labor: [workers, hours, rate] — 3 number inputs
+  if (type === 'labor') sub = vals[0] * vals[1] * vals[2];
+  // equip: [qty, days, dailyRate] — 3 number inputs
+  if (type === 'equip') sub = vals[0] * vals[1] * vals[2];
+
+  const cell = tr.querySelector('.computed');
+  cell.dataset.sub = sub;
+  cell.textContent = fmtCurrency(sub);
+  updateSummary();
+}
+
+function removeRow(btn) {
+  btn.closest('tr').remove();
+  updateSummary();
+}
+
+function sumTable(tbodyId) {
+  let total = 0;
+  document.querySelectorAll(`#${tbodyId} .computed`).forEach(td => {
+    total += parseFloat(td.dataset.sub)||0;
+  });
+  return total;
+}
+
+// ─── Tonnage calculation ───────────────────────────────────────────────
+function calcTonnage() {
+  const sqft = parseFloat(document.getElementById('totalSqFt').value)||0;
+  let thick = document.getElementById('thickness').value;
+  if (thick === 'custom') thick = parseFloat(document.getElementById('customThickness').value)||0;
+  else thick = parseFloat(thick)||0;
+  const density = parseFloat(document.getElementById('density').value)||145;
+  // tons = (sqft * (thick/12) * density) / 2000
+  return sqft > 0 && thick > 0 ? (sqft * (thick/12) * density) / 2000 : 0;
+}
+
+document.getElementById('thickness').addEventListener('change', function() {
+  const cg = document.getElementById('customThicknessGroup');
+  cg.style.display = this.value === 'custom' ? '' : 'none';
+  updateSummary();
+});
+
+// ─── Summary update ────────────────────────────────────────────────────
+function updateSummary() {
+  const mats    = sumTable('materialsTbody');
+  const labor   = sumTable('laborTbody');
+  const equip   = sumTable('equipTbody');
+  const sub     = sumTable('subTbody');
+  const overhead= sumTable('overheadTbody');
+  const direct  = mats + labor + equip + sub + overhead;
+
+  const marginPct = parseFloat(document.getElementById('marginPct').value)||0;
+  const markup    = direct * (marginPct / 100);
+  const total     = direct + markup;
+
+  document.getElementById('s-materials').textContent = fmtCurrency(mats);
+  document.getElementById('s-labor').textContent     = fmtCurrency(labor);
+  document.getElementById('s-equip').textContent     = fmtCurrency(equip);
+  document.getElementById('s-sub').textContent       = fmtCurrency(sub);
+  document.getElementById('s-overhead').textContent  = fmtCurrency(overhead);
+  document.getElementById('s-direct').textContent    = fmtCurrency(direct);
+  document.getElementById('s-total').textContent     = fmtCurrency(total);
+  document.getElementById('marginInfo').innerHTML    = `${fmtCurrency(markup)} markup &nbsp;|&nbsp; <strong>${fmtCurrency(total)}</strong> quoted price`;
+
+  const sqft = parseFloat(document.getElementById('totalSqFt').value)||0;
+  const tons = calcTonnage();
+
+  if (sqft > 0) {
+    document.getElementById('calcDisplay').style.display = '';
+    document.getElementById('calcTons').textContent = tons > 0 ? tons.toFixed(1) + ' tons' : '—';
+  }
+
+  document.getElementById('pu-sqft').textContent   = sqft > 0 ? '$'+(direct/sqft).toFixed(2) : '—';
+  document.getElementById('pu-sqft-q').textContent = sqft > 0 ? '$'+(total/sqft).toFixed(2) : '—';
+  document.getElementById('pu-ton').textContent    = tons > 0 ? '$'+(direct/tons).toFixed(2) : '—';
+  document.getElementById('pu-area').textContent   = sqft > 0 ? sqft.toLocaleString()+' sq ft' : '—';
+  document.getElementById('pu-tons').textContent   = tons > 0 ? tons.toFixed(1)+' tons' : '—';
+}
+
+function fmtCurrency(n) {
+  return '$' + (n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function resetAll() {
+  if (!confirm('Reset all data? This cannot be undone.')) return;
+  ['materialsTbody','laborTbody','equipTbody','subTbody','overheadTbody'].forEach(id => {
+    document.getElementById(id).innerHTML = '';
+  });
+  ['jobName','clientName','jobDate','jobLocation','bidNum','totalSqFt'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('jobType').value = '';
+  buildTables();
+}
+
+// ─── Tab switching ─────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ─── Excel import (demo) ───────────────────────────────────────────────
+function handleExcelImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const overlay = document.getElementById('importOverlay');
+  overlay.style.display = 'flex';
+
+  // Simulate a read delay then populate with demo-randomized averages
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    document.getElementById('importedFileName').textContent = '✔ ' + file.name;
+
+    const rnd = (base, pct) => (base * (1 + (Math.random() * 2 - 1) * pct)).toFixed(2);
+    const rndPct = (base, spread) => (base + (Math.random() * 2 - 1) * spread).toFixed(1);
+    const jobs = Math.floor(Math.random() * 8) + 5; // 5–12 jobs
+    const label = `Avg of ${jobs} jobs from ${file.name}`;
+
+    // Materials
+    document.getElementById('avg-mat-ton').textContent  = '$' + rnd(142, 0.12);
+    document.getElementById('avg-mat-sqft').textContent = '$' + rnd(1.18, 0.15);
+    document.getElementById('avg-mat-job').textContent  = '$' + Number(rnd(18450, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('meta-materials').textContent = label;
+
+    // Labor
+    document.getElementById('avg-lab-hr').textContent   = '$' + rnd(38.5, 0.1);
+    document.getElementById('avg-lab-sqft').textContent = '$' + rnd(0.72, 0.15);
+    document.getElementById('avg-lab-job').textContent  = '$' + Number(rnd(11200, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('meta-labor').textContent = label;
+
+    // Equipment
+    document.getElementById('avg-eq-day').textContent   = '$' + Number(rnd(2850, 0.12)).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('avg-eq-sqft').textContent  = '$' + rnd(0.34, 0.15);
+    document.getElementById('avg-eq-job').textContent   = '$' + Number(rnd(8600, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('meta-equip').textContent = label;
+
+    // Subcontractors
+    document.getElementById('avg-sub-mill').textContent   = '$' + rnd(0.48, 0.15);
+    document.getElementById('avg-sub-stripe').textContent = '$' + rnd(0.22, 0.1);
+    document.getElementById('avg-sub-job').textContent    = '$' + Number(rnd(5300, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('meta-sub').textContent = label;
+
+    // Overhead
+    document.getElementById('avg-ov-pct').textContent = rndPct(8.5, 1.5) + '%';
+    document.getElementById('avg-ov-mob').textContent = '$' + Number(rnd(1200, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('avg-ov-job').textContent = '$' + Number(rnd(3650, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('meta-overhead').textContent = label;
+
+    // Overall cost/sqft
+    document.getElementById('avg-sf-cost').textContent   = '$' + rnd(3.24, 0.12);
+    document.getElementById('avg-sf-quoted').textContent = '$' + rnd(3.82, 0.12);
+    document.getElementById('avg-sf-margin').textContent = rndPct(17.9, 2.5) + '%';
+    document.getElementById('meta-sqft').textContent = label;
+
+    // Flash all cards to signal update
+    document.querySelectorAll('.avg-card').forEach(card => {
+      card.classList.add('card-flash');
+      setTimeout(() => card.classList.remove('card-flash'), 700);
+    });
+
+    // Reset input so same file can be re-imported
+    input.value = '';
+  }, 1400);
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────
+flatpickr('#jobDate', { dateFormat: 'm/d/Y', defaultDate: 'today' });
+buildTables();
+</script>
+</body>
+</html>
