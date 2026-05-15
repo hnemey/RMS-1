@@ -296,9 +296,75 @@
     .uc-toggle:hover { background: #e0e0e0; }
     .uc-toggle.is-override { border-color: var(--orange); background: #fff0e6; color: var(--orange2); font-weight: 700; }
 
+    /* ── Service Costing Card ── */
+    .service-section { margin-bottom: 24px; }
+    .service-section:last-child { margin-bottom: 0; }
+    .service-section-hdr {
+      font-size: .82rem;
+      font-weight: 800;
+      color: var(--dgray);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 8px 0 8px;
+      border-bottom: 2px solid var(--orange);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cost-table .total-hrs-input {
+      background: #fff8f0 !important;
+      border-color: var(--orange) !important;
+      color: var(--orange2) !important;
+      font-weight: 700 !important;
+      text-align: center;
+    }
+    .crew-hint {
+      font-size: .75rem;
+      color: #aaa;
+      font-style: italic;
+      margin-top: 6px;
+    }
+    .svc-notes {
+      width: 100%;
+      min-height: 110px;
+      resize: vertical;
+      border: 1.5px solid var(--gray);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: .92rem;
+      background: var(--lgray);
+      color: var(--black);
+    }
+    .svc-notes:focus {
+      outline: none;
+      border-color: var(--orange);
+      background: #fff;
+    }
+    .paint-color-dot {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid #ccc;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .job-type-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: var(--orange);
+      color: #fff;
+      margin-left: 10px;
+    }
+
     /* ── Print ── */
     @media print {
-      /* Force every element to print its background colors/images */
       * {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -308,7 +374,6 @@
 
       body { background: var(--cream) !important; font-size: 11px; }
 
-      /* Hide chrome UI */
       .tab-nav,
       .btn-danger,
       .btn-add,
@@ -317,11 +382,9 @@
       #importedFileName,
       #importOverlay { display: none !important; }
 
-      /* Show only the estimator tab */
       #tab-historical { display: none !important; }
       #tab-estimator  { display: block !important; padding: 20px 0 40px; max-width: 100%; }
 
-      /* Header */
       header {
         position: static !important;
         padding: 14px 24px;
@@ -330,7 +393,6 @@
         margin-bottom: 18px;
       }
 
-      /* Cards */
       .card {
         box-shadow: none !important;
         border: 1px solid #ccc;
@@ -344,7 +406,6 @@
       }
       .card-body { padding: 14px 18px; }
 
-      /* Form inputs — look like filled fields, not interactive */
       input, select, textarea {
         border: 1px solid #ccc !important;
         background: var(--lgray) !important;
@@ -353,11 +414,9 @@
       }
       select { padding-right: 8px; }
 
-      /* Avg-mode unit cost */
       .uc-input.avg-mode  { background: #edf7ed !important; color: #2e7d32 !important; }
       .uc-input.override-mode { background: #fff8f0 !important; }
 
-      /* Summary */
       .summary-row.total-row .s-label {
         background: var(--black) !important;
         color: var(--orange) !important;
@@ -368,18 +427,15 @@
       }
       .margin-row { background: var(--lgray) !important; }
 
-      /* Per-unit bar */
       .per-unit-bar { background: var(--black) !important; }
       .per-unit-bar .pu-label { color: #aaa !important; }
       .per-unit-bar .pu-value { color: var(--orange) !important; }
 
-      /* Cost table */
       .cost-table th {
         background: var(--black) !important;
         color: var(--orange) !important;
       }
 
-      /* Print/reset buttons row — hide completely */
       .card-body > div[style*="padding:18px"] { display: none !important; }
     }
   </style>
@@ -429,18 +485,25 @@
         </div>
         <div class="form-group">
           <label>Job Type</label>
-          <select id="jobType" onchange="updateSummary()">
-            <option value="">-- Select --</option>
-            <option>New Parking Lot</option>
-            <option>Parking Lot Overlay</option>
-            <option>Road / Street Paving</option>
-            <option>Driveway (Residential)</option>
-            <option>Driveway (Commercial)</option>
-            <option>Milling &amp; Overlay</option>
-            <option>Patching / Repair</option>
-            <option>Seal Coat &amp; Striping</option>
-            <option>Subdivision Road</option>
-            <option>Other</option>
+          <select id="jobType" onchange="onJobTypeChange()">
+            <option value="">-- Select Job Type --</option>
+            <optgroup label="Core Services">
+              <option value="Crack Seal">Crack Seal</option>
+              <option value="Sealcoat">Sealcoat</option>
+              <option value="Striping">Striping</option>
+              <option value="Other Project">Other Project</option>
+            </optgroup>
+            <optgroup label="Paving &amp; Construction">
+              <option value="New Parking Lot">New Parking Lot</option>
+              <option value="Parking Lot Overlay">Parking Lot Overlay</option>
+              <option value="Road / Street Paving">Road / Street Paving</option>
+              <option value="Driveway (Residential)">Driveway (Residential)</option>
+              <option value="Driveway (Commercial)">Driveway (Commercial)</option>
+              <option value="Milling &amp; Overlay">Milling &amp; Overlay</option>
+              <option value="Patching / Repair">Patching / Repair</option>
+              <option value="Seal Coat &amp; Striping">Seal Coat &amp; Striping</option>
+              <option value="Subdivision Road">Subdivision Road</option>
+            </optgroup>
           </select>
         </div>
         <div class="form-group">
@@ -451,8 +514,19 @@
     </div>
   </div>
 
-  <!-- Site Dimensions -->
-  <div class="card">
+  <!-- ══ SERVICE COSTING CARD (shown for core service types) ══ -->
+  <div class="card" id="serviceCard" style="display:none;">
+    <div class="card-header">
+      <span class="icon">&#128295;</span>
+      <span id="serviceCardTitle">Service Costing</span>
+    </div>
+    <div class="card-body" id="serviceCardBody">
+      <!-- dynamically populated by buildServiceCard() -->
+    </div>
+  </div>
+
+  <!-- Site Dimensions (hidden for service jobs) -->
+  <div class="card" id="dimCard">
     <div class="card-header"><span class="icon">&#128207;</span> Site Dimensions</div>
     <div class="card-body">
       <div class="form-grid">
@@ -511,8 +585,8 @@
     </div>
   </div>
 
-  <!-- Materials -->
-  <div class="card">
+  <!-- Materials (hidden for service jobs) -->
+  <div class="card" id="materialsCard">
     <div class="card-header"><span class="icon">&#9646;</span> Materials</div>
     <div class="card-body">
       <table class="cost-table" id="materialsTable">
@@ -532,8 +606,8 @@
     </div>
   </div>
 
-  <!-- Labor -->
-  <div class="card">
+  <!-- Labor (hidden for service jobs) -->
+  <div class="card" id="laborCard">
     <div class="card-header"><span class="icon">&#128119;</span> Labor</div>
     <div class="card-body">
       <table class="cost-table" id="laborTable">
@@ -553,8 +627,8 @@
     </div>
   </div>
 
-  <!-- Equipment -->
-  <div class="card">
+  <!-- Equipment (hidden for service jobs) -->
+  <div class="card" id="equipCard">
     <div class="card-header"><span class="icon">&#9881;</span> Equipment</div>
     <div class="card-body">
       <table class="cost-table" id="equipTable">
@@ -574,8 +648,8 @@
     </div>
   </div>
 
-  <!-- Subcontractors -->
-  <div class="card">
+  <!-- Subcontractors (hidden for service jobs) -->
+  <div class="card" id="subCard">
     <div class="card-header"><span class="icon">&#128101;</span> Subcontractors</div>
     <div class="card-body">
       <table class="cost-table" id="subTable">
@@ -595,8 +669,8 @@
     </div>
   </div>
 
-  <!-- Indirect / Overhead -->
-  <div class="card">
+  <!-- Indirect / Overhead (hidden for service jobs) -->
+  <div class="card" id="overheadCard">
     <div class="card-header"><span class="icon">&#128203;</span> Overhead &amp; Indirect Costs</div>
     <div class="card-body">
       <table class="cost-table" id="overheadTable">
@@ -622,11 +696,11 @@
     <div class="card-body" style="padding:0;">
 
       <div class="summary-grid" id="summaryGrid">
-        <div class="summary-row"><div class="s-label">Materials</div><div class="s-value" id="s-materials">$0.00</div></div>
-        <div class="summary-row"><div class="s-label">Labor</div><div class="s-value" id="s-labor">$0.00</div></div>
-        <div class="summary-row"><div class="s-label">Equipment</div><div class="s-value" id="s-equip">$0.00</div></div>
-        <div class="summary-row"><div class="s-label">Subcontractors</div><div class="s-value" id="s-sub">$0.00</div></div>
-        <div class="summary-row"><div class="s-label">Overhead &amp; Indirect</div><div class="s-value" id="s-overhead">$0.00</div></div>
+        <div class="summary-row" id="sum-row-materials"><div class="s-label" id="s-materials-lbl">Materials</div><div class="s-value" id="s-materials">$0.00</div></div>
+        <div class="summary-row" id="sum-row-labor"><div class="s-label" id="s-labor-lbl">Labor</div><div class="s-value" id="s-labor">$0.00</div></div>
+        <div class="summary-row" id="sum-row-equip"><div class="s-label" id="s-equip-lbl">Equipment</div><div class="s-value" id="s-equip">$0.00</div></div>
+        <div class="summary-row" id="sum-row-sub"><div class="s-label" id="s-sub-lbl">Subcontractors</div><div class="s-value" id="s-sub">$0.00</div></div>
+        <div class="summary-row" id="sum-row-overhead"><div class="s-label" id="s-overhead-lbl">Overhead &amp; Indirect</div><div class="s-value" id="s-overhead">$0.00</div></div>
         <div class="summary-row" style="border-top:2px solid var(--gray)">
           <div class="s-label" style="font-weight:700;">Total Direct Cost</div>
           <div class="s-value" id="s-direct" style="font-weight:700;">$0.00</div>
@@ -826,6 +900,298 @@
 <!-- ══════════ JAVASCRIPT ══════════ -->
 <script>
 
+// ─── Service type constants ────────────────────────────────────────────
+const CORE_SERVICE_TYPES = ['Crack Seal', 'Sealcoat', 'Striping', 'Other Project'];
+
+// ─── Job type change handler ───────────────────────────────────────────
+function onJobTypeChange() {
+  const val = document.getElementById('jobType').value;
+  const isService = CORE_SERVICE_TYPES.includes(val);
+
+  // Toggle paving sections
+  ['dimCard','materialsCard','laborCard','equipCard','subCard','overheadCard'].forEach(id => {
+    document.getElementById(id).style.display = isService ? 'none' : '';
+  });
+
+  // Toggle per-unit bar (only meaningful for paving)
+  document.getElementById('perUnitBar').style.display = isService ? 'none' : '';
+
+  // Toggle service card
+  const sc = document.getElementById('serviceCard');
+  if (isService) {
+    sc.style.display = '';
+    document.getElementById('serviceCardTitle').textContent = val + ' — Job Costing';
+    buildServiceCard(val);
+  } else {
+    sc.style.display = 'none';
+  }
+
+  updateSummary();
+}
+
+// ─── Service card HTML builders ────────────────────────────────────────
+function crewLaborTableHTML(tbodyId, sectionLabel) {
+  return `
+    <div class="service-section">
+      <div class="service-section-hdr">&#128119; ${sectionLabel}</div>
+      <table class="cost-table">
+        <thead><tr>
+          <th style="width:22%">Role / Task</th>
+          <th style="width:11%"># of Guys</th>
+          <th style="width:13%"># of Hrs Each</th>
+          <th style="width:11%">Total Hrs</th>
+          <th style="width:12%">Rate ($/hr)</th>
+          <th style="width:13%">Subtotal ($)</th>
+          <th style="width:5%"></th>
+        </tr></thead>
+        <tbody id="${tbodyId}"></tbody>
+      </table>
+      <p class="crew-hint">e.g. 8 guys &times; 9 hrs each = 72 total hours (auto-calculated)</p>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addCrewLaborRow('${tbodyId}')">+ Add Labor Row</button>
+    </div>`;
+}
+
+function materialTableHTML(tbodyId, sectionLabel, defaultUnit) {
+  return `
+    <div class="service-section">
+      <div class="service-section-hdr">&#9646; ${sectionLabel}</div>
+      <table class="cost-table">
+        <thead><tr>
+          <th style="width:30%">Item / Description</th>
+          <th style="width:13%">Qty</th>
+          <th style="width:12%">Unit</th>
+          <th style="width:15%">Unit Cost ($)</th>
+          <th style="width:14%">Subtotal ($)</th>
+          <th style="width:5%"></th>
+        </tr></thead>
+        <tbody id="${tbodyId}"></tbody>
+      </table>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addSvcMaterialRow('${tbodyId}','${defaultUnit}')">+ Add Item</button>
+    </div>`;
+}
+
+function equipTableHTML(tbodyId) {
+  return `
+    <div class="service-section">
+      <div class="service-section-hdr">&#9881; Equipment</div>
+      <table class="cost-table">
+        <thead><tr>
+          <th style="width:35%">Equipment</th>
+          <th style="width:18%">Hours</th>
+          <th style="width:20%">Hourly Rate ($)</th>
+          <th style="width:16%">Subtotal ($)</th>
+          <th style="width:5%"></th>
+        </tr></thead>
+        <tbody id="${tbodyId}"></tbody>
+      </table>
+      <button class="btn btn-dark btn-add btn-sm" onclick="addSvcEquipRow('${tbodyId}')">+ Add Equipment</button>
+    </div>`;
+}
+
+function buildServiceCard(type) {
+  const body = document.getElementById('serviceCardBody');
+
+  if (type === 'Crack Seal') {
+    body.innerHTML =
+      crewLaborTableHTML('svc-labor-body', 'Labor') +
+      materialTableHTML('svc-materials-body', 'Materials', 'Lbs') +
+      equipTableHTML('svc-equip-body');
+    // seed default rows
+    addCrewLaborRow('svc-labor-body', 'Crack Seal Crew');
+    addSvcMaterialRow('svc-materials-body', 'Lbs', 'Crack Filler / Sealant', '', 'Lbs', '');
+    addSvcEquipRow('svc-equip-body', 'Crack Seal Machine');
+
+  } else if (type === 'Sealcoat') {
+    body.innerHTML =
+      crewLaborTableHTML('svc-prep-body', 'Labor — Prep') +
+      crewLaborTableHTML('svc-app-body', 'Labor — Application') +
+      materialTableHTML('svc-sealer-body', 'Sealer Applied', 'Gallons');
+    addCrewLaborRow('svc-prep-body', 'Prep Crew');
+    addCrewLaborRow('svc-app-body', 'Application Crew');
+    addSvcMaterialRow('svc-sealer-body', 'Gallons', 'Sealer', '', 'Gallons', '');
+
+  } else if (type === 'Striping') {
+    body.innerHTML =
+      crewLaborTableHTML('svc-labor-body', 'Labor') +
+      `<div class="service-section">
+        <div class="service-section-hdr">&#127912; Paint Used</div>
+        <table class="cost-table">
+          <thead><tr>
+            <th style="width:28%">Color</th>
+            <th style="width:18%">Gallons</th>
+            <th style="width:20%">Cost per Gallon ($)</th>
+            <th style="width:18%">Subtotal ($)</th>
+            <th style="width:5%"></th>
+          </tr></thead>
+          <tbody id="svc-paint-body"></tbody>
+        </table>
+        <button class="btn btn-dark btn-add btn-sm" onclick="addPaintRow('svc-paint-body','Custom Color')">+ Add Paint Color</button>
+      </div>`;
+    addCrewLaborRow('svc-labor-body', 'Striping Crew');
+    addPaintRow('svc-paint-body', 'White');
+    addPaintRow('svc-paint-body', 'Yellow');
+    addPaintRow('svc-paint-body', 'Red');
+    addPaintRow('svc-paint-body', 'Blue');
+
+  } else if (type === 'Other Project') {
+    body.innerHTML =
+      crewLaborTableHTML('svc-labor-body', 'Labor') +
+      `<div class="service-section">
+        <div class="service-section-hdr">&#128203; Cost of Goods / Materials (COGS)</div>
+        <table class="cost-table">
+          <thead><tr>
+            <th style="width:55%">Description</th>
+            <th style="width:25%">Amount ($)</th>
+            <th style="width:15%">Subtotal ($)</th>
+            <th style="width:5%"></th>
+          </tr></thead>
+          <tbody id="svc-cogs-body"></tbody>
+        </table>
+        <button class="btn btn-dark btn-add btn-sm" onclick="addCOGSRow('svc-cogs-body')">+ Add COGS Item</button>
+      </div>
+      <div class="service-section">
+        <div class="service-section-hdr">&#128221; Notes</div>
+        <textarea class="svc-notes" id="svc-notes" placeholder="Describe what was done on this project. This information will be collected for tracking and reporting purposes."></textarea>
+      </div>`;
+    addCrewLaborRow('svc-labor-body');
+    addCOGSRow('svc-cogs-body');
+  }
+}
+
+// ─── Service row builders ──────────────────────────────────────────────
+
+function addCrewLaborRow(tbodyId, role = '') {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.svctype = 'crew-labor';
+  tr.innerHTML = `
+    <td><input type="text" value="${role}" placeholder="Role / Task" style="min-width:110px;" /></td>
+    <td><input type="number" placeholder="# Guys" min="0" step="1" style="width:72px;" oninput="calcCrewRow(this)" /></td>
+    <td><input type="number" placeholder="# Hrs" min="0" step="0.25" style="width:72px;" oninput="calcCrewRow(this)" /></td>
+    <td><input type="number" class="total-hrs-input" readonly placeholder="—" style="width:72px;" title="Total hours = # guys × # hrs each" /></td>
+    <td><input type="number" placeholder="$/hr" min="0" step="0.50" style="width:72px;" oninput="calcCrewRow(this)" /></td>
+    <td class="computed" data-sub="0">$0.00</td>
+    <td><button class="btn btn-danger" onclick="removeRow(this)">&#x2715;</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function calcCrewRow(input) {
+  const tr = input.closest('tr');
+  const nums = tr.querySelectorAll('input[type=number]');
+  // nums[0]=guys, nums[1]=hrs, nums[2]=totalHrs(readonly), nums[3]=rate
+  const guys = parseFloat(nums[0].value) || 0;
+  const hrs  = parseFloat(nums[1].value) || 0;
+  const rate = parseFloat(nums[3].value) || 0;
+  const totalHrs = guys * hrs;
+  nums[2].value = totalHrs > 0 ? totalHrs : '';
+  const sub = totalHrs * rate;
+  const cell = tr.querySelector('.computed');
+  cell.dataset.sub = sub;
+  cell.textContent = fmtCurrency(sub);
+  updateSummary();
+}
+
+function addSvcMaterialRow(tbodyId, defaultUnit = '', item = '', qty = '', unit = '', cost = '') {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const u = unit || defaultUnit;
+  const tr = document.createElement('tr');
+  tr.dataset.svctype = 'svc-material';
+  tr.innerHTML = `
+    <td><input type="text" value="${item}" placeholder="Description" style="min-width:110px;" /></td>
+    <td><input type="number" value="${qty}" placeholder="0" min="0" style="width:72px;" oninput="calcSvcMaterialRow(this)" /></td>
+    <td><input type="text" value="${u}" style="width:72px;" /></td>
+    <td><input type="number" value="${cost}" placeholder="0.00" min="0" step="0.01" style="width:80px;" oninput="calcSvcMaterialRow(this)" /></td>
+    <td class="computed" data-sub="0">$0.00</td>
+    <td><button class="btn btn-danger" onclick="removeRow(this)">&#x2715;</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function calcSvcMaterialRow(input) {
+  const tr = input.closest('tr');
+  const nums = tr.querySelectorAll('input[type=number]');
+  const sub = (parseFloat(nums[0].value) || 0) * (parseFloat(nums[1].value) || 0);
+  const cell = tr.querySelector('.computed');
+  cell.dataset.sub = sub;
+  cell.textContent = fmtCurrency(sub);
+  updateSummary();
+}
+
+function addSvcEquipRow(tbodyId, item = '') {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.svctype = 'svc-equip';
+  tr.innerHTML = `
+    <td><input type="text" value="${item}" placeholder="Equipment" style="min-width:140px;" /></td>
+    <td><input type="number" placeholder="Hours" min="0" step="0.5" style="width:80px;" oninput="calcSvcEquipRow(this)" /></td>
+    <td><input type="number" placeholder="$/hr" min="0" step="0.50" style="width:80px;" oninput="calcSvcEquipRow(this)" /></td>
+    <td class="computed" data-sub="0">$0.00</td>
+    <td><button class="btn btn-danger" onclick="removeRow(this)">&#x2715;</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function calcSvcEquipRow(input) {
+  const tr = input.closest('tr');
+  const nums = tr.querySelectorAll('input[type=number]');
+  const sub = (parseFloat(nums[0].value) || 0) * (parseFloat(nums[1].value) || 0);
+  const cell = tr.querySelector('.computed');
+  cell.dataset.sub = sub;
+  cell.textContent = fmtCurrency(sub);
+  updateSummary();
+}
+
+const PAINT_COLORS = { White: '#ffffff', Yellow: '#f5d020', Red: '#e53935', Blue: '#1565c0' };
+
+function addPaintRow(tbodyId, color) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const dot = PAINT_COLORS[color]
+    ? `<span class="paint-color-dot" style="background:${PAINT_COLORS[color]};"></span>`
+    : '';
+  const tr = document.createElement('tr');
+  tr.dataset.svctype = 'svc-paint';
+  tr.innerHTML = `
+    <td><span style="font-weight:600; display:flex; align-items:center;">${dot}${color}</span></td>
+    <td><input type="number" placeholder="0.0" min="0" step="0.1" style="width:80px;" oninput="calcSvcMaterialRow(this)" /></td>
+    <td><input type="number" placeholder="0.00" min="0" step="0.01" style="width:80px;" oninput="calcSvcMaterialRow(this)" /></td>
+    <td class="computed" data-sub="0">$0.00</td>
+    <td></td>`;
+  tbody.appendChild(tr);
+}
+
+function addCOGSRow(tbodyId, item = '') {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.svctype = 'svc-cogs';
+  tr.innerHTML = `
+    <td><input type="text" value="${item}" placeholder="Description" style="min-width:200px;" /></td>
+    <td><input type="number" placeholder="0.00" min="0" step="0.01" oninput="calcCOGSRow(this)" /></td>
+    <td class="computed" data-sub="0">$0.00</td>
+    <td><button class="btn btn-danger" onclick="removeRow(this)">&#x2715;</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function calcCOGSRow(input) {
+  const tr = input.closest('tr');
+  const cost = parseFloat(input.value) || 0;
+  const cell = tr.querySelector('.computed');
+  cell.dataset.sub = cost;
+  cell.textContent = fmtCurrency(cost);
+  updateSummary();
+}
+
+// ─── Sum service card by section tbody IDs ─────────────────────────────
+function sumById(tbodyId) {
+  const el = document.getElementById(tbodyId);
+  if (!el) return 0;
+  let t = 0;
+  el.querySelectorAll('.computed').forEach(td => { t += parseFloat(td.dataset.sub) || 0; });
+  return t;
+}
+
 // ─── Default rows: [label, qty, unit, _unused, avgUnitCost] ───────────
 const defaults = {
   materials: [
@@ -874,7 +1240,6 @@ function buildTables() {
   ['materials','labor','equip','sub','overhead'].forEach(type => {
     defaults[type].forEach(row => addRow(type, row));
   });
-  // trigger initial subtotal calc for every row
   document.querySelectorAll('[data-type]').forEach(tr => {
     const firstNum = tr.querySelector('input[type=number]');
     if (firstNum) calcRow(firstNum);
@@ -898,7 +1263,6 @@ function unitSelect(type, selected) {
 }
 
 function ucCell(avg, hasAvg) {
-  // hasAvg: true → locked green avg; false → blank override-mode ready to type
   if (hasAvg) {
     return `<td><div class="uc-wrap">
       <input type="number" class="uc-input avg-mode" value="${avg}" data-avg="${avg}" readonly min="0" step="0.01" oninput="calcRow(this)" />
@@ -955,7 +1319,6 @@ function addRow(type, vals) {
 function toggleUC(btn) {
   const input = btn.previousElementSibling;
   if (input.classList.contains('avg-mode')) {
-    // unlock for manual entry
     input.classList.replace('avg-mode', 'override-mode');
     input.removeAttribute('readonly');
     input.select();
@@ -963,7 +1326,6 @@ function toggleUC(btn) {
     btn.classList.add('is-override');
     btn.title = 'Revert to average';
   } else {
-    // revert to avg
     input.value = input.dataset.avg;
     input.classList.replace('override-mode', 'avg-mode');
     input.setAttribute('readonly', '');
@@ -980,11 +1342,8 @@ function calcRow(input) {
   const vals = Array.from(inputs).map(i => parseFloat(i.value) || 0);
   const type = tr.dataset.type;
   let sub = 0;
-  // materials/sub/overhead: [qty, unitCost] — 2 number inputs
   if (type === 'materials' || type === 'sub' || type === 'overhead') sub = vals[0] * vals[1];
-  // labor: [workers, hours, rate] — 3 number inputs
   if (type === 'labor') sub = vals[0] * vals[1] * vals[2];
-  // equip: [qty, days, dailyRate] — 3 number inputs
   if (type === 'equip') sub = vals[0] * vals[1] * vals[2];
 
   const cell = tr.querySelector('.computed');
@@ -1013,7 +1372,6 @@ function calcTonnage() {
   if (thick === 'custom') thick = parseFloat(document.getElementById('customThickness').value)||0;
   else thick = parseFloat(thick)||0;
   const density = parseFloat(document.getElementById('density').value)||145;
-  // tons = (sqft * (thick/12) * density) / 2000
   return sqft > 0 && thick > 0 ? (sqft * (thick/12) * density) / 2000 : 0;
 }
 
@@ -1025,13 +1383,64 @@ document.getElementById('thickness').addEventListener('change', function() {
 
 // ─── Summary update ────────────────────────────────────────────────────
 function updateSummary() {
-  const mats    = sumTable('materialsTbody');
-  const labor   = sumTable('laborTbody');
-  const equip   = sumTable('equipTbody');
-  const sub     = sumTable('subTbody');
-  const overhead= sumTable('overheadTbody');
-  const direct  = mats + labor + equip + sub + overhead;
+  const jobType = document.getElementById('jobType').value;
+  const isService = CORE_SERVICE_TYPES.includes(jobType);
 
+  let mats = 0, labor = 0, equip = 0, sub = 0, overhead = 0;
+
+  if (isService) {
+    if (jobType === 'Crack Seal') {
+      labor    = sumById('svc-labor-body');
+      mats     = sumById('svc-materials-body');
+      equip    = sumById('svc-equip-body');
+    } else if (jobType === 'Sealcoat') {
+      labor    = sumById('svc-prep-body') + sumById('svc-app-body');
+      mats     = sumById('svc-sealer-body');
+    } else if (jobType === 'Striping') {
+      labor    = sumById('svc-labor-body');
+      mats     = sumById('svc-paint-body');
+    } else if (jobType === 'Other Project') {
+      labor    = sumById('svc-labor-body');
+      mats     = sumById('svc-cogs-body');
+    }
+
+    // Relabel summary rows for service context
+    const lblMap = {
+      'Crack Seal':    { mats:'Materials (Lbs)', labor:'Labor', equip:'Equipment', sub:'', overhead:'' },
+      'Sealcoat':      { mats:'Sealer Applied', labor:'Labor (Prep + Application)', equip:'', sub:'', overhead:'' },
+      'Striping':      { mats:'Paint', labor:'Labor', equip:'', sub:'', overhead:'' },
+      'Other Project': { mats:'COGS / Materials', labor:'Labor', equip:'', sub:'', overhead:'' },
+    };
+    const lbl = lblMap[jobType];
+    document.getElementById('s-materials-lbl').textContent  = lbl.mats;
+    document.getElementById('s-labor-lbl').textContent      = lbl.labor;
+    document.getElementById('s-equip-lbl').textContent      = lbl.equip || 'Equipment';
+    document.getElementById('s-sub-lbl').textContent        = 'Subcontractors';
+    document.getElementById('s-overhead-lbl').textContent   = 'Overhead & Indirect';
+
+    // Hide rows that don't apply
+    document.getElementById('sum-row-equip').style.display    = (jobType === 'Crack Seal') ? '' : 'none';
+    document.getElementById('sum-row-sub').style.display      = 'none';
+    document.getElementById('sum-row-overhead').style.display = 'none';
+
+  } else {
+    mats     = sumTable('materialsTbody');
+    labor    = sumTable('laborTbody');
+    equip    = sumTable('equipTbody');
+    sub      = sumTable('subTbody');
+    overhead = sumTable('overheadTbody');
+
+    document.getElementById('s-materials-lbl').textContent  = 'Materials';
+    document.getElementById('s-labor-lbl').textContent      = 'Labor';
+    document.getElementById('s-equip-lbl').textContent      = 'Equipment';
+    document.getElementById('s-sub-lbl').textContent        = 'Subcontractors';
+    document.getElementById('s-overhead-lbl').textContent   = 'Overhead & Indirect';
+    document.getElementById('sum-row-equip').style.display    = '';
+    document.getElementById('sum-row-sub').style.display      = '';
+    document.getElementById('sum-row-overhead').style.display = '';
+  }
+
+  const direct = mats + labor + equip + sub + overhead;
   const marginPct = parseFloat(document.getElementById('marginPct').value)||0;
   const markup    = direct * (marginPct / 100);
   const total     = direct + markup;
@@ -1045,19 +1454,19 @@ function updateSummary() {
   document.getElementById('s-total').textContent     = fmtCurrency(total);
   document.getElementById('marginInfo').innerHTML    = `${fmtCurrency(markup)} markup &nbsp;|&nbsp; <strong>${fmtCurrency(total)}</strong> quoted price`;
 
-  const sqft = parseFloat(document.getElementById('totalSqFt').value)||0;
-  const tons = calcTonnage();
-
-  if (sqft > 0) {
-    document.getElementById('calcDisplay').style.display = '';
-    document.getElementById('calcTons').textContent = tons > 0 ? tons.toFixed(1) + ' tons' : '—';
+  if (!isService) {
+    const sqft = parseFloat(document.getElementById('totalSqFt').value)||0;
+    const tons = calcTonnage();
+    if (sqft > 0) {
+      document.getElementById('calcDisplay').style.display = '';
+      document.getElementById('calcTons').textContent = tons > 0 ? tons.toFixed(1) + ' tons' : '—';
+    }
+    document.getElementById('pu-sqft').textContent   = sqft > 0 ? '$'+(direct/sqft).toFixed(2) : '—';
+    document.getElementById('pu-sqft-q').textContent = sqft > 0 ? '$'+(total/sqft).toFixed(2) : '—';
+    document.getElementById('pu-ton').textContent    = tons > 0 ? '$'+(direct/tons).toFixed(2) : '—';
+    document.getElementById('pu-area').textContent   = sqft > 0 ? sqft.toLocaleString()+' sq ft' : '—';
+    document.getElementById('pu-tons').textContent   = tons > 0 ? tons.toFixed(1)+' tons' : '—';
   }
-
-  document.getElementById('pu-sqft').textContent   = sqft > 0 ? '$'+(direct/sqft).toFixed(2) : '—';
-  document.getElementById('pu-sqft-q').textContent = sqft > 0 ? '$'+(total/sqft).toFixed(2) : '—';
-  document.getElementById('pu-ton').textContent    = tons > 0 ? '$'+(direct/tons).toFixed(2) : '—';
-  document.getElementById('pu-area').textContent   = sqft > 0 ? sqft.toLocaleString()+' sq ft' : '—';
-  document.getElementById('pu-tons').textContent   = tons > 0 ? tons.toFixed(1)+' tons' : '—';
 }
 
 function fmtCurrency(n) {
@@ -1073,6 +1482,18 @@ function resetAll() {
     document.getElementById(id).value = '';
   });
   document.getElementById('jobType').value = '';
+  // reset service card
+  document.getElementById('serviceCard').style.display = 'none';
+  document.getElementById('serviceCardBody').innerHTML = '';
+  // show paving sections
+  ['dimCard','materialsCard','laborCard','equipCard','subCard','overheadCard'].forEach(id => {
+    document.getElementById(id).style.display = '';
+  });
+  document.getElementById('perUnitBar').style.display = '';
+  // restore summary row visibility
+  ['sum-row-equip','sum-row-sub','sum-row-overhead'].forEach(id => {
+    document.getElementById(id).style.display = '';
+  });
   buildTables();
 }
 
@@ -1092,59 +1513,50 @@ function handleExcelImport(input) {
   const overlay = document.getElementById('importOverlay');
   overlay.style.display = 'flex';
 
-  // Simulate a read delay then populate with demo-randomized averages
   setTimeout(() => {
     overlay.style.display = 'none';
     document.getElementById('importedFileName').textContent = '✔ ' + file.name;
 
     const rnd = (base, pct) => (base * (1 + (Math.random() * 2 - 1) * pct)).toFixed(2);
     const rndPct = (base, spread) => (base + (Math.random() * 2 - 1) * spread).toFixed(1);
-    const jobs = Math.floor(Math.random() * 8) + 5; // 5–12 jobs
+    const jobs = Math.floor(Math.random() * 8) + 5;
     const label = `Avg of ${jobs} jobs from ${file.name}`;
 
-    // Materials
     document.getElementById('avg-mat-ton').textContent  = '$' + rnd(142, 0.12);
     document.getElementById('avg-mat-sqft').textContent = '$' + rnd(1.18, 0.15);
     document.getElementById('avg-mat-job').textContent  = '$' + Number(rnd(18450, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
     document.getElementById('meta-materials').textContent = label;
 
-    // Labor
     document.getElementById('avg-lab-hr').textContent   = '$' + rnd(38.5, 0.1);
     document.getElementById('avg-lab-sqft').textContent = '$' + rnd(0.72, 0.15);
     document.getElementById('avg-lab-job').textContent  = '$' + Number(rnd(11200, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
     document.getElementById('meta-labor').textContent = label;
 
-    // Equipment
     document.getElementById('avg-eq-day').textContent   = '$' + Number(rnd(2850, 0.12)).toLocaleString('en-US', {maximumFractionDigits:0});
     document.getElementById('avg-eq-sqft').textContent  = '$' + rnd(0.34, 0.15);
     document.getElementById('avg-eq-job').textContent   = '$' + Number(rnd(8600, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
     document.getElementById('meta-equip').textContent = label;
 
-    // Subcontractors
     document.getElementById('avg-sub-mill').textContent   = '$' + rnd(0.48, 0.15);
     document.getElementById('avg-sub-stripe').textContent = '$' + rnd(0.22, 0.1);
     document.getElementById('avg-sub-job').textContent    = '$' + Number(rnd(5300, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
     document.getElementById('meta-sub').textContent = label;
 
-    // Overhead
     document.getElementById('avg-ov-pct').textContent = rndPct(8.5, 1.5) + '%';
     document.getElementById('avg-ov-mob').textContent = '$' + Number(rnd(1200, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
     document.getElementById('avg-ov-job').textContent = '$' + Number(rnd(3650, 0.2)).toLocaleString('en-US', {maximumFractionDigits:0});
     document.getElementById('meta-overhead').textContent = label;
 
-    // Overall cost/sqft
     document.getElementById('avg-sf-cost').textContent   = '$' + rnd(3.24, 0.12);
     document.getElementById('avg-sf-quoted').textContent = '$' + rnd(3.82, 0.12);
     document.getElementById('avg-sf-margin').textContent = rndPct(17.9, 2.5) + '%';
     document.getElementById('meta-sqft').textContent = label;
 
-    // Flash all cards to signal update
     document.querySelectorAll('.avg-card').forEach(card => {
       card.classList.add('card-flash');
       setTimeout(() => card.classList.remove('card-flash'), 700);
     });
 
-    // Reset input so same file can be re-imported
     input.value = '';
   }, 1400);
 }
