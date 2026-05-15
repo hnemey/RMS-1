@@ -2102,10 +2102,101 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// ─── Demo seed data ────────────────────────────────────────────────────
+function seedDemoProjects() {
+  if (loadProjects().length > 0) return;
+
+  const demos = [
+    {
+      id: 'rms_demo_1',
+      name: 'Highlands Ranch Office Park',
+      client: 'Peak Property Group',
+      date: '03/12/2026',
+      location: 'Highlands Ranch, CO',
+      type: 'New Parking Lot',
+      bidNum: 'RMS-2026-004',
+      status: 'accepted',
+      sqft: 28400,
+      tons: 216.7,
+      estimate: { materials: 32800, labor: 18500, equip: 12400, sub: 7200, overhead: 4800, direct: 75700, markup: 11355, quoted: 87055, marginPct: 15 },
+      actual:   { materials: 34100, labor: 19200, equip: 12400, sub: 6900, overhead: 5100, billed: 87055 },
+      savedAt: '2026-03-10T09:15:00',
+      acceptedAt: '2026-04-18T14:30:00',
+    },
+    {
+      id: 'rms_demo_2',
+      name: 'Southgate Mall Overlay',
+      client: 'Centennial Retail LLC',
+      date: '02/04/2026',
+      location: 'Centennial, CO',
+      type: 'Parking Lot Overlay',
+      bidNum: 'RMS-2026-002',
+      status: 'accepted',
+      sqft: 41200,
+      tons: 247.2,
+      estimate: { materials: 38600, labor: 22100, equip: 15800, sub: 11400, overhead: 5900, direct: 93800, markup: 15927, quoted: 109727, marginPct: 17 },
+      actual:   { materials: 37200, labor: 21800, equip: 16300, sub: 11400, overhead: 6100, billed: 109727 },
+      savedAt: '2026-01-28T11:00:00',
+      acceptedAt: '2026-03-22T10:15:00',
+    },
+    {
+      id: 'rms_demo_3',
+      name: 'Pine Valley Subdivision Roads',
+      client: 'Ridgeline Development',
+      date: '04/22/2026',
+      location: 'Castle Rock, CO',
+      type: 'Subdivision Road',
+      bidNum: 'RMS-2026-007',
+      status: 'accepted',
+      sqft: 63000,
+      tons: 567.0,
+      estimate: { materials: 84200, labor: 41000, equip: 28600, sub: 18300, overhead: 9100, direct: 181200, markup: 32616, quoted: 213816, marginPct: 18 },
+      actual:   { materials: 88900, labor: 43500, equip: 27800, sub: 19100, overhead: 9800, billed: 213816 },
+      savedAt: '2026-04-15T08:45:00',
+      acceptedAt: '2026-05-10T16:00:00',
+    },
+    {
+      id: 'rms_demo_4',
+      name: 'Aurora Medical Campus Driveway',
+      client: 'HealthPlex Partners',
+      date: '05/20/2026',
+      location: 'Aurora, CO',
+      type: 'Driveway (Commercial)',
+      bidNum: 'RMS-2026-009',
+      status: 'estimate',
+      sqft: 9800,
+      tons: 58.8,
+      estimate: { materials: 11400, labor: 7200, equip: 5100, sub: 2600, overhead: 1900, direct: 28200, markup: 4512, quoted: 32712, marginPct: 16 },
+      actual: null,
+      savedAt: '2026-05-13T13:20:00',
+      acceptedAt: null,
+    },
+    {
+      id: 'rms_demo_5',
+      name: 'I-25 Frontage Rd Milling & Overlay',
+      client: 'CDOT Subcontract',
+      date: '06/01/2026',
+      location: 'Monument, CO',
+      type: 'Milling & Overlay',
+      bidNum: 'RMS-2026-011',
+      status: 'estimate',
+      sqft: 52000,
+      tons: 390.0,
+      estimate: { materials: 61800, labor: 33400, equip: 24200, sub: 14700, overhead: 7600, direct: 141700, markup: 26923, quoted: 168623, marginPct: 19 },
+      actual: null,
+      savedAt: '2026-05-14T10:05:00',
+      acceptedAt: null,
+    },
+  ];
+
+  storeProjects(demos);
+}
+
 // ─── Init ──────────────────────────────────────────────────────────────
 flatpickr('#jobDate', { dateFormat: 'm/d/Y', defaultDate: 'today' });
 buildTables();
 updateDashboard();
+seedDemoProjects();
 renderProjectsList();
 initCharts();
 </script>
