@@ -6,6 +6,7 @@
   <title>Rocky Mountain Services – Job Cost Estimator</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --black:   #0d0d0d;
@@ -510,6 +511,11 @@
           <label>Bid / Quote #</label>
           <input type="text" id="bidNum" placeholder="e.g. RMS-2026-001" />
         </div>
+        <div class="form-group">
+          <label>Salesperson</label>
+          <input type="text" id="salesperson" placeholder="Who sold this job?" list="salesperson-list" />
+          <datalist id="salesperson-list"></datalist>
+        </div>
       </div>
     </div>
   </div>
@@ -728,9 +734,16 @@
         <div class="pu-item"><div class="pu-label">Est. Tonnage</div><div class="pu-value" id="pu-tons">—</div></div>
       </div>
 
-      <div style="padding:18px; display:flex; gap:12px; flex-wrap:wrap;">
+      <div style="padding:18px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
         <button class="btn btn-primary" onclick="window.print()">&#128424; Print / Export PDF</button>
         <button class="btn btn-dark" onclick="resetAll()">&#8635; Reset All</button>
+        <div style="width:100%; margin-top:8px;">
+          <div id="job-accepted-msg" style="display:none; margin-bottom:10px;"></div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn" id="acceptBtn" style="background:#2e7d32; color:#fff;" onclick="acceptJob()">&#10003; Accept Quote — Send to Operations</button>
+            <button class="btn btn-dark" id="completeBtn" style="display:none;" onclick="completeJob()">&#9873; Mark Job Complete</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -899,6 +912,151 @@
 
 <!-- ══════════ JAVASCRIPT ══════════ -->
 <script>
+
+// ─── Supabase Config ───────────────────────────────────────────────────
+// TODO: Paste your Supabase project URL and anon key here after setup
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_ENABLED  = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+
+let db = null;
+if (SUPABASE_ENABLED) {
+  const { createClient } = supabase;
+  db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  loadEmployeeList();
+}
+
+let _acceptedJobId = null; // set after Accept push succeeds
+
+async function loadEmployeeList() {
+  if (!db) return;
+  const { data } = await db.from('employees').select('name').order('name');
+  if (data) {
+    const dl = document.getElementById('salesperson-list');
+    dl.innerHTML = data.map(e => `<option value="${e.name}">`).join('');
+  }
+}
+
+async function acceptJob() {
+  const jobName    = document.getElementById('jobName').value.trim();
+  const salesperson = document.getElementById('salesperson').value.trim();
+  const totalEl    = document.getElementById('s-total');
+  const directEl   = document.getElementById('s-direct');
+  const quotedPrice = parseFloat(totalEl.textContent.replace(/[^0-9.]/g, '')) || 0;
+  const directCost  = parseFloat(directEl.textContent.replace(/[^0-9.]/g, '')) || 0;
+
+  if (!jobName)     { alert('Please enter a Project Name before accepting.'); return; }
+  if (!salesperson) { alert('Please enter the Salesperson name before accepting.'); return; }
+  if (quotedPrice === 0) { alert('Quoted price is $0 — please add some costs first.'); return; }
+
+  const confirmed = confirm(
+    `Accept quote for "${jobName}"?\n\nQuoted Price: $${quotedPrice.toLocaleString()}\nSalesperson: ${salesperson}\n\nThis will create the job in the Operations Portal.`
+  );
+  if (!confirmed) return;
+
+  const payload = {
+    job_name:     jobName,
+    client_name:  document.getElementById('clientName').value.trim() || null,
+    job_type:     document.getElementById('jobType').value || null,
+    location:     document.getElementById('jobLocation').value.trim() || null,
+    bid_number:   document.getElementById('bidNum').value.trim() || null,
+    job_date:     document.getElementById('jobDate').value || null,
+    salesperson,
+    status:       'Active',
+    quoted_price: quotedPrice,
+    direct_cost:  directCost,
+    margin_pct:   parseFloat(document.getElementById('marginPct').value) || 0,
+    costing_data: { capturedAt: new Date().toISOString() },
+    lead_id:      window._leadId ? parseInt(window._leadId) : null,
+  };
+
+  if (SUPABASE_ENABLED && db) {
+    try {
+      const { data, error } = await db.from('jobs').insert([payload]).select().single();
+      if (error) throw error;
+      _acceptedJobId = data.id;
+      showAccepted(data.id, quotedPrice);
+    } catch (err) {
+      alert('Failed to push to Operations Portal:\n' + err.message);
+    }
+  } else {
+    _acceptedJobId = 'DEMO';
+    showAccepted('DEMO', quotedPrice);
+  }
+}
+
+function showAccepted(jobId, quotedPrice) {
+  document.getElementById('acceptBtn').style.display = 'none';
+  document.getElementById('completeBtn').style.display = 'inline-flex';
+  const msg = document.getElementById('job-accepted-msg');
+  msg.style.display = 'block';
+  msg.innerHTML = `
+    <div style="background:#e8f5e9; border:1px solid #4caf50; border-radius:8px; padding:12px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span style="font-size:1.3rem;">✅</span>
+      <div>
+        <div style="font-weight:700; color:#2e7d32;">Quote Accepted — Job #${jobId}</div>
+        <div style="font-size:.83rem; color:#555;">Sent to Operations Portal · Quoted at $${parseFloat(quotedPrice).toLocaleString()}</div>
+      </div>
+      <a href="portal.html" style="margin-left:auto; padding:7px 14px; background:#2e7d32; color:#fff; border-radius:6px; font-size:.8rem; font-weight:700; text-decoration:none; white-space:nowrap;">View in Portal →</a>
+    </div>`;
+}
+
+async function completeJob() {
+  if (!_acceptedJobId) { alert('Accept the quote first.'); return; }
+
+  const salesperson = document.getElementById('salesperson').value.trim();
+  const quotedPrice = parseFloat(document.getElementById('s-total').textContent.replace(/[^0-9.]/g,'')) || 0;
+
+  const actualCostStr = prompt(`Enter actual total cost:\n(Quoted was $${quotedPrice.toLocaleString()})`);
+  if (actualCostStr === null) return;
+  const actualCost = parseFloat(actualCostStr) || 0;
+
+  const actualRevStr = prompt(`Enter actual revenue received:\n(Press OK to use quoted price: $${quotedPrice.toLocaleString()})`);
+  const actualRevenue = (actualRevStr && parseFloat(actualRevStr)) ? parseFloat(actualRevStr) : quotedPrice;
+
+  const period = new Date().toISOString().slice(0, 7); // "2026-05"
+  const jobName = document.getElementById('jobName').value.trim();
+  const jobType = document.getElementById('jobType').value;
+
+  if (SUPABASE_ENABLED && db && typeof _acceptedJobId === 'number') {
+    try {
+      await db.from('jobs').update({
+        status: 'Complete',
+        actual_cost: actualCost,
+        actual_revenue: actualRevenue,
+        completed_date: new Date().toISOString().split('T')[0],
+      }).eq('id', _acceptedJobId);
+
+      let rate = 0.05;
+      if (salesperson) {
+        const { data: emp } = await db.from('employees').select('commission_rate').eq('name', salesperson).single();
+        if (emp) rate = parseFloat(emp.commission_rate);
+      }
+
+      const commAmount = actualRevenue * rate;
+      await db.from('commissions').insert([{
+        job_id:        _acceptedJobId,
+        job_name:      jobName,
+        employee_name: salesperson,
+        service_type:  jobType,
+        period,
+        revenue:       actualRevenue,
+        rate,
+        amount:        commAmount,
+      }]);
+
+      const commFmt = commAmount.toLocaleString('en-US',{style:'currency',currency:'USD'});
+      alert(`✅ Job Complete!\n\nActual Cost: $${actualCost.toLocaleString()}\nRevenue: $${actualRevenue.toLocaleString()}\nCommission (${(rate*100).toFixed(1)}%): ${commFmt}\n\nRecorded for ${salesperson}.`);
+      document.getElementById('completeBtn').textContent = '✅ Job Completed';
+      document.getElementById('completeBtn').disabled = true;
+    } catch (err) {
+      alert('Error recording completion:\n' + err.message);
+    }
+  } else {
+    const commAmount = actualRevenue * 0.05;
+    alert(`✅ Job Complete (demo mode)\n\nActual Cost: $${actualCost.toLocaleString()}\nRevenue: $${actualRevenue.toLocaleString()}\nCommission (5%): $${commAmount.toLocaleString('en-US',{minimumFractionDigits:2})}`);
+  }
+}
 
 // ─── Service type constants ────────────────────────────────────────────
 const CORE_SERVICE_TYPES = ['Crack Seal', 'Sealcoat', 'Striping', 'Other Project'];
@@ -1564,6 +1722,28 @@ function handleExcelImport(input) {
 // ─── Init ──────────────────────────────────────────────────────────────
 flatpickr('#jobDate', { dateFormat: 'm/d/Y', defaultDate: 'today' });
 buildTables();
+
+// Pre-fill from portal lead link: estimator.html?lead_id=5&client=Smith&location=Nampa&job_type=Sealcoat
+(function prefillFromLead() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('lead_id')) {
+    window._leadId = p.get('lead_id');
+    if (p.get('client'))   document.getElementById('clientName').value  = p.get('client');
+    if (p.get('location')) document.getElementById('jobLocation').value = p.get('location');
+    if (p.get('job_type')) {
+      const sel = document.getElementById('jobType');
+      // pick closest matching option
+      const raw = p.get('job_type').toLowerCase();
+      const match = [...sel.options].find(o => o.value.toLowerCase().includes(raw) || raw.includes(o.value.toLowerCase()));
+      if (match) { sel.value = match.value; onJobTypeChange(); }
+    }
+    // Banner so user knows this came from a lead
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:#e3f2fd;border:1px solid #1565c0;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:.88rem;color:#1565c0;font-weight:600;';
+    banner.innerHTML = `&#128270; Pre-filled from Lead #${window._leadId} — <a href="portal.html" style="color:#1565c0;">Back to Portal</a>`;
+    document.getElementById('tab-estimator').insertBefore(banner, document.getElementById('tab-estimator').firstChild);
+  }
+})();
 </script>
 </body>
 </html>

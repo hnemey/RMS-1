@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>RMS — Submit a Lead</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --orange:  #e05a1b;
+      --orange2: #c94e16;
+      --black:   #0d0d0d;
+      --white:   #ffffff;
+      --cream:   #f5efe6;
+      --gray:    #e0d8cf;
+      --dgray:   #555;
+      --lgray:   #f0ebe4;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--cream);
+      color: var(--black);
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+    header {
+      background: var(--black);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 2px 10px rgba(0,0,0,.5);
+    }
+    header img { height: 48px; width: 48px; border-radius: 50%; object-fit: cover; }
+    header .htext h1 { color: var(--orange); font-size: 1.1rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    header .htext p  { color: #aaa; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+    header a { margin-left: auto; color: #aaa; font-size: .78rem; text-decoration: none; padding: 6px 12px; border: 1px solid #444; border-radius: 6px; }
+    header a:hover { border-color: var(--orange); color: var(--orange); }
+
+    .container { max-width: 600px; margin: 0 auto; padding: 24px 16px; }
+
+    /* ── Section card ── */
+    .section-card {
+      background: var(--white);
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .section-hdr {
+      background: var(--black);
+      color: var(--orange);
+      padding: 10px 18px;
+      font-weight: 700;
+      font-size: .8rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .section-body { padding: 18px; }
+
+    /* ── Form controls ── */
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--dgray);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .field label .req { color: var(--orange); margin-left: 2px; }
+    .field input, .field textarea, .field select {
+      border: 1.5px solid var(--gray);
+      border-radius: 7px;
+      padding: 11px 14px;
+      font-size: .95rem;
+      color: var(--black);
+      background: var(--lgray);
+      width: 100%;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus {
+      outline: none;
+      border-color: var(--orange);
+      background: #fff;
+    }
+    .field textarea { min-height: 90px; resize: vertical; }
+
+    /* ── Urgency selector ── */
+    .urgency-row { display: flex; gap: 8px; }
+    .urgency-btn {
+      flex: 1;
+      padding: 10px 6px;
+      border: 2px solid var(--gray);
+      border-radius: 7px;
+      background: var(--lgray);
+      font-size: .78rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: all .15s;
+    }
+    .urgency-btn.active-low    { border-color: #4caf50; background: #e8f5e9; color: #2e7d32; }
+    .urgency-btn.active-medium { border-color: #ff9800; background: #fff3e0; color: #e65100; }
+    .urgency-btn.active-high   { border-color: #f44336; background: #ffebee; color: #c62828; }
+    .urgency-btn.active-urgent { border-color: #b71c1c; background: #b71c1c; color: #fff; }
+
+    /* ── Location ── */
+    .loc-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border: 1.5px solid var(--gray);
+      border-radius: 7px;
+      background: var(--lgray);
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      width: 100%;
+      justify-content: center;
+      transition: all .15s;
+    }
+    .loc-btn:hover, .loc-btn:active { border-color: var(--orange); background: #fff8f2; }
+    .loc-status { font-size: .78rem; color: #888; margin-top: 6px; text-align: center; }
+    .loc-status.got { color: #2e7d32; font-weight: 600; }
+
+    /* ── Photos ── */
+    .photo-drop {
+      border: 2px dashed var(--gray);
+      border-radius: 8px;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--lgray);
+      transition: all .15s;
+    }
+    .photo-drop:hover { border-color: var(--orange); background: #fff8f2; }
+    .photo-drop p { font-size: .88rem; color: #888; margin-top: 6px; }
+    #photo-input { display: none; }
+    .photo-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .photo-preview {
+      position: relative;
+      width: 80px; height: 80px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid var(--gray);
+    }
+    .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-preview .remove-photo {
+      position: absolute; top: 2px; right: 2px;
+      background: rgba(0,0,0,.6); color: #fff;
+      border: none; border-radius: 50%;
+      width: 20px; height: 20px;
+      font-size: .7rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Submit ── */
+    .submit-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--orange);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background .2s;
+    }
+    .submit-btn:hover { background: var(--orange2); }
+    .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* ── Success screen ── */
+    #success-screen {
+      display: none;
+      text-align: center;
+      padding: 60px 24px;
+    }
+    .success-icon { font-size: 4rem; margin-bottom: 16px; }
+    .success-title { font-size: 1.5rem; font-weight: 800; color: var(--black); margin-bottom: 10px; }
+    .success-sub { font-size: .95rem; color: #666; margin-bottom: 28px; line-height: 1.5; }
+    .submit-another {
+      display: inline-block;
+      padding: 12px 28px;
+      background: var(--orange);
+      color: #fff;
+      border-radius: 8px;
+      font-weight: 700;
+      text-decoration: none;
+      font-size: .88rem;
+      cursor: pointer;
+    }
+
+    /* ── Error msg ── */
+    .err-bar {
+      display: none;
+      background: #ffebee;
+      border: 1px solid #f44336;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: .85rem;
+      color: #c62828;
+      margin-bottom: 12px;
+    }
+
+    /* ── Loading overlay ── */
+    #loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 5px solid rgba(255,255,255,.2);
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-overlay p { color: #fff; font-weight: 600; letter-spacing: .05em; }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <img src="447670405_1005316078263765_5653249414914125489_n.jpg" alt="RMS Logo" />
+  <div class="htext">
+    <h1>Rocky Mountain Services</h1>
+    <p>Submit a Lead</p>
+  </div>
+  <a href="portal.html">Sales Portal →</a>
+</header>
+
+<!-- ══ LOADING OVERLAY ══ -->
+<div id="loading-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:14px;">
+  <div class="spinner"></div>
+  <p style="color:#fff; font-weight:600; letter-spacing:.05em;">Submitting lead…</p>
+</div>
+
+<!-- ══ FORM ══ -->
+<div class="container">
+  <div id="form-view">
+    <div class="err-bar" id="err-bar"></div>
+
+    <!-- Section 1: Your Info -->
+    <div class="section-card">
+      <div class="section-hdr">&#128100; Your Info</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Your Name <span class="req">*</span></label>
+          <input type="text" id="submitter" placeholder="Your full name" autocomplete="name" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Opportunity -->
+    <div class="section-card">
+      <div class="section-hdr">&#128270; Opportunity Details</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Opportunity Type <span class="req">*</span></label>
+          <select id="opp-type">
+            <option value="">— Select type —</option>
+            <option>Commercial Property</option>
+            <option>Residential</option>
+            <option>HOA</option>
+            <option>Industrial</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Description <span class="req">*</span></label>
+          <textarea id="description" placeholder="What did you see? What services might they need? Any relevant details…"></textarea>
+        </div>
+        <div class="field">
+          <label>Urgency <span class="req">*</span></label>
+          <div class="urgency-row">
+            <button class="urgency-btn" data-val="Low"    onclick="setUrgency('Low')">Low</button>
+            <button class="urgency-btn" data-val="Medium" onclick="setUrgency('Medium')">Medium</button>
+            <button class="urgency-btn" data-val="High"   onclick="setUrgency('High')">High</button>
+            <button class="urgency-btn" data-val="Urgent" onclick="setUrgency('Urgent')">🔥 Urgent</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Contact -->
+    <div class="section-card">
+      <div class="section-hdr">&#128222; Contact Info <span style="font-weight:400; opacity:.6;">(optional)</span></div>
+      <div class="section-body">
+        <div class="field">
+          <label>Contact Name</label>
+          <input type="text" id="contact-name" placeholder="Property manager, owner, etc." autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Phone Number</label>
+          <input type="tel" id="phone" placeholder="(208) 555-0100" autocomplete="tel" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Location -->
+    <div class="section-card">
+      <div class="section-hdr">&#128205; Location</div>
+      <div class="section-body">
+        <div class="field">
+          <label>Address / Location Description</label>
+          <input type="text" id="address" placeholder="Street address or landmark" />
+        </div>
+        <button class="loc-btn" onclick="getLocation()">
+          <span>&#127759;</span> Use My Current Location
+        </button>
+        <div class="loc-status" id="loc-status"></div>
+      </div>
+    </div>
+
+    <!-- Section 5: Photos -->
+    <div class="section-card">
+      <div class="section-hdr">&#128247; Photos <span style="font-weight:400; opacity:.6;">(optional)</span></div>
+      <div class="section-body">
+        <div class="photo-drop" onclick="document.getElementById('photo-input').click()">
+          <span style="font-size:2rem;">&#128247;</span>
+          <p>Tap to take a photo or choose from gallery</p>
+        </div>
+        <input type="file" id="photo-input" accept="image/*" multiple capture="environment" onchange="addPhotos(this)" />
+        <div class="photo-grid" id="photo-grid"></div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="err-bar" id="err-bar-bottom"></div>
+    <button class="submit-btn" onclick="submitLead()">Submit Lead to Sales Team</button>
+  </div>
+
+  <!-- Success screen -->
+  <div id="success-screen">
+    <div class="success-icon">✅</div>
+    <div class="success-title">Lead Submitted!</div>
+    <div class="success-sub">The sales team has been notified and will follow up shortly.<br>Thank you for spotting the opportunity!</div>
+    <span class="submit-another" onclick="resetForm()">Submit Another Lead</span>
+  </div>
+</div>
+
+<script>
+// ─── Supabase Config ───────────────────────────────────────────────────
+// TODO: Paste your Supabase project URL and anon key here
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_ENABLED  = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+
+let db = null;
+if (SUPABASE_ENABLED) {
+  const { createClient } = supabase;
+  db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// ─── State ────────────────────────────────────────────────────────────
+let selectedUrgency = '';
+let selectedPhotos  = []; // File objects
+let locationData    = { lat: null, lng: null };
+
+// ─── Urgency selector ─────────────────────────────────────────────────
+function setUrgency(val) {
+  selectedUrgency = val;
+  document.querySelectorAll('.urgency-btn').forEach(b => {
+    b.className = 'urgency-btn';
+    if (b.dataset.val === val) {
+      b.classList.add('active-' + val.toLowerCase());
+    }
+  });
+}
+
+// ─── Geolocation ──────────────────────────────────────────────────────
+function getLocation() {
+  const status = document.getElementById('loc-status');
+  status.textContent = 'Getting your location…';
+  status.className = 'loc-status';
+  if (!navigator.geolocation) {
+    status.textContent = 'Geolocation not supported on this device.';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(pos => {
+    locationData.lat = pos.coords.latitude.toFixed(6);
+    locationData.lng = pos.coords.longitude.toFixed(6);
+    status.textContent = `📍 Location captured (${locationData.lat}, ${locationData.lng})`;
+    status.className = 'loc-status got';
+    // Try to reverse-geocode for a readable address
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${locationData.lat}&lon=${locationData.lng}&format=json`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.display_name) {
+          const addr = document.getElementById('address');
+          if (!addr.value) addr.value = d.display_name.split(',').slice(0,3).join(', ');
+        }
+      }).catch(() => {});
+  }, err => {
+    status.textContent = 'Could not get location. Please enter address manually.';
+  });
+}
+
+// ─── Photo management ─────────────────────────────────────────────────
+function addPhotos(input) {
+  Array.from(input.files).forEach(file => {
+    if (selectedPhotos.length >= 8) return;
+    selectedPhotos.push(file);
+    const url = URL.createObjectURL(file);
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-preview';
+    wrap.dataset.idx = selectedPhotos.length - 1;
+    wrap.innerHTML = `<img src="${url}" /><button class="remove-photo" onclick="removePhoto(${selectedPhotos.length - 1})">✕</button>`;
+    document.getElementById('photo-grid').appendChild(wrap);
+  });
+  input.value = '';
+}
+
+function removePhoto(idx) {
+  selectedPhotos[idx] = null;
+  document.querySelector(`.photo-preview[data-idx="${idx}"]`)?.remove();
+}
+
+// ─── Upload photos to Supabase Storage ────────────────────────────────
+async function uploadPhotos() {
+  const urls = [];
+  const files = selectedPhotos.filter(Boolean);
+  if (!files.length || !db) return urls;
+  for (const file of files) {
+    const ext  = file.name.split('.').pop();
+    const path = `leads/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await db.storage.from('rms-photos').upload(path, file, { contentType: file.type });
+    if (!error) {
+      const { data } = db.storage.from('rms-photos').getPublicUrl(path);
+      urls.push(data.publicUrl);
+    }
+  }
+  return urls;
+}
+
+// ─── Validation ───────────────────────────────────────────────────────
+function showErr(msg) {
+  ['err-bar','err-bar-bottom'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+  });
+}
+
+// ─── Submit ───────────────────────────────────────────────────────────
+async function submitLead() {
+  showErr('');
+  const submitter   = document.getElementById('submitter').value.trim();
+  const oppType     = document.getElementById('opp-type').value;
+  const description = document.getElementById('description').value.trim();
+  const address     = document.getElementById('address').value.trim();
+
+  if (!submitter)   { showErr('Please enter your name.'); return; }
+  if (!oppType)     { showErr('Please select an opportunity type.'); return; }
+  if (!description) { showErr('Please enter a description.'); return; }
+  if (!selectedUrgency) { showErr('Please select an urgency level.'); return; }
+
+  document.getElementById('loading-overlay').style.display = 'flex';
+
+  const photoUrls = SUPABASE_ENABLED ? await uploadPhotos() : [];
+
+  const payload = {
+    submitter_name:   submitter,
+    opportunity_type: oppType,
+    description:      description,
+    urgency:          selectedUrgency,
+    contact_name:     document.getElementById('contact-name').value.trim() || null,
+    phone:            document.getElementById('phone').value.trim() || null,
+    address:          address || null,
+    lat:              locationData.lat ? parseFloat(locationData.lat) : null,
+    lng:              locationData.lng ? parseFloat(locationData.lng) : null,
+    photo_urls:       photoUrls.length ? photoUrls : null,
+    status:           'New',
+  };
+
+  if (SUPABASE_ENABLED && db) {
+    const { error } = await db.from('leads').insert([payload]);
+    if (error) {
+      document.getElementById('loading-overlay').style.display = 'none';
+      showErr('Failed to submit: ' + error.message);
+      return;
+    }
+  } else {
+    // Demo mode — just log
+    console.log('Lead payload (demo mode, Supabase not configured):', payload);
+    await new Promise(r => setTimeout(r, 800));
+  }
+
+  document.getElementById('loading-overlay').style.display = 'none';
+  document.getElementById('form-view').style.display = 'none';
+  document.getElementById('success-screen').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+// ─── Reset ────────────────────────────────────────────────────────────
+function resetForm() {
+  selectedUrgency = '';
+  selectedPhotos  = [];
+  locationData    = { lat: null, lng: null };
+  document.getElementById('success-screen').style.display = 'none';
+  document.getElementById('form-view').style.display = 'block';
+  document.querySelectorAll('input[type=text], input[type=tel], textarea, select').forEach(el => el.value = '');
+  document.getElementById('photo-grid').innerHTML = '';
+  document.querySelectorAll('.urgency-btn').forEach(b => b.className = 'urgency-btn');
+  document.getElementById('loc-status').textContent = '';
+  showErr('');
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>

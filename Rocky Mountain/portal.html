@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RMS — Operations Portal</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --orange:  #e05a1b;
+      --orange2: #c94e16;
+      --black:   #0d0d0d;
+      --dark:    #1a1a1a;
+      --white:   #ffffff;
+      --cream:   #f5efe6;
+      --gray:    #e0d8cf;
+      --dgray:   #555;
+      --lgray:   #f0ebe4;
+      --green:   #2e7d32;
+      --green-l: #e8f5e9;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--cream); color: var(--black); min-height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      background: var(--black); padding: 14px 24px;
+      display: flex; align-items: center; gap: 14px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 3px 12px rgba(0,0,0,.5);
+    }
+    header img { height: 48px; width: 48px; border-radius: 50%; object-fit: cover; }
+    header .htext h1 { color: var(--orange); font-size: 1.1rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    header .htext p  { color: #aaa; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+    .hdr-links { margin-left: auto; display: flex; gap: 8px; }
+    .hdr-btn {
+      padding: 7px 14px; border-radius: 6px; font-size: .78rem; font-weight: 700;
+      text-decoration: none; letter-spacing: .04em; text-transform: uppercase; border: none; cursor: pointer;
+    }
+    .hdr-btn-outline { border: 1px solid #444; color: #aaa; background: none; }
+    .hdr-btn-outline:hover { border-color: var(--orange); color: var(--orange); }
+    .hdr-btn-orange { background: var(--orange); color: #fff; }
+    .hdr-btn-orange:hover { background: var(--orange2); }
+
+    /* ── Tab nav ── */
+    .tab-nav {
+      background: var(--black); display: flex; gap: 2px;
+      padding: 0 24px; border-bottom: 3px solid var(--orange);
+    }
+    .tab-btn {
+      background: none; border: none; cursor: pointer; color: #aaa;
+      padding: 12px 22px; font-size: .88rem; font-weight: 600;
+      letter-spacing: .05em; text-transform: uppercase;
+      border-bottom: 3px solid transparent; margin-bottom: -3px;
+      transition: color .2s, border-color .2s;
+    }
+    .tab-btn:hover { color: var(--white); }
+    .tab-btn.active { color: var(--orange); border-bottom-color: var(--orange); }
+    .tab-count {
+      display: inline-block; background: var(--orange); color: #fff;
+      border-radius: 10px; padding: 1px 7px; font-size: .65rem;
+      font-weight: 800; margin-left: 5px; vertical-align: middle;
+    }
+
+    /* ── Layout ── */
+    .tab-panel { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+    .tab-panel.active { display: block; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+    }
+    .stat-chip {
+      background: var(--white); border-radius: 8px;
+      padding: 12px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      flex: 1; min-width: 100px;
+    }
+    .stat-chip .sc-label { font-size: .68rem; color: #888; text-transform: uppercase; letter-spacing: .06em; }
+    .stat-chip .sc-val   { font-size: 1.6rem; font-weight: 800; color: var(--black); margin-top: 2px; }
+    .stat-chip .sc-val.orange { color: var(--orange); }
+    .stat-chip .sc-val.green  { color: var(--green); }
+
+    /* ── Filter pills ── */
+    .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .filter-pill {
+      padding: 5px 14px; border-radius: 16px; border: 1.5px solid var(--gray);
+      background: var(--white); font-size: .78rem; font-weight: 700;
+      cursor: pointer; color: var(--dgray); transition: all .15s;
+    }
+    .filter-pill.active { background: var(--black); color: var(--orange); border-color: var(--black); }
+    .filter-pill:hover:not(.active) { border-color: var(--orange); color: var(--orange); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--white); border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07); margin-bottom: 16px; overflow: hidden;
+    }
+    .card-hdr {
+      background: var(--black); color: var(--orange);
+      padding: 11px 18px; font-weight: 700; font-size: .88rem;
+      letter-spacing: .06em; text-transform: uppercase;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-body { padding: 18px; }
+
+    /* ── Table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .data-table th {
+      background: var(--black); color: var(--orange);
+      padding: 9px 12px; text-align: left; font-weight: 700;
+      font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+    }
+    .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--gray); vertical-align: middle; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #faf6f1; cursor: pointer; }
+    .data-table tr.no-hover:hover td { background: transparent; cursor: default; }
+
+    /* ── Status badges ── */
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 10px;
+      font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .badge-new      { background: #e3f2fd; color: #1565c0; }
+    .badge-contacted{ background: #fff3e0; color: #e65100; }
+    .badge-progress { background: #f3e5f5; color: #6a1b9a; }
+    .badge-won      { background: var(--green-l); color: var(--green); }
+    .badge-lost     { background: #ffebee; color: #c62828; }
+    .badge-active   { background: #e3f2fd; color: #1565c0; }
+    .badge-complete { background: var(--green-l); color: var(--green); }
+    .badge-urgent   { background: #b71c1c; color: #fff; }
+    .badge-high     { background: #ffebee; color: #c62828; }
+    .badge-medium   { background: #fff3e0; color: #e65100; }
+    .badge-low      { background: #f1f8e9; color: #33691e; }
+
+    /* ── Job cards ── */
+    .job-card {
+      background: var(--white); border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      border-left: 4px solid var(--orange);
+      padding: 18px 20px; margin-bottom: 14px;
+      cursor: pointer; transition: box-shadow .15s;
+    }
+    .job-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+    .job-card-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .job-card h3 { font-size: 1rem; font-weight: 800; color: var(--black); margin-bottom: 4px; }
+    .job-card .jc-meta { font-size: .8rem; color: #777; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+    .job-card .jc-price { font-size: 1.2rem; font-weight: 800; color: var(--orange); text-align: right; }
+    .job-card .jc-price-lbl { font-size: .68rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      transition: background .15s; text-decoration: none;
+    }
+    .btn-orange { background: var(--orange); color: #fff; }
+    .btn-orange:hover { background: var(--orange2); }
+    .btn-dark { background: var(--black); color: #fff; }
+    .btn-dark:hover { background: #333; }
+    .btn-ghost { background: var(--lgray); color: var(--dgray); border: 1px solid var(--gray); }
+    .btn-ghost:hover { border-color: var(--orange); color: var(--orange); }
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-green:hover { background: #1b5e20; }
+    .btn-sm { padding: 5px 10px; font-size: .72rem; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); z-index: 200;
+      align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--white); border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.3);
+      max-width: 680px; width: 100%; max-height: 90vh; overflow-y: auto;
+    }
+    .modal-hdr {
+      background: var(--black); color: var(--orange);
+      padding: 14px 22px; font-weight: 800; font-size: .95rem;
+      letter-spacing: .06em; text-transform: uppercase;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0;
+    }
+    .modal-close {
+      background: none; border: none; color: #aaa; font-size: 1.2rem;
+      cursor: pointer; padding: 2px 6px; border-radius: 4px;
+    }
+    .modal-close:hover { color: var(--white); }
+    .modal-body { padding: 22px; }
+
+    /* ── Detail rows ── */
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+    @media(max-width: 500px) { .detail-grid { grid-template-columns: 1fr; } }
+    .detail-item .di-lbl { font-size: .7rem; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+    .detail-item .di-val { font-size: .93rem; font-weight: 600; color: var(--black); }
+
+    /* ── Photo gallery ── */
+    .photo-gallery { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .photo-gallery a { display: block; width: 80px; height: 80px; border-radius: 6px; overflow: hidden; border: 2px solid var(--gray); }
+    .photo-gallery img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* ── Notes timeline ── */
+    .notes-timeline { margin-top: 16px; }
+    .note-item {
+      border-left: 3px solid var(--orange); padding: 10px 14px;
+      margin-bottom: 12px; background: var(--lgray); border-radius: 0 6px 6px 0;
+    }
+    .note-meta { font-size: .72rem; color: #888; margin-bottom: 4px; }
+    .note-text { font-size: .9rem; color: var(--black); line-height: 1.5; }
+
+    /* ── Note add form ── */
+    .note-form { margin-top: 16px; border-top: 1px solid var(--gray); padding-top: 16px; }
+    .note-form textarea {
+      width: 100%; min-height: 80px; resize: vertical;
+      border: 1.5px solid var(--gray); border-radius: 6px;
+      padding: 10px 12px; font-family: inherit; font-size: .9rem;
+      background: var(--lgray); margin-bottom: 10px;
+    }
+    .note-form textarea:focus { outline: none; border-color: var(--orange); background: #fff; }
+    .note-form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .photo-add-btn {
+      padding: 8px 14px; border: 1.5px dashed var(--gray); border-radius: 6px;
+      background: var(--lgray); font-size: .78rem; cursor: pointer; color: var(--dgray);
+    }
+    .photo-add-btn:hover { border-color: var(--orange); color: var(--orange); }
+
+    /* ── Select ── */
+    .inline-select {
+      border: 1.5px solid var(--gray); border-radius: 6px;
+      padding: 7px 10px; font-size: .85rem; background: var(--lgray);
+    }
+    .inline-select:focus { outline: none; border-color: var(--orange); }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; padding: 48px 24px; color: #aaa;
+    }
+    .empty-state .es-icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty-state p { font-size: .9rem; }
+
+    /* ── Loading ── */
+    .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(0,0,0,.1); border-top-color: var(--orange); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Responsive ── */
+    @media(max-width: 640px) {
+      .tab-btn { padding: 10px 12px; font-size: .78rem; }
+      .tab-panel { padding: 16px; }
+      .stats-bar { gap: 8px; }
+      .stat-chip { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <img src="447670405_1005316078263765_5653249414914125489_n.jpg" alt="RMS Logo" />
+  <div class="htext">
+    <h1>Rocky Mountain Services</h1>
+    <p>Operations Portal</p>
+  </div>
+  <div class="hdr-links">
+    <a href="lead.html" class="hdr-btn hdr-btn-outline">+ New Lead</a>
+    <a href="estimator.html" class="hdr-btn hdr-btn-orange">+ Estimate</a>
+  </div>
+</header>
+
+<!-- ══ TAB NAV ══ -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('leads',this)">&#128270; Leads <span class="tab-count" id="leads-count">0</span></button>
+  <button class="tab-btn" onclick="switchTab('jobs',this)">&#9874; Active Jobs <span class="tab-count" id="jobs-count">0</span></button>
+  <button class="tab-btn" onclick="switchTab('completed',this)">&#10003; Completed <span class="tab-count" id="completed-count">0</span></button>
+</div>
+
+<!-- ══════════════ TAB: LEADS ══════════════ -->
+<div id="tab-leads" class="tab-panel active">
+  <div class="stats-bar" id="leads-stats"></div>
+  <div class="filter-row" id="leads-filter"></div>
+  <div class="card">
+    <div class="card-hdr">
+      &#128270; Lead Pipeline
+      <button class="btn btn-ghost btn-sm" onclick="loadLeads()">&#8635; Refresh</button>
+    </div>
+    <div class="card-body" style="padding:0; overflow-x:auto;">
+      <div id="leads-loading" style="padding:24px; text-align:center;"><div class="spinner"></div></div>
+      <table class="data-table" id="leads-table" style="display:none;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Submitted By</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Urgency</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="leads-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="leads-empty" style="display:none;">
+        <div class="es-icon">&#128270;</div>
+        <p>No leads yet. Field staff can submit leads at <strong>lead.html</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: ACTIVE JOBS ══════════════ -->
+<div id="tab-jobs" class="tab-panel">
+  <div id="jobs-loading" style="padding:24px; text-align:center;"><div class="spinner"></div></div>
+  <div id="jobs-content"></div>
+  <div class="empty-state" id="jobs-empty" style="display:none;">
+    <div class="es-icon">&#9874;</div>
+    <p>No active jobs. Accept a quote in the <a href="estimator.html" style="color:var(--orange);">Estimator</a> to create one.</p>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: COMPLETED ══════════════ -->
+<div id="tab-completed" class="tab-panel">
+  <div class="card">
+    <div class="card-hdr">
+      &#10003; Completed Jobs
+      <button class="btn btn-ghost btn-sm" onclick="loadCompleted()">&#8635; Refresh</button>
+    </div>
+    <div class="card-body" style="padding:0; overflow-x:auto;">
+      <div id="completed-loading" style="padding:24px; text-align:center;"><div class="spinner"></div></div>
+      <table class="data-table" id="completed-table" style="display:none;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Job Name</th>
+            <th>Client</th>
+            <th>Type</th>
+            <th>Salesperson</th>
+            <th>Quoted</th>
+            <th>Actual Revenue</th>
+            <th>Completed</th>
+          </tr>
+        </thead>
+        <tbody id="completed-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="completed-empty" style="display:none;">
+        <div class="es-icon">&#10003;</div>
+        <p>No completed jobs yet.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ LEAD DETAIL MODAL ══════════════ -->
+<div class="modal-overlay" id="lead-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span id="lead-modal-title">Lead Details</span>
+      <button class="modal-close" onclick="closeModal('lead-modal')">&#x2715;</button>
+    </div>
+    <div class="modal-body" id="lead-modal-body"></div>
+  </div>
+</div>
+
+<!-- ══════════════ JOB DETAIL MODAL ══════════════ -->
+<div class="modal-overlay" id="job-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span id="job-modal-title">Job Details</span>
+      <button class="modal-close" onclick="closeModal('job-modal')">&#x2715;</button>
+    </div>
+    <div class="modal-body" id="job-modal-body"></div>
+  </div>
+</div>
+
+<input type="file" id="note-photo-input" accept="image/*" multiple capture="environment" style="display:none;" onchange="notePhotosSelected(this)" />
+
+<script>
+// ─── Supabase Config ───────────────────────────────────────────────────
+const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_ENABLED  = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+
+let db = null;
+if (SUPABASE_ENABLED) {
+  const { createClient } = supabase;
+  db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// ─── State ────────────────────────────────────────────────────────────
+let allLeads      = [];
+let activeJobs    = [];
+let completedJobs = [];
+let leadsFilter   = 'All';
+let currentJobId  = null;
+let notePhotos    = [];
+
+const STATUS_ORDER = ['New','Contacted','In Progress','Won','Lost'];
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+const fmt = n => '$' + (n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtDate = s => s ? new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+
+function urgencyBadge(u) {
+  const map = { Low:'badge-low', Medium:'badge-medium', High:'badge-high', Urgent:'badge-urgent' };
+  return `<span class="badge ${map[u]||'badge-medium'}">${u||'—'}</span>`;
+}
+function statusBadge(s) {
+  const map = {
+    New:'badge-new', Contacted:'badge-contacted', 'In Progress':'badge-progress',
+    Won:'badge-won', Lost:'badge-lost', Active:'badge-active', Complete:'badge-complete'
+  };
+  return `<span class="badge ${map[s]||'badge-new'}">${s||'New'}</span>`;
+}
+
+// ─── Tab switching ────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'leads')     loadLeads();
+  if (name === 'jobs')      loadJobs();
+  if (name === 'completed') loadCompleted();
+}
+
+// ─── DEMO DATA (shown when Supabase not configured) ───────────────────
+const DEMO_LEADS = [
+  { id: 1, created_at: '2026-05-10T14:22:00Z', submitter_name: 'Jake R.', opportunity_type: 'Commercial Property', description: 'Large parking lot needs sealcoating. About 40,000 sqft. Manager seemed interested.', urgency: 'High', contact_name: 'Bob Smith', phone: '208-555-0101', address: '1234 Main St, Nampa ID', status: 'New', photo_urls: null },
+  { id: 2, created_at: '2026-05-08T09:15:00Z', submitter_name: 'Maria L.', opportunity_type: 'HOA', description: 'HOA community roads cracking bad. About 6 streets.', urgency: 'Medium', contact_name: 'Lisa Torres', phone: '208-555-0202', address: 'Sunrise Estates, Meridian ID', status: 'Contacted', photo_urls: null },
+  { id: 3, created_at: '2026-05-05T16:40:00Z', submitter_name: 'Tyler W.', opportunity_type: 'Industrial', description: 'Warehouse lot needs full sealcoat and striping.', urgency: 'Low', contact_name: null, phone: null, address: 'Industrial Blvd, Caldwell ID', status: 'In Progress', photo_urls: null },
+];
+const DEMO_JOBS = [
+  { id: 101, created_at: '2026-05-12T10:00:00Z', job_name: 'Main St Parking Lot', client_name: 'Smith Properties LLC', job_type: 'Sealcoat', location: 'Nampa, ID', salesperson: 'Harry Nemelka', quoted_price: 18500, status: 'Active', foreman: 'Jake R.' },
+  { id: 102, created_at: '2026-05-14T08:30:00Z', job_name: 'Sunrise Estates Roads', client_name: 'Sunrise HOA', job_type: 'Crack Seal', location: 'Meridian, ID', salesperson: 'Harry Nemelka', quoted_price: 9200, status: 'Active', foreman: null },
+];
+const DEMO_COMPLETED = [
+  { id: 90, job_name: 'Canyon Park Lot', client_name: 'Canyon Corp', job_type: 'Striping', salesperson: 'Harry Nemelka', quoted_price: 4800, actual_revenue: 4800, completed_date: '2026-05-01' },
+];
+
+// ─── Load Leads ───────────────────────────────────────────────────────
+async function loadLeads() {
+  document.getElementById('leads-loading').style.display = 'block';
+  document.getElementById('leads-table').style.display = 'none';
+  document.getElementById('leads-empty').style.display = 'none';
+
+  if (SUPABASE_ENABLED && db) {
+    const { data, error } = await db.from('leads').select('*').order('created_at', { ascending: false });
+    allLeads = error ? [] : data;
+  } else {
+    allLeads = DEMO_LEADS;
+  }
+
+  renderLeads();
+  document.getElementById('leads-loading').style.display = 'none';
+}
+
+function renderLeads() {
+  const filtered = leadsFilter === 'All' ? allLeads : allLeads.filter(l => l.status === leadsFilter);
+
+  // Stats
+  const counts = { Total: allLeads.length, New: 0, Contacted: 0, 'In Progress': 0, Won: 0, Lost: 0 };
+  allLeads.forEach(l => { if (counts[l.status] !== undefined) counts[l.status]++; });
+  document.getElementById('leads-stats').innerHTML = Object.entries(counts).map(([k,v]) =>
+    `<div class="stat-chip"><div class="sc-label">${k}</div><div class="sc-val${k==='Won'?' green':k==='Lost'?' '/* none */:k==='Total'?' orange':''}">${v}</div></div>`
+  ).join('');
+  document.getElementById('leads-count').textContent = allLeads.length;
+
+  // Filter pills
+  document.getElementById('leads-filter').innerHTML = ['All',...STATUS_ORDER].map(s =>
+    `<button class="filter-pill${leadsFilter===s?' active':''}" onclick="setLeadFilter('${s}')">${s}</button>`
+  ).join('');
+
+  if (!filtered.length) {
+    document.getElementById('leads-table').style.display = 'none';
+    document.getElementById('leads-empty').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('leads-table').style.display = 'table';
+  document.getElementById('leads-empty').style.display = 'none';
+  document.getElementById('leads-tbody').innerHTML = filtered.map(l => `
+    <tr onclick="openLeadModal(${l.id})">
+      <td><strong>#${l.id}</strong></td>
+      <td>${l.submitter_name}</td>
+      <td>${l.opportunity_type}</td>
+      <td>${l.address ? l.address.split(',').slice(0,2).join(',') : '—'}</td>
+      <td>${urgencyBadge(l.urgency)}</td>
+      <td>${statusBadge(l.status)}</td>
+      <td>${fmtDate(l.created_at)}</td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex; gap:5px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="openLeadModal(${l.id})">View</button>
+          <a href="estimator.html?lead_id=${l.id}&client=${encodeURIComponent(l.contact_name||l.submitter_name)}&location=${encodeURIComponent(l.address||'')}&job_type=${encodeURIComponent(l.opportunity_type)}" class="btn btn-orange btn-sm">Estimate →</a>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function setLeadFilter(val) {
+  leadsFilter = val;
+  renderLeads();
+}
+
+// ─── Lead Modal ───────────────────────────────────────────────────────
+async function openLeadModal(id) {
+  const lead = allLeads.find(l => l.id === id);
+  if (!lead) return;
+  document.getElementById('lead-modal-title').textContent = `Lead #${lead.id} — ${lead.opportunity_type}`;
+
+  const photos = (lead.photo_urls||[]).map(url =>
+    `<a href="${url}" target="_blank"><img src="${url}" /></a>`
+  ).join('');
+
+  document.getElementById('lead-modal-body').innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-item"><div class="di-lbl">Submitted By</div><div class="di-val">${lead.submitter_name}</div></div>
+      <div class="detail-item"><div class="di-lbl">Date</div><div class="di-val">${fmtDate(lead.created_at)}</div></div>
+      <div class="detail-item"><div class="di-lbl">Type</div><div class="di-val">${lead.opportunity_type}</div></div>
+      <div class="detail-item"><div class="di-lbl">Urgency</div><div class="di-val">${urgencyBadge(lead.urgency)}</div></div>
+      <div class="detail-item"><div class="di-lbl">Contact Name</div><div class="di-val">${lead.contact_name||'—'}</div></div>
+      <div class="detail-item"><div class="di-lbl">Phone</div><div class="di-val">${lead.phone||'—'}</div></div>
+      <div class="detail-item" style="grid-column:1/-1;"><div class="di-lbl">Location</div><div class="di-val">${lead.address||'—'}</div></div>
+      <div class="detail-item" style="grid-column:1/-1;"><div class="di-lbl">Description</div><div class="di-val" style="white-space:pre-wrap;">${lead.description}</div></div>
+    </div>
+
+    ${photos ? `<div style="margin-bottom:16px;"><div class="di-lbl" style="margin-bottom:6px;">Photos</div><div class="photo-gallery">${photos}</div></div>` : ''}
+
+    <div style="margin-bottom:16px;">
+      <div class="di-lbl" style="margin-bottom:6px;">Status</div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <select class="inline-select" id="lead-status-sel" onchange="updateLeadStatus(${lead.id}, this.value)">
+          ${STATUS_ORDER.map(s => `<option${s===lead.status?' selected':''}>${s}</option>`).join('')}
+        </select>
+        <span style="font-size:.8rem; color:#888;">Changing status updates the database immediately.</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div class="di-lbl" style="margin-bottom:6px;">Assign To</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="lead-assign-input" value="${lead.assigned_to||''}" placeholder="Salesperson name" style="border:1.5px solid var(--gray); border-radius:6px; padding:7px 10px; font-size:.88rem; background:var(--lgray); flex:1;" />
+        <button class="btn btn-dark btn-sm" onclick="assignLead(${lead.id})">Save</button>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="estimator.html?lead_id=${lead.id}&client=${encodeURIComponent(lead.contact_name||lead.submitter_name)}&location=${encodeURIComponent(lead.address||'')}&job_type=${encodeURIComponent(lead.opportunity_type)}" class="btn btn-orange">
+        &#128196; Create Estimate
+      </a>
+    </div>`;
+
+  openModal('lead-modal');
+}
+
+async function updateLeadStatus(id, status) {
+  if (SUPABASE_ENABLED && db) {
+    await db.from('leads').update({ status }).eq('id', id);
+  }
+  const lead = allLeads.find(l => l.id === id);
+  if (lead) lead.status = status;
+  renderLeads();
+}
+
+async function assignLead(id) {
+  const val = document.getElementById('lead-assign-input').value.trim();
+  if (SUPABASE_ENABLED && db) {
+    await db.from('leads').update({ assigned_to: val }).eq('id', id);
+  }
+  const lead = allLeads.find(l => l.id === id);
+  if (lead) lead.assigned_to = val;
+  closeModal('lead-modal');
+}
+
+// ─── Load Active Jobs ─────────────────────────────────────────────────
+async function loadJobs() {
+  document.getElementById('jobs-loading').style.display = 'block';
+  document.getElementById('jobs-content').innerHTML = '';
+  document.getElementById('jobs-empty').style.display = 'none';
+
+  if (SUPABASE_ENABLED && db) {
+    const { data } = await db.from('jobs').select('*').eq('status','Active').order('created_at',{ascending:false});
+    activeJobs = data || [];
+  } else {
+    activeJobs = DEMO_JOBS;
+  }
+
+  document.getElementById('jobs-loading').style.display = 'none';
+  document.getElementById('jobs-count').textContent = activeJobs.length;
+
+  if (!activeJobs.length) {
+    document.getElementById('jobs-empty').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('jobs-content').innerHTML = activeJobs.map(j => `
+    <div class="job-card" onclick="openJobModal(${j.id})">
+      <div class="job-card-row">
+        <div>
+          <h3>${j.job_name}</h3>
+          <div class="jc-meta">
+            <span>&#128100; ${j.client_name||'—'}</span>
+            <span>&#127760; ${j.location||'—'}</span>
+            <span>&#128295; ${j.job_type||'—'}</span>
+            ${j.salesperson ? `<span>&#128179; ${j.salesperson}</span>` : ''}
+            ${j.foreman ? `<span>&#9874; ${j.foreman}</span>` : ''}
+          </div>
+        </div>
+        <div>
+          <div class="jc-price-lbl">Quoted Price</div>
+          <div class="jc-price">${fmt(j.quoted_price)}</div>
+          <div style="margin-top:6px;">${statusBadge(j.status)}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ─── Job Modal ────────────────────────────────────────────────────────
+async function openJobModal(id) {
+  currentJobId = id;
+  notePhotos   = [];
+  const job = activeJobs.find(j => j.id === id);
+  if (!job) return;
+  document.getElementById('job-modal-title').textContent = `Job — ${job.job_name}`;
+
+  let notes = [];
+  if (SUPABASE_ENABLED && db) {
+    const { data } = await db.from('job_notes').select('*').eq('job_id', id).order('created_at',{ascending:false});
+    notes = data || [];
+  }
+
+  const notesHTML = notes.length ? notes.map(n => `
+    <div class="note-item">
+      <div class="note-meta">&#128100; ${n.author} &nbsp;·&nbsp; ${fmtDate(n.created_at)}</div>
+      <div class="note-text">${n.note_text||''}</div>
+      ${(n.photo_urls||[]).length ? `<div class="photo-gallery" style="margin-top:8px;">${n.photo_urls.map(u=>`<a href="${u}" target="_blank"><img src="${u}" /></a>`).join('')}</div>` : ''}
+    </div>`) : '<p style="color:#aaa; font-size:.85rem;">No notes yet.</p>';
+
+  document.getElementById('job-modal-body').innerHTML = `
+    <div class="detail-grid" style="margin-bottom:18px;">
+      <div class="detail-item"><div class="di-lbl">Client</div><div class="di-val">${job.client_name||'—'}</div></div>
+      <div class="detail-item"><div class="di-lbl">Job Type</div><div class="di-val">${job.job_type||'—'}</div></div>
+      <div class="detail-item"><div class="di-lbl">Location</div><div class="di-val">${job.location||'—'}</div></div>
+      <div class="detail-item"><div class="di-lbl">Bid #</div><div class="di-val">${job.bid_number||'—'}</div></div>
+      <div class="detail-item"><div class="di-lbl">Salesperson</div><div class="di-val">${job.salesperson||'—'}</div></div>
+      <div class="detail-item"><div class="di-lbl">Quoted Price</div><div class="di-val" style="color:var(--orange); font-weight:800;">${fmt(job.quoted_price)}</div></div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+        <strong style="font-size:.82rem; color:var(--dgray); text-transform:uppercase; letter-spacing:.06em;">Foreman</strong>
+        <input type="text" id="foreman-input" value="${job.foreman||''}" placeholder="Assign foreman" style="border:1.5px solid var(--gray); border-radius:5px; padding:5px 10px; font-size:.85rem; background:var(--lgray);" />
+        <button class="btn btn-ghost btn-sm" onclick="saveForeman(${job.id})">Save</button>
+      </div>
+    </div>
+
+    <hr style="border:none; border-top:1px solid var(--gray); margin:16px 0;" />
+    <div style="font-size:.82rem; color:var(--dgray); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; font-weight:700;">&#128221; Field Notes</div>
+    <div class="notes-timeline" id="notes-timeline-${id}">${notesHTML}</div>
+
+    <div class="note-form">
+      <div style="font-size:.8rem; color:#888; margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:.05em;">Add a Note</div>
+      <input type="text" id="note-author" placeholder="Your name" style="width:100%; border:1.5px solid var(--gray); border-radius:6px; padding:8px 10px; font-size:.88rem; background:var(--lgray); margin-bottom:8px;" />
+      <textarea id="note-text" placeholder="What happened on site today? Any issues, progress, observations…"></textarea>
+      <div class="note-form-row">
+        <button class="photo-add-btn" onclick="document.getElementById('note-photo-input').click()">&#128247; Add Photos</button>
+        <span id="note-photo-count" style="font-size:.78rem; color:#888;"></span>
+        <button class="btn btn-orange" style="margin-left:auto;" onclick="submitNote(${id})">&#128393; Post Note</button>
+      </div>
+    </div>`;
+
+  openModal('job-modal');
+}
+
+let notePhotoFiles = [];
+function notePhotosSelected(input) {
+  notePhotoFiles = [...notePhotoFiles, ...Array.from(input.files)];
+  document.getElementById('note-photo-count').textContent = notePhotoFiles.length + ' photo(s) selected';
+  input.value = '';
+}
+
+async function submitNote(jobId) {
+  const author = document.getElementById('note-author').value.trim();
+  const text   = document.getElementById('note-text').value.trim();
+  if (!author) { alert('Please enter your name.'); return; }
+  if (!text && !notePhotoFiles.length) { alert('Please add a note or at least one photo.'); return; }
+
+  // Upload photos
+  const photoUrls = [];
+  if (SUPABASE_ENABLED && db && notePhotoFiles.length) {
+    for (const file of notePhotoFiles) {
+      const ext  = file.name.split('.').pop();
+      const path = `jobs/${jobId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await db.storage.from('rms-photos').upload(path, file, { contentType: file.type });
+      if (!error) {
+        const { data } = db.storage.from('rms-photos').getPublicUrl(path);
+        photoUrls.push(data.publicUrl);
+      }
+    }
+  }
+
+  const notePayload = { job_id: jobId, author, note_text: text || null, photo_urls: photoUrls.length ? photoUrls : null };
+
+  if (SUPABASE_ENABLED && db) {
+    await db.from('job_notes').insert([notePayload]);
+  }
+
+  // Refresh notes in modal
+  notePhotoFiles = [];
+  document.getElementById('note-photo-count').textContent = '';
+  document.getElementById('note-text').value = '';
+  await openJobModal(jobId); // re-open to refresh notes
+}
+
+async function saveForeman(jobId) {
+  const foreman = document.getElementById('foreman-input').value.trim();
+  if (SUPABASE_ENABLED && db) {
+    await db.from('jobs').update({ foreman }).eq('id', jobId);
+  }
+  const job = activeJobs.find(j => j.id === jobId);
+  if (job) job.foreman = foreman;
+  alert(`Foreman "${foreman}" saved.`);
+}
+
+// ─── Load Completed ───────────────────────────────────────────────────
+async function loadCompleted() {
+  document.getElementById('completed-loading').style.display = 'block';
+  document.getElementById('completed-table').style.display = 'none';
+  document.getElementById('completed-empty').style.display = 'none';
+
+  if (SUPABASE_ENABLED && db) {
+    const { data } = await db.from('jobs').select('*').eq('status','Complete').order('completed_date',{ascending:false});
+    completedJobs = data || [];
+  } else {
+    completedJobs = DEMO_COMPLETED;
+  }
+
+  document.getElementById('completed-loading').style.display = 'none';
+  document.getElementById('completed-count').textContent = completedJobs.length;
+
+  if (!completedJobs.length) {
+    document.getElementById('completed-empty').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('completed-table').style.display = 'table';
+  document.getElementById('completed-tbody').innerHTML = completedJobs.map(j => `
+    <tr class="no-hover">
+      <td><strong>#${j.id}</strong></td>
+      <td>${j.job_name}</td>
+      <td>${j.client_name||'—'}</td>
+      <td>${j.job_type||'—'}</td>
+      <td>${j.salesperson||'—'}</td>
+      <td>${fmt(j.quoted_price)}</td>
+      <td style="color:var(--green); font-weight:700;">${fmt(j.actual_revenue||j.quoted_price)}</td>
+      <td>${fmtDate(j.completed_date)}</td>
+    </tr>`).join('');
+}
+
+// ─── Modal helpers ────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); notePhotoFiles = []; }
+
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────
+loadLeads();
+
+// Pre-fill from URL if coming from estimator
+const params = new URLSearchParams(window.location.search);
+if (params.get('tab') === 'jobs') {
+  document.querySelector('.tab-btn:nth-child(2)').click();
+}
+</script>
+</body>
+</html>
