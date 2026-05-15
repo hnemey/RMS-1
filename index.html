@@ -1725,6 +1725,24 @@ function updateDashboard() {
   });
 }
 
+// ─── Capture table rows for save/restore ──────────────────────────────
+function captureRows(tbodyId, type) {
+  const rows = [];
+  document.querySelectorAll('#' + tbodyId + ' tr').forEach(tr => {
+    const label = tr.querySelector('input[type=text]')?.value || '';
+    const nums  = Array.from(tr.querySelectorAll('input[type=number]')).map(i => parseFloat(i.value) || 0);
+    const unit  = tr.querySelector('select')?.value || '';
+    if (type === 'materials' || type === 'sub' || type === 'overhead') {
+      rows.push([label, nums[0] || '', unit, '', nums[1]]);
+    } else if (type === 'labor') {
+      rows.push([label, nums[0] || '', nums[1] || '', '', nums[2]]);
+    } else if (type === 'equip') {
+      rows.push([label, nums[0] || '', nums[1] || '', '', nums[2]]);
+    }
+  });
+  return rows;
+}
+
 // ─── Project Storage ───────────────────────────────────────────────────
 const STORE_KEY = 'rms_projects';
 
@@ -1766,6 +1784,13 @@ function saveProject() {
     actual:   null,
     savedAt:  new Date().toISOString(),
     acceptedAt: null,
+    rows: {
+      materials: captureRows('materialsTbody', 'materials'),
+      labor:     captureRows('laborTbody',     'labor'),
+      equip:     captureRows('equipTbody',     'equip'),
+      sub:       captureRows('subTbody',       'sub'),
+      overhead:  captureRows('overheadTbody',  'overhead'),
+    },
   };
 
   const list = loadProjects();
@@ -1774,6 +1799,69 @@ function saveProject() {
   showToast('Project saved!');
   renderProjectsList();
   updateCharts();
+}
+
+// ─── Load project into estimator ──────────────────────────────────────
+function loadProjectIntoEstimator(id) {
+  const proj = loadProjects().find(p => p.id === id);
+  if (!proj) return;
+  const e = proj.estimate;
+
+  // Populate form fields
+  document.getElementById('jobName').value     = proj.name     || '';
+  document.getElementById('clientName').value  = proj.client   || '';
+  document.getElementById('jobDate').value     = proj.date     || '';
+  document.getElementById('jobLocation').value = proj.location || '';
+  document.getElementById('jobType').value     = proj.type     || '';
+  document.getElementById('bidNum').value      = proj.bidNum   || '';
+  document.getElementById('totalSqFt').value   = proj.sqft     || '';
+  document.getElementById('marginPct').value   = e.marginPct   || 15;
+
+  // Clear all tables
+  ['materialsTbody','laborTbody','equipTbody','subTbody','overheadTbody'].forEach(id => {
+    document.getElementById(id).innerHTML = '';
+  });
+
+  if (proj.rows && proj.rows.materials?.length) {
+    // Restore exact saved rows
+    ['materials','labor','equip','sub','overhead'].forEach(type => {
+      (proj.rows[type] || []).forEach(row => addRow(type, row));
+    });
+  } else {
+    // Fallback for demo projects: one lump-sum row per category
+    addRow('materials', ['Materials (imported)',      1,  'Lump Sum', '', e.materials]);
+    addRow('labor',     ['Labor (imported)',           1,  '',         '', e.labor]);
+    addRow('labor',     ['',                           '',  '',         '', 0]);   // dummy so workers*hours*rate works
+    addRow('equip',     ['Equipment (imported)',       1,  '',         '', e.equip]);
+    addRow('sub',       ['Subcontractors (imported)',  1,  'Lump Sum', '', e.sub]);
+    addRow('overhead',  ['Overhead (imported)',        1,  'Lump Sum', '', e.overhead]);
+
+    // For labor and equip the calc is workers*hours*rate — set workers=1,hours=1,rate=total
+    document.querySelectorAll('#laborTbody tr').forEach(tr => {
+      const nums = tr.querySelectorAll('input[type=number]');
+      if (nums[0]) nums[0].value = 1;
+      if (nums[1]) nums[1].value = 1;
+    });
+    document.querySelectorAll('#equipTbody tr').forEach(tr => {
+      const nums = tr.querySelectorAll('input[type=number]');
+      if (nums[0]) nums[0].value = 1;
+      if (nums[1]) nums[1].value = 1;
+    });
+  }
+
+  // Recalc all rows
+  document.querySelectorAll('[data-type]').forEach(tr => {
+    const first = tr.querySelector('input[type=number]');
+    if (first) calcRow(first);
+  });
+  updateSummary();
+
+  // Switch to estimator tab
+  const btn = Array.from(document.querySelectorAll('.tab-btn'))
+    .find(b => b.getAttribute('onclick')?.includes("'estimator'"));
+  if (btn) switchTab('estimator', btn);
+
+  showToast('Project loaded — make your changes and Save');
 }
 
 // ─── Projects List ─────────────────────────────────────────────────────
@@ -1831,6 +1919,7 @@ function renderProjectsList() {
         </div>
         <div class="proj-actions">
           ${p.status === 'estimate' ? `<button class="btn btn-primary btn-sm" style="background:#2d8a4e;" onclick="openAcceptModal('${p.id}')">&#9989; Accept</button>` : ''}
+          <button class="btn btn-dark btn-sm" onclick="loadProjectIntoEstimator('${p.id}')">&#9998; Edit</button>
           <button class="btn btn-dark btn-sm" onclick="toggleProjDetail('${p.id}')">&#128065; Details</button>
           <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">&#x2715;</button>
         </div>
