@@ -518,8 +518,9 @@
       border-left: 4px solid var(--gray);
       transition: border-color .2s;
     }
-    .proj-card.status-estimate { border-left-color: #1a6bb5; }
-    .proj-card.status-accepted { border-left-color: #2d8a4e; }
+    .proj-card.status-estimate  { border-left-color: #1a6bb5; }
+    .proj-card.status-accepted  { border-left-color: #d97706; }
+    .proj-card.status-completed { border-left-color: #2d8a4e; }
     .proj-card-top {
       padding: 14px 18px;
       display: flex;
@@ -542,8 +543,9 @@
       display: inline-block; padding: 3px 10px; border-radius: 20px;
       font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
     }
-    .badge-estimate { background: #dbeafe; color: #1a6bb5; }
-    .badge-accepted { background: #dcfce7; color: #166534; }
+    .badge-estimate  { background: #dbeafe; color: #1a6bb5; }
+    .badge-accepted  { background: #fef9c3; color: #854d0e; }
+    .badge-completed { background: #dcfce7; color: #166534; }
 
     .proj-detail {
       border-top: 1px solid var(--gray);
@@ -1292,19 +1294,43 @@
 <div class="modal-overlay" id="acceptModal">
   <div class="modal-box">
     <div class="modal-header">
-      <span>&#9989; Accept Project — Enter Actual Costs</span>
+      <span>&#9989; Accept Project</span>
       <button class="modal-close" onclick="closeAcceptModal()">&#x2715;</button>
     </div>
     <div class="modal-body">
       <p style="font-size:.85rem; color:#555; margin-bottom:16px;">
-        Enter what the job actually cost in each category. Leave blank to use the estimate value.
+        Mark this project as accepted — the client has agreed to your quote. You'll enter actual costs once the job is complete.
       </p>
-
       <div id="acceptProjectName" style="font-weight:800; font-size:1rem; color:var(--black); margin-bottom:4px;"></div>
       <div id="acceptProjectMeta" style="font-size:.78rem; color:#888; margin-bottom:16px;"></div>
+      <div style="background:var(--lgray); border-radius:8px; padding:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div><div style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.06em;">Quoted Price</div><div style="font-size:1.3rem;font-weight:800;color:var(--orange);" id="accept-quoted-display"></div></div>
+        <div><div style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.06em;">Projected Margin</div><div style="font-size:1.3rem;font-weight:800;color:var(--black);" id="accept-margin-display"></div></div>
+      </div>
+      <input type="hidden" id="acceptProjectId" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeAcceptModal()">Cancel</button>
+      <button class="btn btn-primary" style="background:#d97706;" onclick="submitAccept()">&#9989; Confirm Acceptance</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ COMPLETE MODAL ══════════ -->
+<div class="modal-overlay" id="completeModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>&#127775; Mark Complete — Enter Actual Costs</span>
+      <button class="modal-close" onclick="closeCompleteModal()">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.85rem; color:#555; margin-bottom:16px;">
+        Job is done — enter what each category actually cost. We'll compare it to your original estimate.
+      </p>
+      <div id="completeProjectName" style="font-weight:800; font-size:1rem; color:var(--black); margin-bottom:4px;"></div>
+      <div id="completeProjectMeta" style="font-size:.78rem; color:#888; margin-bottom:16px;"></div>
 
       <div class="modal-section-label">Actual Costs</div>
-
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="modal-field">
           <label>Materials ($) <span class="est-hint" id="hint-materials"></span></label>
@@ -1326,17 +1352,12 @@
           <label>Overhead ($) <span class="est-hint" id="hint-overhead"></span></label>
           <input type="number" id="act-overhead" placeholder="0.00" min="0" step="0.01" />
         </div>
-        <div class="modal-field">
-          <label>Final Billed to Client ($) <span class="est-hint" id="hint-billed"></span></label>
-          <input type="number" id="act-billed" placeholder="0.00" min="0" step="0.01" />
-        </div>
       </div>
-
-      <input type="hidden" id="acceptProjectId" />
+      <input type="hidden" id="completeProjectId" />
     </div>
     <div class="modal-footer">
-      <button class="btn btn-dark" onclick="closeAcceptModal()">Cancel</button>
-      <button class="btn btn-primary" style="background:#2d8a4e;" onclick="submitAccept()">&#9989; Save Actuals</button>
+      <button class="btn btn-dark" onclick="closeCompleteModal()">Cancel</button>
+      <button class="btn btn-primary" style="background:#2d8a4e;" onclick="submitComplete()">&#127775; Save & Compare</button>
     </div>
   </div>
 </div>
@@ -1881,7 +1902,9 @@ function renderProjectsList() {
   el.innerHTML = list.map(p => {
     const e = p.estimate;
     const hasActual = p.actual !== null;
-    const badge = p.status === 'accepted'
+    const badge = p.status === 'completed'
+      ? '<span class="badge badge-completed">&#127775; Completed</span>'
+      : p.status === 'accepted'
       ? '<span class="badge badge-accepted">&#9989; Accepted</span>'
       : '<span class="badge badge-estimate">&#9998; Estimate</span>';
 
@@ -1918,7 +1941,8 @@ function renderProjectsList() {
           </div>` : ''}
         </div>
         <div class="proj-actions">
-          ${p.status === 'estimate' ? `<button class="btn btn-primary btn-sm" style="background:#2d8a4e;" onclick="openAcceptModal('${p.id}')">&#9989; Accept</button>` : ''}
+          ${p.status === 'estimate'  ? `<button class="btn btn-sm" style="background:#d97706;color:#fff;" onclick="openAcceptModal('${p.id}')">&#9989; Accept</button>` : ''}
+          ${p.status === 'accepted'  ? `<button class="btn btn-sm" style="background:#2d8a4e;color:#fff;" onclick="openCompleteModal('${p.id}')">&#127775; Mark Complete</button>` : ''}
           <button class="btn btn-dark btn-sm" onclick="loadProjectIntoEstimator('${p.id}')">&#9998; Edit</button>
           <button class="btn btn-dark btn-sm" onclick="toggleProjDetail('${p.id}')">&#128065; Details</button>
           <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">&#x2715;</button>
@@ -1993,21 +2017,12 @@ function clearAllProjects() {
 function openAcceptModal(id) {
   const proj = loadProjects().find(p => p.id === id);
   if (!proj) return;
-  const e = proj.estimate;
-
-  document.getElementById('acceptProjectId').value    = id;
+  document.getElementById('acceptProjectId').value = id;
   document.getElementById('acceptProjectName').textContent = proj.name;
   document.getElementById('acceptProjectMeta').textContent =
     [proj.client, proj.type, proj.date].filter(Boolean).join(' · ');
-
-  const hints = { materials: e.materials, labor: e.labor, equip: e.equip, sub: e.sub, overhead: e.overhead, billed: e.quoted };
-  Object.entries(hints).forEach(([k, v]) => {
-    const el = document.getElementById('hint-' + k);
-    if (el) el.textContent = '(est. ' + fmtCurrency(v) + ')';
-    const input = document.getElementById('act-' + k);
-    if (input) { input.value = ''; input.placeholder = v.toFixed(2); }
-  });
-
+  document.getElementById('accept-quoted-display').textContent = fmtCurrency(proj.estimate.quoted);
+  document.getElementById('accept-margin-display').textContent = proj.estimate.marginPct.toFixed(1) + '%';
   document.getElementById('acceptModal').classList.add('open');
 }
 
@@ -2016,14 +2031,52 @@ function closeAcceptModal() {
 }
 
 function submitAccept() {
-  const id = document.getElementById('acceptProjectId').value;
+  const id   = document.getElementById('acceptProjectId').value;
+  const list = loadProjects();
+  const proj = list.find(p => p.id === id);
+  if (!proj) return;
+  proj.status     = 'accepted';
+  proj.acceptedAt = new Date().toISOString();
+  storeProjects(list);
+  closeAcceptModal();
+  showToast('Project accepted! Mark Complete when the job is done.');
+  renderProjectsList();
+  updateCharts();
+}
+
+// ─── Complete Modal ────────────────────────────────────────────────────
+function openCompleteModal(id) {
+  const proj = loadProjects().find(p => p.id === id);
+  if (!proj) return;
+  const e = proj.estimate;
+  document.getElementById('completeProjectId').value = id;
+  document.getElementById('completeProjectName').textContent = proj.name;
+  document.getElementById('completeProjectMeta').textContent =
+    [proj.client, proj.type, proj.date].filter(Boolean).join(' · ');
+
+  const hints = { materials: e.materials, labor: e.labor, equip: e.equip, sub: e.sub, overhead: e.overhead };
+  Object.entries(hints).forEach(([k, v]) => {
+    const hint  = document.getElementById('hint-' + k);
+    const input = document.getElementById('act-' + k);
+    if (hint)  hint.textContent  = '(est. ' + fmtCurrency(v) + ')';
+    if (input) { input.value = ''; input.placeholder = v.toFixed(2); }
+  });
+  document.getElementById('completeModal').classList.add('open');
+}
+
+function closeCompleteModal() {
+  document.getElementById('completeModal').classList.remove('open');
+}
+
+function submitComplete() {
+  const id   = document.getElementById('completeProjectId').value;
   const list = loadProjects();
   const proj = list.find(p => p.id === id);
   if (!proj) return;
 
   const get = key => {
     const v = parseFloat(document.getElementById('act-' + key).value);
-    return isNaN(v) ? proj.estimate[key === 'billed' ? 'quoted' : key] : v;
+    return isNaN(v) ? proj.estimate[key] : v;
   };
 
   proj.actual = {
@@ -2032,14 +2085,14 @@ function submitAccept() {
     equip:     get('equip'),
     sub:       get('sub'),
     overhead:  get('overhead'),
-    billed:    get('billed'),
+    billed:    proj.estimate.quoted,
   };
-  proj.status      = 'accepted';
-  proj.acceptedAt  = new Date().toISOString();
+  proj.status      = 'completed';
+  proj.completedAt = new Date().toISOString();
 
   storeProjects(list);
-  closeAcceptModal();
-  showToast('Actuals saved!');
+  closeCompleteModal();
+  showToast('Job completed! Actuals saved.');
   renderProjectsList();
   updateCharts();
 }
@@ -2114,7 +2167,7 @@ function updateCharts() {
   if (!chartDonut) return;
 
   // Donut: use saved project averages or baseline
-  const accepted = projects.filter(p => p.actual);
+  const accepted = projects.filter(p => p.status === 'completed' && p.actual);
   const allProjs = projects;
 
   if (allProjs.length > 0) {
@@ -2204,13 +2257,14 @@ function seedDemoProjects() {
       location: 'Highlands Ranch, CO',
       type: 'New Parking Lot',
       bidNum: 'RMS-2026-004',
-      status: 'accepted',
+      status: 'completed',
       sqft: 28400,
       tons: 216.7,
       estimate: { materials: 32800, labor: 18500, equip: 12400, sub: 7200, overhead: 4800, direct: 75700, markup: 11355, quoted: 87055, marginPct: 15 },
       actual:   { materials: 34100, labor: 19200, equip: 12400, sub: 6900, overhead: 5100, billed: 87055 },
       savedAt: '2026-03-10T09:15:00',
-      acceptedAt: '2026-04-18T14:30:00',
+      acceptedAt: '2026-03-15T10:00:00',
+      completedAt: '2026-04-18T14:30:00',
     },
     {
       id: 'rms_demo_2',
@@ -2220,13 +2274,14 @@ function seedDemoProjects() {
       location: 'Centennial, CO',
       type: 'Parking Lot Overlay',
       bidNum: 'RMS-2026-002',
-      status: 'accepted',
+      status: 'completed',
       sqft: 41200,
       tons: 247.2,
       estimate: { materials: 38600, labor: 22100, equip: 15800, sub: 11400, overhead: 5900, direct: 93800, markup: 15927, quoted: 109727, marginPct: 17 },
       actual:   { materials: 37200, labor: 21800, equip: 16300, sub: 11400, overhead: 6100, billed: 109727 },
       savedAt: '2026-01-28T11:00:00',
-      acceptedAt: '2026-03-22T10:15:00',
+      acceptedAt: '2026-02-05T09:00:00',
+      completedAt: '2026-03-22T10:15:00',
     },
     {
       id: 'rms_demo_3',
@@ -2236,13 +2291,14 @@ function seedDemoProjects() {
       location: 'Castle Rock, CO',
       type: 'Subdivision Road',
       bidNum: 'RMS-2026-007',
-      status: 'accepted',
+      status: 'completed',
       sqft: 63000,
       tons: 567.0,
       estimate: { materials: 84200, labor: 41000, equip: 28600, sub: 18300, overhead: 9100, direct: 181200, markup: 32616, quoted: 213816, marginPct: 18 },
       actual:   { materials: 88900, labor: 43500, equip: 27800, sub: 19100, overhead: 9800, billed: 213816 },
       savedAt: '2026-04-15T08:45:00',
-      acceptedAt: '2026-05-10T16:00:00',
+      acceptedAt: '2026-04-20T09:00:00',
+      completedAt: '2026-05-10T16:00:00',
     },
     {
       id: 'rms_demo_4',
