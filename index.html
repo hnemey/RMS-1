@@ -6,6 +6,7 @@
   <title>Rocky Mountain Services – Job Cost Estimator</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --black:   #0d0d0d;
@@ -453,6 +454,166 @@
     .uc-toggle:hover { background: #e0e0e0; }
     .uc-toggle.is-override { border-color: var(--orange); background: #fff0e6; color: var(--orange2); font-weight: 700; }
 
+    /* ── Charts ── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .chart-box {
+      background: var(--white);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
+    .chart-box-header {
+      background: var(--black);
+      color: var(--orange);
+      padding: 10px 18px;
+      font-weight: 700;
+      font-size: .82rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .chart-box-body {
+      padding: 16px;
+      position: relative;
+    }
+    .chart-box canvas { max-height: 240px; }
+    .chart-hint { font-size:.72rem; color:#aaa; text-align:center; margin-top:6px; }
+
+    /* Drill-down panel */
+    .drill-panel {
+      background: var(--white);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+      margin-bottom: 24px;
+      overflow: hidden;
+      display: none;
+    }
+    .drill-panel.open { display: block; }
+    .drill-panel-header {
+      background: var(--orange);
+      color: #fff;
+      padding: 10px 18px;
+      font-weight: 700;
+      font-size: .88rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .drill-close {
+      background: none; border: none; color: #fff; font-size: 1.2rem;
+      cursor: pointer; line-height: 1; padding: 0 4px;
+    }
+
+    /* Projects tab */
+    .proj-list { display: flex; flex-direction: column; gap: 14px; }
+    .proj-card {
+      background: var(--white);
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      overflow: hidden;
+      border-left: 4px solid var(--gray);
+      transition: border-color .2s;
+    }
+    .proj-card.status-estimate { border-left-color: #1a6bb5; }
+    .proj-card.status-accepted { border-left-color: #2d8a4e; }
+    .proj-card-top {
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .proj-card-title { font-weight: 800; font-size: 1rem; color: var(--black); }
+    .proj-card-meta  { font-size: .78rem; color: #888; margin-top: 2px; }
+    .proj-card-nums  {
+      display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
+    }
+    .proj-num { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+    .proj-num-label { font-size: .68rem; color: #aaa; text-transform: uppercase; letter-spacing: .06em; }
+    .proj-num-val   { font-size: 1rem; font-weight: 800; color: var(--black); }
+    .proj-actions   { display: flex; gap: 8px; align-items: center; }
+
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    }
+    .badge-estimate { background: #dbeafe; color: #1a6bb5; }
+    .badge-accepted { background: #dcfce7; color: #166534; }
+
+    .proj-detail {
+      border-top: 1px solid var(--gray);
+      padding: 16px 18px;
+      display: none;
+    }
+    .proj-detail.open { display: block; }
+
+    /* Comparison table */
+    .cmp-table { width: 100%; border-collapse: collapse; font-size: .86rem; margin-top: 8px; }
+    .cmp-table th {
+      background: var(--black); color: var(--orange);
+      padding: 8px 12px; text-align: left;
+      font-size: .75rem; letter-spacing: .05em; text-transform: uppercase;
+    }
+    .cmp-table td { padding: 8px 12px; border-bottom: 1px solid var(--gray); }
+    .cmp-table tr:last-child td { border-bottom: none; font-weight: 700; background: var(--lgray); }
+    .over  { color: #c62828; font-weight: 700; }
+    .under { color: #2d8a4e; font-weight: 700; }
+
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); z-index: 500;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--white); border-radius: 12px;
+      width: 100%; max-width: 560px;
+      max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 8px 40px rgba(0,0,0,.3);
+    }
+    .modal-header {
+      background: var(--black); color: var(--orange);
+      padding: 16px 22px; font-weight: 800; font-size: 1rem;
+      border-radius: 12px 12px 0 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-close {
+      background: none; border: none; color: #aaa; font-size: 1.4rem;
+      cursor: pointer; line-height: 1;
+    }
+    .modal-body { padding: 22px; }
+    .modal-footer { padding: 14px 22px; border-top: 1px solid var(--gray); display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-field { margin-bottom: 14px; }
+    .modal-field label { display: block; font-size: .75rem; font-weight: 700; color: var(--dgray); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
+    .modal-field input { width: 100%; }
+    .modal-section-label { font-size: .7rem; font-weight: 700; color: #aaa; letter-spacing: .08em; text-transform: uppercase; margin: 16px 0 8px; border-top: 1px solid var(--gray); padding-top: 12px; }
+    .est-hint { font-size: .75rem; color: #aaa; }
+
+    /* Save toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--black); color: #fff;
+      padding: 12px 28px; border-radius: 8px;
+      font-weight: 700; font-size: .88rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      transition: transform .3s ease;
+      z-index: 600; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    @media(max-width: 600px) {
+      .charts-row { grid-template-columns: 1fr; }
+      .proj-card-top { flex-direction: column; }
+      .proj-card-nums { justify-content: flex-start; }
+      .proj-num { align-items: flex-start; }
+    }
+
     /* ── Print ── */
     @media print {
       /* Force every element to print its background colors/images */
@@ -555,7 +716,8 @@
 <!-- ══════════ TAB NAV ══════════ -->
 <div class="tab-nav">
   <button class="tab-btn active" onclick="switchTab('estimator', this)">&#9634; Project Estimator</button>
-  <button class="tab-btn" onclick="switchTab('historical', this)">&#9632; Historical Cost Data</button>
+  <button class="tab-btn" onclick="switchTab('historical', this)">&#9632; Dashboard</button>
+  <button class="tab-btn" onclick="switchTab('projects', this)">&#128193; My Projects</button>
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -814,6 +976,7 @@
       <div style="padding:18px; display:flex; gap:12px; flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="window.print()">&#128424; Print / Export PDF</button>
         <button class="btn btn-dark" onclick="resetAll()">&#8635; Reset All</button>
+        <button class="btn btn-primary" style="background:#2d8a4e;" onclick="saveProject()">&#128190; Save Project</button>
       </div>
     </div>
   </div>
@@ -898,6 +1061,47 @@
         Every $1.00 quoted = <span id="wf-cost-per-dollar" style="font-weight:700; color:var(--dgray);">$0.85</span> cost + <span id="wf-markup-per-dollar" style="font-weight:700; color:var(--orange);">$0.15</span> profit
       </div>
 
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="charts-row">
+    <div class="chart-box">
+      <div class="chart-box-header">Cost Mix</div>
+      <div class="chart-box-body">
+        <canvas id="chartDonut"></canvas>
+        <div class="chart-hint">Click a segment to drill down into saved jobs</div>
+      </div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-box-header">Estimate vs Actual — by Category</div>
+      <div class="chart-box-body">
+        <canvas id="chartBar"></canvas>
+        <div class="chart-hint">Populated from accepted projects</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Margin trend chart -->
+  <div class="chart-box" style="margin-bottom:24px;">
+    <div class="chart-box-header">Margin Trend — Projected vs Actual per Job</div>
+    <div class="chart-box-body">
+      <canvas id="chartMargin" style="max-height:180px;"></canvas>
+      <div class="chart-hint">Shows projected margin vs actual margin for each saved project</div>
+    </div>
+  </div>
+
+  <!-- Drill-down panel -->
+  <div class="drill-panel" id="drillPanel">
+    <div class="drill-panel-header">
+      <span id="drillTitle">Drill-down</span>
+      <button class="drill-close" onclick="closeDrill()">&#x2715;</button>
+    </div>
+    <div style="padding:16px; overflow-x:auto;">
+      <table class="cmp-table" id="drillTable">
+        <thead id="drillHead"></thead>
+        <tbody id="drillBody"></tbody>
+      </table>
     </div>
   </div>
 
@@ -1053,6 +1257,93 @@
   </div>
 
 </div><!-- end tab-historical -->
+
+
+<!-- ══════════════════════════════════════════════
+     TAB 3 — MY PROJECTS
+══════════════════════════════════════════════ -->
+<div id="tab-projects" class="tab-panel">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+    <div>
+      <div style="font-size:1.1rem; font-weight:800; color:var(--black);">Saved Projects</div>
+      <div style="font-size:.8rem; color:#888; margin-top:2px;">Save estimates from the estimator, then Accept a job to record actual costs and compare accuracy.</div>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <select id="projFilterStatus" onchange="renderProjectsList()" style="padding:8px 12px; border-radius:6px; border:1.5px solid var(--gray); font-size:.85rem; background:var(--lgray);">
+        <option value="all">All Projects</option>
+        <option value="estimate">Estimates Only</option>
+        <option value="accepted">Accepted Only</option>
+      </select>
+      <button class="btn btn-danger btn-sm" onclick="clearAllProjects()">&#x2715; Clear All</button>
+    </div>
+  </div>
+
+  <div id="projList" class="proj-list">
+    <div style="text-align:center; padding:48px; color:#aaa; font-size:.95rem;">
+      No saved projects yet. Fill out the estimator and click <strong>Save Project</strong>.
+    </div>
+  </div>
+
+</div><!-- end tab-projects -->
+
+
+<!-- ══════════ ACCEPT MODAL ══════════ -->
+<div class="modal-overlay" id="acceptModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>&#9989; Accept Project — Enter Actual Costs</span>
+      <button class="modal-close" onclick="closeAcceptModal()">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.85rem; color:#555; margin-bottom:16px;">
+        Enter what the job actually cost in each category. Leave blank to use the estimate value.
+      </p>
+
+      <div id="acceptProjectName" style="font-weight:800; font-size:1rem; color:var(--black); margin-bottom:4px;"></div>
+      <div id="acceptProjectMeta" style="font-size:.78rem; color:#888; margin-bottom:16px;"></div>
+
+      <div class="modal-section-label">Actual Costs</div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="modal-field">
+          <label>Materials ($) <span class="est-hint" id="hint-materials"></span></label>
+          <input type="number" id="act-materials" placeholder="0.00" min="0" step="0.01" />
+        </div>
+        <div class="modal-field">
+          <label>Labor ($) <span class="est-hint" id="hint-labor"></span></label>
+          <input type="number" id="act-labor" placeholder="0.00" min="0" step="0.01" />
+        </div>
+        <div class="modal-field">
+          <label>Equipment ($) <span class="est-hint" id="hint-equip"></span></label>
+          <input type="number" id="act-equip" placeholder="0.00" min="0" step="0.01" />
+        </div>
+        <div class="modal-field">
+          <label>Subcontractors ($) <span class="est-hint" id="hint-sub"></span></label>
+          <input type="number" id="act-sub" placeholder="0.00" min="0" step="0.01" />
+        </div>
+        <div class="modal-field">
+          <label>Overhead ($) <span class="est-hint" id="hint-overhead"></span></label>
+          <input type="number" id="act-overhead" placeholder="0.00" min="0" step="0.01" />
+        </div>
+        <div class="modal-field">
+          <label>Final Billed to Client ($) <span class="est-hint" id="hint-billed"></span></label>
+          <input type="number" id="act-billed" placeholder="0.00" min="0" step="0.01" />
+        </div>
+      </div>
+
+      <input type="hidden" id="acceptProjectId" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeAcceptModal()">Cancel</button>
+      <button class="btn btn-primary" style="background:#2d8a4e;" onclick="submitAccept()">&#9989; Save Actuals</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════ TOAST ══════════ -->
+<div class="toast" id="toast"></div>
 
 
 <!-- ══════════ JAVASCRIPT ══════════ -->
@@ -1434,10 +1725,389 @@ function updateDashboard() {
   });
 }
 
+// ─── Project Storage ───────────────────────────────────────────────────
+const STORE_KEY = 'rms_projects';
+
+function loadProjects() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  catch(e) { return []; }
+}
+function storeProjects(list) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(list));
+}
+
+function saveProject() {
+  const name = document.getElementById('jobName').value.trim();
+  if (!name) { showToast('Add a Project Name before saving'); return; }
+
+  const mats  = sumTable('materialsTbody');
+  const labor = sumTable('laborTbody');
+  const equip = sumTable('equipTbody');
+  const sub   = sumTable('subTbody');
+  const ov    = sumTable('overheadTbody');
+  const direct= mats + labor + equip + sub + ov;
+  const margin= parseFloat(document.getElementById('marginPct').value) || 0;
+  const markup= direct * (margin / 100);
+  const quoted= direct + markup;
+  const sqft  = parseFloat(document.getElementById('totalSqFt').value) || 0;
+  const tons  = calcTonnage();
+
+  const proj = {
+    id: 'rms_' + Date.now(),
+    name,
+    client:   document.getElementById('clientName').value.trim(),
+    date:     document.getElementById('jobDate').value,
+    location: document.getElementById('jobLocation').value.trim(),
+    type:     document.getElementById('jobType').value,
+    bidNum:   document.getElementById('bidNum').value.trim(),
+    status:   'estimate',
+    sqft, tons,
+    estimate: { materials: mats, labor, equip, sub, overhead: ov, direct, markup, quoted, marginPct: margin },
+    actual:   null,
+    savedAt:  new Date().toISOString(),
+    acceptedAt: null,
+  };
+
+  const list = loadProjects();
+  list.unshift(proj);
+  storeProjects(list);
+  showToast('Project saved!');
+  renderProjectsList();
+  updateCharts();
+}
+
+// ─── Projects List ─────────────────────────────────────────────────────
+function renderProjectsList() {
+  const filter = document.getElementById('projFilterStatus').value;
+  let list = loadProjects();
+  if (filter !== 'all') list = list.filter(p => p.status === filter);
+
+  const el = document.getElementById('projList');
+  if (!list.length) {
+    el.innerHTML = `<div style="text-align:center;padding:48px;color:#aaa;font-size:.95rem;">
+      No projects found. ${filter==='all' ? 'Fill out the estimator and click <strong>Save Project</strong>.' : ''}
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(p => {
+    const e = p.estimate;
+    const hasActual = p.actual !== null;
+    const badge = p.status === 'accepted'
+      ? '<span class="badge badge-accepted">&#9989; Accepted</span>'
+      : '<span class="badge badge-estimate">&#9998; Estimate</span>';
+
+    const actualQuoted = hasActual ? p.actual.billed : null;
+    const variance = hasActual ? actualQuoted - e.quoted : null;
+    const varClass = variance === null ? '' : (variance >= 0 ? 'under' : 'over');
+    const varTxt   = variance === null ? '' : (variance >= 0 ? '+' : '') + fmtCurrency(variance);
+
+    return `
+    <div class="proj-card status-${p.status}" id="pcard-${p.id}">
+      <div class="proj-card-top">
+        <div>
+          <div class="proj-card-title">${p.name}</div>
+          <div class="proj-card-meta">${[p.client, p.type, p.date].filter(Boolean).join(' &bull; ')} ${p.bidNum ? '&bull; ' + p.bidNum : ''}</div>
+          <div style="margin-top:6px;">${badge}</div>
+        </div>
+        <div class="proj-card-nums">
+          <div class="proj-num">
+            <div class="proj-num-label">Estimated Cost</div>
+            <div class="proj-num-val">${fmtCurrency(e.direct)}</div>
+          </div>
+          <div class="proj-num">
+            <div class="proj-num-label">Quoted Price</div>
+            <div class="proj-num-val">${fmtCurrency(e.quoted)}</div>
+          </div>
+          ${hasActual ? `
+          <div class="proj-num">
+            <div class="proj-num-label">Actual Billed</div>
+            <div class="proj-num-val">${fmtCurrency(actualQuoted)}</div>
+          </div>
+          <div class="proj-num">
+            <div class="proj-num-label">Variance</div>
+            <div class="proj-num-val ${varClass}">${varTxt}</div>
+          </div>` : ''}
+        </div>
+        <div class="proj-actions">
+          ${p.status === 'estimate' ? `<button class="btn btn-primary btn-sm" style="background:#2d8a4e;" onclick="openAcceptModal('${p.id}')">&#9989; Accept</button>` : ''}
+          <button class="btn btn-dark btn-sm" onclick="toggleProjDetail('${p.id}')">&#128065; Details</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">&#x2715;</button>
+        </div>
+      </div>
+      <div class="proj-detail" id="pdetail-${p.id}">
+        ${buildComparisonTable(p)}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildComparisonTable(p) {
+  const e = p.estimate;
+  const a = p.actual;
+  const cats = [
+    ['Materials',      e.materials, a?.materials],
+    ['Labor',          e.labor,     a?.labor],
+    ['Equipment',      e.equip,     a?.equip],
+    ['Subcontractors', e.sub,       a?.sub],
+    ['Overhead',       e.overhead,  a?.overhead],
+    ['TOTAL COST',     e.direct,    a ? (a.materials+a.labor+a.equip+a.sub+a.overhead) : null],
+    ['Quoted / Billed',e.quoted,    a?.billed],
+  ];
+
+  const rows = cats.map(([label, est, act], i) => {
+    const isTot = i >= 5;
+    const varNum = (act != null) ? act - est : null;
+    const varPct = (act != null && est > 0) ? ((act - est) / est * 100) : null;
+    const cls = varNum === null ? '' : (varNum > 0 ? 'over' : 'under');
+    return `<tr${isTot ? ' style="font-weight:700;background:var(--lgray)"' : ''}>
+      <td>${label}</td>
+      <td>${fmtCurrency(est)}</td>
+      <td>${act != null ? fmtCurrency(act) : '<span style="color:#aaa">—</span>'}</td>
+      <td class="${cls}">${varNum != null ? (varNum >= 0 ? '+' : '') + fmtCurrency(varNum) : '<span style="color:#aaa">—</span>'}</td>
+      <td class="${cls}">${varPct != null ? (varPct >= 0 ? '+' : '') + varPct.toFixed(1) + '%' : '<span style="color:#aaa">—</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="font-size:.78rem; color:#888; margin-bottom:8px;">
+      Saved ${new Date(p.savedAt).toLocaleDateString()} ${p.sqft ? '&bull; ' + p.sqft.toLocaleString() + ' sq ft' : ''} ${p.tons ? '&bull; ' + p.tons.toFixed(1) + ' tons' : ''}
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="cmp-table">
+      <thead><tr><th>Category</th><th>Estimated</th><th>${a ? 'Actual' : 'Actual (not yet entered)'}</th><th>Variance $</th><th>Variance %</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    ${!a ? `<div style="margin-top:12px;"><button class="btn btn-primary btn-sm" style="background:#2d8a4e;" onclick="openAcceptModal('${p.id}')">&#9989; Enter Actual Costs to Compare</button></div>` : ''}`;
+}
+
+function toggleProjDetail(id) {
+  const el = document.getElementById('pdetail-' + id);
+  el.classList.toggle('open');
+}
+
+function deleteProject(id) {
+  if (!confirm('Delete this project?')) return;
+  storeProjects(loadProjects().filter(p => p.id !== id));
+  renderProjectsList();
+  updateCharts();
+}
+
+function clearAllProjects() {
+  if (!confirm('Delete ALL saved projects? This cannot be undone.')) return;
+  storeProjects([]);
+  renderProjectsList();
+  updateCharts();
+}
+
+// ─── Accept Modal ──────────────────────────────────────────────────────
+function openAcceptModal(id) {
+  const proj = loadProjects().find(p => p.id === id);
+  if (!proj) return;
+  const e = proj.estimate;
+
+  document.getElementById('acceptProjectId').value    = id;
+  document.getElementById('acceptProjectName').textContent = proj.name;
+  document.getElementById('acceptProjectMeta').textContent =
+    [proj.client, proj.type, proj.date].filter(Boolean).join(' · ');
+
+  const hints = { materials: e.materials, labor: e.labor, equip: e.equip, sub: e.sub, overhead: e.overhead, billed: e.quoted };
+  Object.entries(hints).forEach(([k, v]) => {
+    const el = document.getElementById('hint-' + k);
+    if (el) el.textContent = '(est. ' + fmtCurrency(v) + ')';
+    const input = document.getElementById('act-' + k);
+    if (input) { input.value = ''; input.placeholder = v.toFixed(2); }
+  });
+
+  document.getElementById('acceptModal').classList.add('open');
+}
+
+function closeAcceptModal() {
+  document.getElementById('acceptModal').classList.remove('open');
+}
+
+function submitAccept() {
+  const id = document.getElementById('acceptProjectId').value;
+  const list = loadProjects();
+  const proj = list.find(p => p.id === id);
+  if (!proj) return;
+
+  const get = key => {
+    const v = parseFloat(document.getElementById('act-' + key).value);
+    return isNaN(v) ? proj.estimate[key === 'billed' ? 'quoted' : key] : v;
+  };
+
+  proj.actual = {
+    materials: get('materials'),
+    labor:     get('labor'),
+    equip:     get('equip'),
+    sub:       get('sub'),
+    overhead:  get('overhead'),
+    billed:    get('billed'),
+  };
+  proj.status      = 'accepted';
+  proj.acceptedAt  = new Date().toISOString();
+
+  storeProjects(list);
+  closeAcceptModal();
+  showToast('Actuals saved!');
+  renderProjectsList();
+  updateCharts();
+}
+
+// ─── Charts ────────────────────────────────────────────────────────────
+let chartDonut = null, chartBar = null, chartMargin = null;
+const CAT_COLORS = ['#e05a1b','#1a6bb5','#2d8a4e','#7b4fa6','#6b7280'];
+const CAT_LABELS = ['Materials','Labor','Equipment','Subcontractors','Overhead'];
+const CAT_KEYS   = ['materials','labor','equip','sub','overhead'];
+
+function initCharts() {
+  const donutCtx = document.getElementById('chartDonut').getContext('2d');
+  chartDonut = new Chart(donutCtx, {
+    type: 'doughnut',
+    data: { labels: CAT_LABELS, datasets: [{ data: [39.1,23.7,18.2,11.2,7.7], backgroundColor: CAT_COLORS, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%` } }
+      },
+      onClick: (e, els) => { if (els.length) drillDown(CAT_KEYS[els[0].index], CAT_LABELS[els[0].index]); }
+    }
+  });
+
+  const barCtx = document.getElementById('chartBar').getContext('2d');
+  chartBar = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: CAT_LABELS,
+      datasets: [
+        { label: 'Estimated', data: [0,0,0,0,0], backgroundColor: 'rgba(224,90,27,0.7)', borderRadius: 4 },
+        { label: 'Actual',    data: [0,0,0,0,0], backgroundColor: 'rgba(45,138,78,0.7)',  borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { labels: { font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}` } }
+      },
+      scales: {
+        y: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } }
+      },
+      onClick: (e, els) => { if (els.length) drillDown(CAT_KEYS[els[0].index], CAT_LABELS[els[0].index]); }
+    }
+  });
+
+  const marginCtx = document.getElementById('chartMargin').getContext('2d');
+  chartMargin = new Chart(marginCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'Projected Margin %', data: [], borderColor: '#e05a1b', backgroundColor: 'rgba(224,90,27,0.1)', tension: 0.3, fill: true, pointRadius: 5 },
+        { label: 'Actual Margin %',    data: [], borderColor: '#2d8a4e', backgroundColor: 'rgba(45,138,78,0.1)',  tension: 0.3, fill: true, pointRadius: 5, borderDash: [4,4] },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { labels: { font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` } }
+      },
+      scales: { y: { ticks: { callback: v => v + '%' } } }
+    }
+  });
+
+  updateCharts();
+}
+
+function updateCharts() {
+  const projects = loadProjects();
+  if (!chartDonut) return;
+
+  // Donut: use saved project averages or baseline
+  const accepted = projects.filter(p => p.actual);
+  const allProjs = projects;
+
+  if (allProjs.length > 0) {
+    const totals = CAT_KEYS.map(k => allProjs.reduce((s, p) => s + (p.estimate[k] || 0), 0) / allProjs.length);
+    const sum = totals.reduce((a, b) => a + b, 0);
+    chartDonut.data.datasets[0].data = totals.map(v => sum > 0 ? +(v / sum * 100).toFixed(1) : 0);
+  } else {
+    chartDonut.data.datasets[0].data = [39.1, 23.7, 18.2, 11.2, 7.7];
+  }
+  chartDonut.update();
+
+  // Bar: estimate vs actual averages
+  if (accepted.length > 0) {
+    chartBar.data.datasets[0].data = CAT_KEYS.map(k => accepted.reduce((s,p) => s + p.estimate[k], 0) / accepted.length);
+    chartBar.data.datasets[1].data = CAT_KEYS.map(k => accepted.reduce((s,p) => s + (p.actual[k] || 0), 0) / accepted.length);
+  } else {
+    chartBar.data.datasets[0].data = [18450, 11200, 8600, 5300, 3650];
+    chartBar.data.datasets[1].data = [0, 0, 0, 0, 0];
+  }
+  chartBar.update();
+
+  // Margin trend: all saved projects in order
+  const sorted = [...projects].reverse();
+  chartMargin.data.labels = sorted.map(p => p.name.length > 12 ? p.name.slice(0,12)+'…' : p.name);
+  chartMargin.data.datasets[0].data = sorted.map(p => p.estimate.marginPct);
+  chartMargin.data.datasets[1].data = sorted.map(p => {
+    if (!p.actual) return null;
+    const actualCost = p.actual.materials + p.actual.labor + p.actual.equip + p.actual.sub + p.actual.overhead;
+    const profit = p.actual.billed - actualCost;
+    return p.actual.billed > 0 ? +(profit / p.actual.billed * 100).toFixed(1) : null;
+  });
+  chartMargin.update();
+}
+
+// ─── Drill-down ────────────────────────────────────────────────────────
+function drillDown(catKey, catLabel) {
+  const projects = loadProjects();
+  const panel = document.getElementById('drillPanel');
+  document.getElementById('drillTitle').textContent = catLabel + ' — All Projects';
+
+  const rows = projects.map(p => {
+    const est = p.estimate[catKey] || 0;
+    const act = p.actual ? (p.actual[catKey] || 0) : null;
+    const varNum = act !== null ? act - est : null;
+    const varCls = varNum === null ? '' : (varNum > 0 ? 'over' : 'under');
+    return `<tr>
+      <td>${p.name}</td>
+      <td>${p.client || '—'}</td>
+      <td>${p.date || '—'}</td>
+      <td>${fmtCurrency(est)}</td>
+      <td>${act !== null ? fmtCurrency(act) : '<span style="color:#aaa">pending</span>'}</td>
+      <td class="${varCls}">${varNum !== null ? (varNum >= 0 ? '+' : '') + fmtCurrency(varNum) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('drillHead').innerHTML =
+    '<tr><th>Project</th><th>Client</th><th>Date</th><th>Estimated</th><th>Actual</th><th>Variance</th></tr>';
+  document.getElementById('drillBody').innerHTML = rows ||
+    '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">No projects saved yet.</td></tr>';
+
+  panel.classList.add('open');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeDrill() {
+  document.getElementById('drillPanel').classList.remove('open');
+}
+
+// ─── Toast ─────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
 // ─── Init ──────────────────────────────────────────────────────────────
 flatpickr('#jobDate', { dateFormat: 'm/d/Y', defaultDate: 'today' });
 buildTables();
 updateDashboard();
+renderProjectsList();
+initCharts();
 </script>
 </body>
 </html>
