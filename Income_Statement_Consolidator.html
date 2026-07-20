@@ -58,6 +58,8 @@
   table.rt th .mini{font-weight:400;opacity:.7;font-size:10px}
   table.rt td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
   table.rt td.lft{text-align:left}
+  table.rt th.grp,table.rt td.grp{border-left:1px solid var(--line)}
+  table.rt th[colspan]{text-align:center}
   tr.leaf td{color:var(--ink)}
   tr.leaf td.lft{color:var(--muted)}
   tr.subtotal{background:rgba(74,158,255,.06)} tr.subtotal td{font-weight:700}
@@ -215,10 +217,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const KEY_METRICS = [
     { key: "total revenue",           label: "Total Revenue" },
     { key: "total operating expense", label: "Total Operating Expense" },
-    { key: "operating ebida",         label: "Operating EBIDA" },
     { key: "operating income (loss)", label: "Operating Income (Loss)" },
     { key: "net income (loss)",       label: "Net Income (Loss)" },
     { key: "paid ftes",               label: "Paid FTEs" }
+  ];
+  // Summary shows each metric for two periods, side by side.
+  const PERIODS = [
+    { k: "E", col: "E", label: "Current Month" }, // col E  = current month Actual
+    { k: "Q", col: "Q", label: "YTD" }            // col Q  = year-to-date Actual
   ];
 
   // Ratio / per-unit / margin / percent rows: NOT additive -> blanked in rollups.
@@ -565,13 +571,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     for (const m of KEY_METRICS) {
       ws.getCell(4, c).value = m.label; ws.getCell(4, c).font = F({ bold: true });
       ws.getCell(4, c).alignment = { horizontal: "center" };
-      ws.mergeCells(4, c, 4, c + 2);
-      ["Actual", "Baseline", "Adjusted"].forEach((h, i) => {
+      ws.mergeCells(4, c, 4, c + PERIODS.length - 1);
+      PERIODS.forEach((p, i) => {
         const cell = ws.getCell(5, c + i);
-        cell.value = h; cell.font = F({ bold: true, size: 10, color: { argb: "FF666666" } });
+        cell.value = p.label; cell.font = F({ bold: true, size: 10, color: { argb: "FF666666" } });
         cell.alignment = { horizontal: "right" };
       });
-      c += 3;
+      c += PERIODS.length;
     }
 
     // A metric cell -> a formula. Leaf rows reference the single source tab;
@@ -597,9 +603,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       lc.font = F({ bold: bold, color: row.type === "leaf" ? { argb: "FF444444" } : undefined });
       const cntC = ws.getCell(r, 2); cntC.value = row.count || null; cntC.alignment = { horizontal: "center" }; cntC.font = F({ bold: bold });
       let cc = 3;
-      for (const m of KEY_METRICS) for (const k of ["E", "G", "I"]) {
+      for (const m of KEY_METRICS) for (const p of PERIODS) {
         const cell = ws.getCell(r, cc++);
-        cell.value = metricValue(row, m.key, k, row.metrics[m.key][k]);
+        cell.value = metricValue(row, m.key, p.col, row.metrics[m.key][p.k]);
         cell.numFmt = NUMFMT; cell.font = F({ bold: bold });
       }
       if (row.type === "grand") for (let x = 1; x < cc; x++) ws.getCell(r, x).border = { top: { style: "double" } };
@@ -610,9 +616,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         rc.value = "↳ reported file (" + row.code + ")";
         rc.alignment = { indent: indent + 1 }; rc.font = F({ italic: true, size: 10, color: { argb: "FF888888" } });
         let cc2 = 3;
-        for (const m of KEY_METRICS) for (const k of ["E", "G", "I"]) {
+        for (const m of KEY_METRICS) for (const p of PERIODS) {
           const cell = ws.getCell(r, cc2++);
-          cell.value = metricValue({ file: row.reportedFile }, m.key, k, row.reported[m.key][k]);
+          cell.value = metricValue({ file: row.reportedFile }, m.key, p.col, row.reported[m.key][p.k]);
           cell.numFmt = NUMFMT; cell.font = F({ italic: true, size: 10, color: { argb: "FF888888" } });
         }
         r++;
@@ -734,22 +740,24 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     if (!files.length) { summaryWrap.innerHTML = '<p class="empty">Drop files to see the rollup.</p>'; dlBtn.disabled = true; return; }
     dlBtn.disabled = false;
-    let html = '<table class="rt"><thead><tr><th class="lft">Department / Rollup</th><th>Depts</th>';
-    for (const m of KEY_METRICS) html += "<th>" + escapeHtml(m.label) + '<br><span class="mini">Actual</span></th>';
+    let html = '<table class="rt"><thead><tr><th class="lft" rowspan="2">Department / Rollup</th><th rowspan="2">Depts</th>';
+    for (const m of KEY_METRICS) html += '<th colspan="' + PERIODS.length + '" class="grp">' + escapeHtml(m.label) + "</th>";
+    html += "</tr><tr>";
+    for (const m of KEY_METRICS) for (const p of PERIODS) html += '<th class="' + (p.k === "E" ? "grp" : "") + '"><span class="mini">' + (p.k === "E" ? "Cur Mo" : "YTD") + "</span></th>";
     html += "</tr></thead><tbody>";
     for (const row of summaryRows()) {
       const pad = Math.max(0, row.depth - 1) * 18;
       html += '<tr class="' + row.type + '"><td class="lft" style="padding-left:' + (10 + pad) + 'px">' + escapeHtml(row.label) + "</td><td>" + (row.count || "") + "</td>";
-      for (const m of KEY_METRICS) html += "<td>" + fmt(row.metrics[m.key].E) + "</td>";
+      for (const m of KEY_METRICS) for (const p of PERIODS) html += '<td class="' + (p.k === "E" ? "grp" : "") + '">' + fmt(row.metrics[m.key][p.k]) + "</td>";
       html += "</tr>";
       if (row.reported) {
         html += '<tr class="reported"><td class="lft" style="padding-left:' + (10 + pad + 18) + 'px">↳ reported file (' + escapeHtml(row.code) + ")</td><td></td>";
-        for (const m of KEY_METRICS) html += "<td>" + fmt(row.reported[m.key].E) + "</td>";
+        for (const m of KEY_METRICS) for (const p of PERIODS) html += '<td class="' + (p.k === "E" ? "grp" : "") + '">' + fmt(row.reported[m.key][p.k]) + "</td>";
         html += "</tr>";
       }
     }
     html += "</tbody></table>";
-    html += '<p class="note">Preview shows current-month <b>Actual</b>. The download includes Baseline &amp; Adjusted, YTD, prior-year and all monthly columns, in the exact ALL-IHT layout &amp; formatting.</p>';
+    html += '<p class="note"><b>Cur Mo</b> = current-month Actual (col E) · <b>YTD</b> = year-to-date Actual (col Q), shown side by side. The download also carries Baseline, Adjusted, prior-year and all monthly columns in the ALL-IHT statement, and every number is a live formula.</p>';
     summaryWrap.innerHTML = html;
   }
 
