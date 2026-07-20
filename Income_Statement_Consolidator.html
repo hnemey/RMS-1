@@ -234,6 +234,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const files = [];        // {name, code, fyear, period, rows, aoa, metrics, isLeaf}
   let tplRows = null;      // parsed rows of the embedded template (with rExcel)
   let tplWB = null;        // ExcelJS workbook of the embedded template (pristine)
+  let tplMeta = {};        // skey -> {outlineLevel, hidden, collapsed, bottom} from template
 
   function b64ToBuf(b64) {
     const bin = atob(b64), len = bin.length, bytes = new Uint8Array(len);
@@ -395,6 +396,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   function cloneStyledSheet(src, outWb, name) {
     const ws = outWb.addWorksheet(name);
+    // Sheet view (gridlines off) + outline settings (row grouping direction)
+    ws.views = src.views ? JSON.parse(JSON.stringify(src.views)) : [{ showGridLines: false }];
+    try { ws.properties.outlineLevelRow = src.properties.outlineLevelRow || 0; } catch (e) {}
+    try { ws.properties.outlineProperties = { summaryBelow: false, summaryRight: false }; } catch (e) {}
     const colCount = Math.max(src.columnCount || 0, MAX_COL);
     for (let c = 1; c <= colCount; c++) {
       const w = src.getColumn(c).width;
@@ -403,6 +408,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     src.eachRow({ includeEmpty: true }, (row, r) => {
       const nr = ws.getRow(r);
       if (row.height) nr.height = row.height;
+      if (row.outlineLevel) nr.outlineLevel = row.outlineLevel; // grouping
+      if (row.hidden) nr.hidden = true;
       row.eachCell({ includeEmpty: true }, (cell, c) => {
         const nc = nr.getCell(c);
         nc.value = cloneVal(cell.value);
@@ -447,6 +454,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   /* ---- Pass-through sheet (values + sensible formats) from SheetJS aoa --- */
   function buildPassthroughSheet(outWb, name, f) {
     const ws = outWb.addWorksheet(name);
+    ws.views = [{ showGridLines: false }];
+    try { ws.properties.outlineLevelRow = 1; ws.properties.outlineProperties = { summaryBelow: false, summaryRight: false }; } catch (e) {}
     if (tplWB) {
       const src = tplWB.worksheets[0];
       for (let c = 1; c <= MAX_COL; c++) { const w = src.getColumn(c).width; if (w) ws.getColumn(c).width = w; }
@@ -454,17 +463,26 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const aoa = f.aoa;
     for (let r = 0; r < aoa.length; r++) {
       const row = aoa[r] || [];
+      const parsed = f.rows[r];                         // aligned by index (rExcel = r+1)
+      const meta = parsed && parsed.skey ? tplMeta[parsed.skey] : null;
       const headerBold = r < 7 || (typeof row[0] === "string" && row[0].trim());
+      const nr = ws.getRow(r + 1);
+      if (meta) { if (meta.outlineLevel) nr.outlineLevel = meta.outlineLevel; if (meta.hidden) nr.hidden = true; }
       for (let c = 0; c < row.length && c < MAX_COL; c++) {
         const v = row[c];
         if (v == null || v === "") continue;
-        const cell = ws.getRow(r + 1).getCell(c + 1);
+        const cell = nr.getCell(c + 1);
         cell.value = v;
         cell.font = { name: "Calibri", size: 11, bold: !!headerBold };
         if (typeof v === "number") {
           cell.numFmt = PCT_COLS.has(c) ? "#0.0%;(#0.0%)" : "#,##0;(#,##0)";
           cell.alignment = { horizontal: "right" };
         }
+      }
+      // Subtotal underline border across the row, matching the template.
+      if (meta && meta.bottom) for (let c = 1; c <= MAX_COL; c++) {
+        const cell = nr.getCell(c);
+        cell.border = Object.assign({}, cell.border, { bottom: meta.bottom });
       }
     }
     return ws;
@@ -497,7 +515,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   function buildSummarySheet(outWb) {
-    const ws = outWb.addWorksheet("Rollup Summary", { views: [{ state: "frozen", ySplit: 5 }] });
+    const ws = outWb.addWorksheet("Rollup Summary", { views: [{ state: "frozen", ySplit: 5, showGridLines: false }] });
     const F = (o) => Object.assign({ name: "Calibri", size: 11 }, o);
     const NUMFMT = "#,##0;(#,##0);-";
     ws.getCell("A1").value = "Monthly Income Statement — Rollup Summary";
@@ -602,6 +620,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const swb = XLSX.read(buf, { type: "array", cellNF: true });
     const aoa = XLSX.utils.sheet_to_json(swb.Sheets[swb.SheetNames[0]], { header: 1, raw: true, blankrows: true });
     tplRows = parseAoa(aoa, "TEMPLATE").rows;
+    // Capture grouping + subtotal-underline borders per line label, for pass-through tabs.
+    tplMeta = {};
+    const tws = tplWB.worksheets[0];
+    for (const rw of tplRows) {
+      if (!rw.skey) continue;
+      const srow = tws.getRow(rw.rExcel);
+      let bottom = null;
+      for (const c of [5, 2, 1]) {
+        const b = srow.getCell(c).border;
+        if (b && b.bottom && b.bottom.style) { bottom = JSON.parse(JSON.stringify(b.bottom)); break; }
+      }
+      tplMeta[rw.skey] = {
+        outlineLevel: srow.outlineLevel || 0, hidden: !!srow.hidden, collapsed: !!srow.collapsed, bottom
+      };
+    }
   }
 
   async function handleFiles(fileObjs) {
