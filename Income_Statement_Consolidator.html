@@ -777,14 +777,36 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   clearBtn.addEventListener("click", () => { files.length = 0; render(); setStatus("Cleared."); });
 
   dlBtn.addEventListener("click", async () => {
+    const stamp = (files.find((f) => f.fyear) || {}).fyear || "";
+    const filename = "Consolidated_Income_Statement" + (stamp ? "_FY" + stamp : "") + ".xlsx";
     try {
       dlBtn.disabled = true; setStatus("Building workbook…");
       const buf = await buildWorkbook();
       const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+      // Preferred: native "Save As" dialog (Chrome/Edge). Lets you pick the folder.
+      if (window.showSaveFilePicker) {
+        let handle;
+        try {
+          handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: "Excel Workbook", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }]
+          });
+        } catch (err) {
+          if (err && err.name === "AbortError") { setStatus("Save cancelled."); return; } // user closed the dialog
+          throw err;
+        }
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        setStatus("Saved " + handle.name + ". " + files.length + " source file(s) consolidated.", "ok");
+        return;
+      }
+
+      // Fallback: standard browser download (Firefox/Safari).
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const stamp = (files.find((f) => f.fyear) || {}).fyear || "";
-      a.href = url; a.download = "Consolidated_Income_Statement" + (stamp ? "_FY" + stamp : "") + ".xlsx";
+      a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       setStatus("Downloaded. " + files.length + " source file(s) consolidated.", "ok");
