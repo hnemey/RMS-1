@@ -209,7 +209,7 @@ select.payor { font: inherit; font-size: 12px; padding: 2px 6px; border: 1px sol
   <span class="filechip" id="chipList"><span class="dot"></span><span>No folder linked</span></span>
   <button id="btnSync" disabled title="Link a folder first">Sync</button>
   <button id="btnLinkHeader">Link folder…</button>
-  <button id="btnOpen" class="primary">Insert Weekly Report</button>
+  <button id="btnOpen" class="primary">Drop Raw Data</button>
 </header>
 <nav class="tabs">
   <button data-tab="dash" class="active">Export</button>
@@ -624,11 +624,16 @@ function processReport(workbook) {
   }
   return { rows, meta };
 }
-// sheets named like "Bank…" hold account numbers; everything else is payers
+// sheets named like "Bank…" hold account numbers; the first other sheet is the
+// auto-remove payer list. Any further non-bank sheets (e.g. a "Sheet2" of
+// review-only payers such as TRICARE-ONLY or GSA TREAS 310) are left for manual
+// handling and never auto-excluded.
 function parseExclusionWorkbook(workbook) {
   const payers = [], banks = [], seenP = new Set(), seenB = new Set();
+  let payerSheet = null;
   for (const sh of workbook.sheets) {
     const isBank = /bank|acc(oun)?t/i.test(sh.name);
+    if (!isBank) { if (payerSheet === null) payerSheet = sh.name; else if (sh.name !== payerSheet) continue; }
     for (const r of sh.rows) for (const v of (r || [])) {
       if (v == null) continue;
       const t = String(v).replace(/\u00a0/g, ' ').trim();
@@ -692,10 +697,17 @@ function buildMatcher(entries) {
   return function (payer, details) {
     const payName = alnumKey(String(payer).slice(0, NAME_COL_W));
     const hay = alnumKey(payer) + alnumKey(details);
+    // Some rows lay the payer out as "NAME DESC:<code>" (the newer "S-type"
+    // export), while the list entries carry the name and code mashed together
+    // ("NAME<code>"). Strip the DES:/DESC: marker so rule 2 still matches a
+    // payer's own name+code across both layouts — otherwise a listed payer whose
+    // payment only appears in the newer format (e.g. College of Idaho, Premier
+    // Health) would slip through and need a manual exclusion every week.
+    const hayND = alnumKey(String(payer).replace(/DESC?:/gi, '')) + alnumKey(String(details).replace(/DESC?:/gi, ''));
     if (!hay) return null;
     for (const s of specs) {
       if (s.isolable && s.nameKey.length >= 4 && payName.includes(s.nameKey)) return s.raw;
-      if (s.head.length >= 8 && hay.includes(s.head)) return s.raw;
+      if (s.head.length >= 8 && (hay.includes(s.head) || hayND.includes(s.head))) return s.raw;
       if (s.tokens.length >= 2 && s.full.length >= 10) {
         let pos = 0, ok = true;
         for (const t of s.tokens) {
