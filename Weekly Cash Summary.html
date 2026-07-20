@@ -2311,7 +2311,7 @@ async function archiveWeekFiles(withStatus) {
   for (let i = 0; i < w.weeks.length; i++) {
     if (!perWeek[i].length) continue;
     const parts = w.weeks[i].range.split('-');
-    const fname = 'Weekly Cash Report ' + parts[0].replace(/\//g, '-') + ' to ' + parts[1].replace(/\//g, '-') + '.xlsx';
+    const fname = 'Weekly Cash Summary ' + parts[0].replace(/\//g, '-') + ' to ' + parts[1].replace(/\//g, '-') + '.xlsx';
     const grid = { 1: {} };
     headers.forEach((h, c) => { grid[1][c] = { v: h, f: null }; });
     perWeek[i].forEach((vals, ri) => {
@@ -2562,7 +2562,7 @@ function buildDataReport() {
   const moneyIdx = OUT_COLS.map((c, i) => MONEY_COLS.has(c) ? i : -1).filter(i => i >= 0);
   const head = '<tr>' + OUT_COLS.map(c => '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + c + '</th>').join('') + '</tr>';
   return '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-  '<title>St Luke’s Weekly Cash Data · ' + esc(range) + '</title><style>' + reportCss() +
+  '<title>St Luke’s Weekly Cash Summary · ' + esc(range) + '</title><style>' + reportCss() +
   '.tabs{display:flex;gap:2px;margin:16px 0 0;border-bottom:1px solid var(--grid)}' +
   '.tabs button{font:inherit;border:none;background:none;padding:10px 14px;color:var(--ink-2);border-bottom:2px solid transparent;font-weight:550;cursor:pointer}' +
   '.tabs button.active{color:var(--ink);border-bottom-color:var(--accent)}.tabs .cnt{color:var(--muted);font-weight:400;font-size:12px;margin-left:4px}' +
@@ -2574,7 +2574,7 @@ function buildDataReport() {
   '.more{margin:12px 0;text-align:center}.more button{font:inherit;padding:6px 16px;border-radius:8px;border:1px solid var(--grid);background:var(--surface);color:var(--ink);cursor:pointer}' +
   '@media print{.bar,.more{display:none}.tw{max-height:none;overflow:visible}}' +
   '</style></head><body><div class="wrap">' +
-  '<h1><span class="logo"><span class="st">St</span><span class="lukes">Luke’s</span></span> Weekly Cash Data</h1>' +
+  '<h1><span class="logo"><span class="st">St</span><span class="lukes">Luke’s</span></span> Weekly Cash Summary</h1>' +
   '<div class="sub">Lockbox ' + esc(range) + ' · generated ' + esc(new Date().toLocaleString()) +
   ' · <b>' + inc.length.toLocaleString() + '</b> included (' + fmtMoney(sum(inc)) + ') · <b>' +
   exc.length.toLocaleString() + '</b> removed (' + fmtMoney(sum(exc)) + ')</div>' +
@@ -2605,13 +2605,13 @@ $('btnExportCsv').addEventListener('click', () => {
   const inc = includedRows();
   const q = v => { const s = cellText(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const csv = [OUT_COLS.join(',')].concat(inc.map(r => rowCells(r).map(q).join(','))).join('\r\n');
-  download('Weekly_Cash_Report_' + stamp() + '.csv', new Blob(['﻿' + csv], { type: 'text/csv' }));
+  download('Weekly_Cash_Summary_' + stamp() + '.csv', new Blob(['﻿' + csv], { type: 'text/csv' }));
 });
 
 /* ---------- leader HTML report ---------- */
 $('btnExportHtml').addEventListener('click', () => {
   const html = buildLeaderReport();
-  download('Weekly_Cash_Report_' + stamp() + '.html', new Blob([html], { type: 'text/html' }));
+  download('Weekly_Cash_Summary_' + stamp() + '.html', new Blob([html], { type: 'text/html' }));
   toast('Leader report exported — share the downloaded HTML file');
 });
 /* ---------- Export preview (renders the leader export inline) ---------- */
