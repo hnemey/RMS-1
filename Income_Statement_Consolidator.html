@@ -29,9 +29,8 @@
   #drop:hover,#drop.over{border-color:var(--accent);background:rgba(74,158,255,.07)}
   #drop .big{font-size:15px;font-weight:600}
   #drop .sub{font-size:12.5px;color:var(--muted);margin-top:4px}
-  .opts{margin-top:14px;font-size:13px;color:var(--muted)}
-  .opts label{display:flex;gap:8px;align-items:center;margin:7px 0;cursor:pointer;color:var(--ink)}
-  .opts input{accent-color:var(--accent)}
+  .exports{margin-top:14px;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .exports b{color:var(--ink)}
   .btnrow{display:flex;gap:10px;margin-top:16px}
   button{font:inherit;border:0;border-radius:9px;padding:10px 16px;cursor:pointer;font-weight:600}
   #dlBtn{background:var(--accent2);color:#fff;flex:1}
@@ -89,11 +88,7 @@
       </div>
       <input id="fileInput" type="file" accept=".xlsx,.xls" multiple hidden>
 
-      <div class="opts">
-        <label><input type="checkbox" id="optRollupTabs" checked> Rolled-up statement tab per parent — identical ALL-IHT layout (naming logic)</label>
-        <label><input type="checkbox" id="optSummary" checked> Add a Rollup Summary table sheet</label>
-        <label><input type="checkbox" id="optPassthrough" checked> Add a pass-through tab for each source file</label>
-      </div>
+      <p class="exports">Every export includes: an <b>identical tab</b> for each file you drop in, a <b>Rollup Summary</b>, and the rolled-up <b>Income Statement</b>.</p>
 
       <div class="btnrow">
         <button id="dlBtn" disabled>Download Excel ▾</button>
@@ -574,20 +569,19 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       used.add(t.toLowerCase()); return t;
     };
 
-    if (optSummary.checked) buildSummarySheet(outWb);
+    // 1) An identical tab for each dropped file
+    const ordered = files.slice().sort((a, b) => cmpCode(a.code || a.name, b.code || b.name));
+    for (const f of ordered)
+      buildPassthroughSheet(outWb, tabName(f.code || f.name.replace(/\.xlsx?$/i, "")), f);
 
-    if (optRollupTabs.checked) {
-      for (const g of rollupGroups()) {
-        if (g.leaves.length < 2) continue;
-        const ws = cloneStyledSheet(tplWB.worksheets[0], outWb, tabName("ROLLUP " + g.code));
-        fillRollupSheet(ws, g.leaves, g.code);
-      }
-    }
+    // 2) Rollup Summary
+    buildSummarySheet(outWb);
 
-    if (optPassthrough.checked) {
-      const ordered = files.slice().sort((a, b) => cmpCode(a.code || a.name, b.code || b.name));
-      for (const f of ordered)
-        buildPassthroughSheet(outWb, tabName(f.code || f.name.replace(/\.xlsx?$/i, "")), f);
+    // 3) Rolled-up Income Statement(s) — identical ALL-IHT layout
+    for (const g of rollupGroups()) {
+      if (g.leaves.length < 2) continue;
+      const ws = cloneStyledSheet(tplWB.worksheets[0], outWb, tabName("ROLLUP " + g.code));
+      fillRollupSheet(ws, g.leaves, g.code);
     }
 
     return await outWb.xlsx.writeBuffer();
@@ -597,8 +591,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const $ = (id) => document.getElementById(id);
   const drop = $("drop"), fileInput = $("fileInput"), fileList = $("fileList"),
         summaryWrap = $("summaryWrap"), dlBtn = $("dlBtn"), statusEl = $("status"),
-        optPassthrough = $("optPassthrough"), optRollupTabs = $("optRollupTabs"),
-        optSummary = $("optSummary"), clearBtn = $("clearBtn");
+        clearBtn = $("clearBtn");
 
   function setStatus(msg, kind) { statusEl.textContent = msg || ""; statusEl.className = "status" + (kind ? " " + kind : ""); }
 
