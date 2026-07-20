@@ -106,7 +106,7 @@
   </div>
 
   <div class="foothelp">
-    <b>How the rollup works (naming logic):</b> the department code in each file (cell <code>A2</code>, e.g. <code>10.264.1000</code>) defines the hierarchy — <code>10.264.1000</code> rolls into <code>10.264</code>, which rolls into <code>10</code>. Files are matched on line-item <b>labels</b>, not row numbers, so a report that is missing some rows still lines up. <b>The rolled-up statement uses the exact ALL-IHT template</b> — same rows, fonts, number formats and column widths — with only the value cells replaced by the sums; no extra rows are ever added. Variance columns are recomputed from the summed actual/target. Ratio &amp; per-unit rows (margins, per-UOS, %) are left blank because summing them is not meaningful. Any parent/rollup file you also drop in is shown separately as “reported” in the summary for reconciliation.
+    <b>How the rollup works (naming logic):</b> the department code in each file (cell <code>A2</code>, e.g. <code>10.264.1000</code>) defines the hierarchy — <code>10.264.1000</code> rolls into <code>10.264</code>, which rolls into <code>10</code>. Files are matched on line-item <b>labels</b>, not row numbers, so a report that is missing some rows still lines up. <b>The rolled-up statement uses the exact ALL-IHT template</b> — same rows, fonts, number formats and column widths. Every rolled-up number is a <b>live formula</b> (e.g. <code>=SUM('10.264.1000'!E39,'10.264.2000'!E41)</code>) that references the source tabs, and variance cells are formulas over the row's actual/target — so you can trace every figure. Rows differ between files, so each term points at that file's own row for the line. Ratio &amp; per-unit rows (margins, per-UOS, %) are left blank because summing them is not meaningful. Any parent/rollup file you also drop in is shown separately as “reported” in the summary for reconciliation.
   </div>
 </div>
 <script>
@@ -282,6 +282,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       });
     }
 
+    const bySkey = {};
+    for (const rw of rows) if (rw.skey && !(rw.skey in bySkey)) bySkey[rw.skey] = rw;
+
     const metrics = {};
     for (const m of KEY_METRICS) {
       const hit = rows.find((rw) => rw.nlabel === m.key);
@@ -290,7 +293,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
             Q: num(hit.data[16]), S: num(hit.data[18]), U: num(hit.data[20]) }
         : { E: 0, G: 0, I: 0, Q: 0, S: 0, U: 0 };
     }
-    return { name: fileName, code, fyear, period, rows, aoa, metrics };
+    return { name: fileName, code, fyear, period, rows, aoa, metrics, bySkey, _tab: null };
+  }
+
+  /* ---- Cell-reference helpers for formulas ----------------------------- */
+  function colLetter(c) { // 1-based -> A, B, ... AA
+    let s = "";
+    while (c > 0) { const m = (c - 1) % 26; s = String.fromCharCode(65 + m) + s; c = Math.floor((c - 1) / 26); }
+    return s;
+  }
+  function sheetRef(tab, colL, row) { return "'" + String(tab).replace(/'/g, "''") + "'!" + colL + row; }
+  // First-occurrence cell (tab + row) of a KEY_METRIC label within a file.
+  function metricCellRef(lf, key) {
+    const r = lf.bySkey["A|" + key + "#1"] || lf.bySkey["B|" + key + "#1"];
+    return r ? { tab: lf._tab, row: r.rExcel } : null;
   }
 
   /* ---- Naming logic: hierarchy from dept code -------------------------- */
@@ -421,15 +437,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return ws;
   }
 
-  /* ---- Fill a cloned template sheet with a group's rolled-up values ----- */
+  /* ---- Fill a cloned template sheet with a group's rolled-up FORMULAS ---- */
+  // Absolute cells sum the matching cell in each source tab (rows differ per
+  // file, so each term points at that file's own row for the line). Variance
+  // cells are formulas over the same-row actual/target. A cached `result` is
+  // stored so values display before Excel recalculates.
   function fillRollupSheet(ws, leaves, code) {
-    const agg = {};
-    for (const lf of leaves)
-      for (const rw of lf.rows) {
-        if (!rw.skey) continue;
-        const A = agg[rw.skey] || (agg[rw.skey] = {});
-        for (const ci in rw.data) A[ci] = (A[ci] || 0) + rw.data[ci];
-      }
     for (const rw of tplRows) {
       if (rw.level === "A" && /^\s*Department:/i.test(rw.rawLabel)) {
         ws.getRow(rw.rExcel).getCell(1).value =
@@ -439,14 +452,33 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     for (const rw of tplRows) {
       if (!rw.hasNum) continue;
-      const setC = (col, val) => { ws.getRow(rw.rExcel).getCell(col + 1).value = val; };
+      const R = rw.rExcel;
+      const setC = (col0, val) => { ws.getRow(R).getCell(col0 + 1).value = val; };
       if (rw.ratio) { for (const ci in rw.data) setC(+ci, null); continue; }
-      const A = agg[rw.skey] || {};
-      for (const nm in ABS_COLS) { const ci = ABS_COLS[nm]; if (ci in rw.data) setC(ci, round2(A[ci] || 0)); }
+
+      // Absolute columns: SUM across the source tabs.
+      for (const nm in ABS_COLS) {
+        const ci = ABS_COLS[nm];
+        if (!(ci in rw.data)) continue;
+        const terms = []; let sum = 0;
+        for (const lf of leaves) {
+          const lr = lf.bySkey[rw.skey];
+          if (lr && ci in lr.data) { terms.push(sheetRef(lf._tab, colLetter(ci + 1), lr.rExcel)); sum += lr.data[ci]; }
+        }
+        if (terms.length) setC(ci, { formula: terms.length > 1 ? "SUM(" + terms.join(",") + ")" : terms[0], result: round2(sum) });
+        else setC(ci, 0);
+      }
+      // Variance columns: formulas over this row's actual/target.
       for (const [dc, pc, ac, tc] of VAR_RECOMP) {
-        const act = A[ac] || 0, tgt = A[tc] || 0;
-        if (dc in rw.data) setC(dc, round2(act - tgt));
-        if (pc in rw.data) setC(pc, tgt !== 0 ? round4((act - tgt) / tgt) : 0);
+        const acL = colLetter(ac + 1), tcL = colLetter(tc + 1);
+        let actSum = 0, tgtSum = 0;
+        for (const lf of leaves) {
+          const lr = lf.bySkey[rw.skey];
+          if (lr) { if (ac in lr.data) actSum += lr.data[ac]; if (tc in lr.data) tgtSum += lr.data[tc]; }
+        }
+        if (dc in rw.data) setC(dc, { formula: acL + R + "-" + tcL + R, result: round2(actSum - tgtSum) });
+        if (pc in rw.data) setC(pc, { formula: "IF(" + tcL + R + "=0,0,(" + acL + R + "-" + tcL + R + ")/" + tcL + R + ")",
+          result: tgtSum !== 0 ? round4((actSum - tgtSum) / tgtSum) : 0 });
       }
     }
   }
@@ -500,17 +532,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         const under = leafFilesUnder(node);
         const rep = providedByCode[node.code];
         out.push({ type: "subtotal", depth: dd + 1, code: node.code, label: node.code,
-          metrics: sumMetrics(under), reported: rep ? rep.metrics : null, count: under.length });
+          metrics: sumMetrics(under), reported: rep ? rep.metrics : null, reportedFile: rep || null,
+          leaves: under, count: under.length });
         childDD = dd + 1;
       }
       for (const c of childCodes) walk(node.children[c], childDD);
       for (const f of direct)
-        out.push({ type: "leaf", depth: childDD + 1, code: f.code, label: f.code, metrics: f.metrics, count: 1 });
+        out.push({ type: "leaf", depth: childDD + 1, code: f.code, label: f.code, metrics: f.metrics, file: f, count: 1 });
     }
     walk(root, 0);
     const allLeaves = files.filter((f) => f.isLeaf && f.code);
     out.push({ type: "grand", depth: 0, code: "GRAND TOTAL",
-      label: "GRAND TOTAL (all leaf departments)", metrics: sumMetrics(allLeaves), count: allLeaves.length });
+      label: "GRAND TOTAL (all leaf departments)", metrics: sumMetrics(allLeaves), leaves: allLeaves, count: allLeaves.length });
     return out;
   }
 
@@ -541,6 +574,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       c += 3;
     }
 
+    // A metric cell -> a formula. Leaf rows reference the single source tab;
+    // subtotal/grand rows SUM the matching cell across their source tabs.
+    const metricValue = (rowObj, mkey, kLetter, val) => {
+      if (rowObj.file) {
+        const mc = metricCellRef(rowObj.file, mkey);
+        if (mc && mc.tab) return { formula: sheetRef(mc.tab, kLetter, mc.row), result: round2(val) };
+      } else if (rowObj.leaves) {
+        const terms = [];
+        for (const lf of rowObj.leaves) { const mc = metricCellRef(lf, mkey); if (mc && mc.tab) terms.push(sheetRef(mc.tab, kLetter, mc.row)); }
+        if (terms.length) return { formula: "SUM(" + terms.join(",") + ")", result: round2(val) };
+      }
+      return round2(val);
+    };
+
     let r = 6;
     for (const row of summaryRows()) {
       const indent = Math.max(0, row.depth - 1);
@@ -552,7 +599,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       let cc = 3;
       for (const m of KEY_METRICS) for (const k of ["E", "G", "I"]) {
         const cell = ws.getCell(r, cc++);
-        cell.value = round2(row.metrics[m.key][k]); cell.numFmt = NUMFMT; cell.font = F({ bold: bold });
+        cell.value = metricValue(row, m.key, k, row.metrics[m.key][k]);
+        cell.numFmt = NUMFMT; cell.font = F({ bold: bold });
       }
       if (row.type === "grand") for (let x = 1; x < cc; x++) ws.getCell(r, x).border = { top: { style: "double" } };
       if (row.type === "subtotal") for (let x = 1; x < cc; x++) ws.getCell(r, x).border = { top: { style: "thin", color: { argb: "FFCCCCCC" } } };
@@ -564,8 +612,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         let cc2 = 3;
         for (const m of KEY_METRICS) for (const k of ["E", "G", "I"]) {
           const cell = ws.getCell(r, cc2++);
-          cell.value = round2(row.reported[m.key][k]); cell.numFmt = NUMFMT;
-          cell.font = F({ italic: true, size: 10, color: { argb: "FF888888" } });
+          cell.value = metricValue({ file: row.reportedFile }, m.key, k, row.reported[m.key][k]);
+          cell.numFmt = NUMFMT; cell.font = F({ italic: true, size: 10, color: { argb: "FF888888" } });
         }
         r++;
       }
@@ -587,10 +635,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       used.add(t.toLowerCase()); return t;
     };
 
-    // 1) An identical tab for each dropped file
+    // 1) An identical tab for each dropped file (raw values). Record final tab
+    //    name so the rollup/summary formulas can reference each source sheet.
     const ordered = files.slice().sort((a, b) => cmpCode(a.code || a.name, b.code || b.name));
-    for (const f of ordered)
-      buildPassthroughSheet(outWb, tabName(f.code || f.name.replace(/\.xlsx?$/i, "")), f);
+    for (const f of ordered) {
+      f._tab = tabName(f.code || f.name.replace(/\.xlsx?$/i, ""));
+      buildPassthroughSheet(outWb, f._tab, f);
+    }
 
     // 2) Rollup Summary
     buildSummarySheet(outWb);
