@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rocky Mountain Services – PDF to JPEG</title>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root {
+      --black:   #0d0d0d;
+      --orange:  #e05a1b;
+      --orange2: #c94e16;
+      --white:   #ffffff;
+      --cream:   #f5efe6;
+      --gray:    #e0d8cf;
+      --dgray:   #333333;
+      --lgray:   #f0ebe4;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--cream);
+      color: var(--black);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--black);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 18px 36px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 3px 12px rgba(0,0,0,.5);
+    }
+    header .logo {
+      height: 64px; width: 64px; border-radius: 50%;
+      background: var(--orange); color: var(--black);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.4rem; letter-spacing: .02em;
+    }
+    header .htext h1 { color: var(--orange); font-size: 1.55rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    header .htext p  { color: #aaa; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+
+    main { max-width: 1080px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    /* ── Drop zone ── */
+    .dropzone {
+      border: 3px dashed var(--gray);
+      border-radius: 14px;
+      background: var(--white);
+      padding: 52px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--orange);
+      background: #fff7f2;
+    }
+    .dropzone .icon { font-size: 3rem; margin-bottom: 12px; }
+    .dropzone h2 { font-size: 1.2rem; margin-bottom: 6px; }
+    .dropzone p  { color: var(--dgray); font-size: .9rem; }
+    .dropzone .browse { color: var(--orange); font-weight: 700; text-decoration: underline; }
+    input[type=file] { display: none; }
+
+    /* ── Controls ── */
+    .controls {
+      display: none;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 22px;
+      background: var(--white);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-top: 22px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    .controls.show { display: flex; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--dgray); }
+    .field .val { font-size: .8rem; color: var(--orange2); font-weight: 700; }
+    input[type=range] { width: 180px; accent-color: var(--orange); }
+    select {
+      padding: 9px 12px; border: 1px solid var(--gray); border-radius: 8px;
+      font-size: .9rem; background: var(--white); min-width: 120px;
+    }
+    .spacer { flex: 1; }
+    button {
+      font-family: inherit; cursor: pointer; border: none; border-radius: 8px;
+      font-weight: 700; font-size: .92rem; padding: 11px 22px; transition: background .15s, opacity .15s;
+    }
+    .btn-primary { background: var(--orange); color: var(--white); }
+    .btn-primary:hover { background: var(--orange2); }
+    .btn-secondary { background: var(--lgray); color: var(--black); border: 1px solid var(--gray); }
+    .btn-secondary:hover { background: var(--gray); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .filemeta { display: none; align-items: center; gap: 10px; margin-top: 20px; font-size: .92rem; color: var(--dgray); }
+    .filemeta.show { display: flex; }
+    .filemeta strong { color: var(--black); }
+    .filemeta .clear { color: var(--orange); cursor: pointer; font-weight: 700; text-decoration: underline; margin-left: auto; }
+
+    /* ── Progress ── */
+    .progress { display: none; margin-top: 22px; }
+    .progress.show { display: block; }
+    .bar { height: 10px; background: var(--gray); border-radius: 6px; overflow: hidden; }
+    .bar > div { height: 100%; width: 0; background: var(--orange); transition: width .2s; }
+    .progress .plabel { font-size: .82rem; color: var(--dgray); margin-top: 8px; }
+
+    /* ── Page grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 18px;
+      margin-top: 28px;
+    }
+    .page-card {
+      background: var(--white);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      display: flex; flex-direction: column;
+    }
+    .page-card img { width: 100%; display: block; background: var(--lgray); }
+    .page-card .pc-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; font-size: .82rem;
+    }
+    .page-card .pc-foot span { color: var(--dgray); font-weight: 600; }
+    .page-card .pc-foot a {
+      color: var(--orange); font-weight: 700; text-decoration: none;
+      border: 1px solid var(--orange); border-radius: 6px; padding: 4px 10px;
+    }
+    .page-card .pc-foot a:hover { background: var(--orange); color: var(--white); }
+
+    .empty { text-align: center; color: var(--dgray); margin-top: 26px; font-size: .9rem; }
+    footer { text-align: center; color: #999; font-size: .78rem; padding: 24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">RMS</div>
+    <div class="htext">
+      <h1>PDF → JPEG</h1>
+      <p>Rocky Mountain Services · Document Tools</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📄</div>
+      <h2>Drop a PDF here</h2>
+      <p>or <span class="browse">browse to choose a file</span> — everything runs in your browser, nothing is uploaded.</p>
+      <input type="file" id="fileInput" accept="application/pdf,.pdf" />
+    </div>
+
+    <div class="filemeta" id="filemeta">
+      <span>📎 <strong id="fileName">—</strong></span>
+      <span id="fileInfo"></span>
+      <span class="clear" id="clearBtn">Remove</span>
+    </div>
+
+    <div class="controls" id="controls">
+      <div class="field">
+        <label for="scale">Resolution</label>
+        <select id="scale">
+          <option value="1">Screen (1×)</option>
+          <option value="1.5">Good (1.5×)</option>
+          <option value="2" selected>High (2×)</option>
+          <option value="3">Print (3×)</option>
+          <option value="4">Max (4×)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="quality">JPEG Quality · <span class="val" id="qualityVal">92%</span></label>
+        <input type="range" id="quality" min="50" max="100" value="92" />
+      </div>
+      <div class="spacer"></div>
+      <button class="btn-secondary" id="convertBtn">Convert</button>
+      <button class="btn-primary" id="zipBtn" disabled>Download all (.zip)</button>
+    </div>
+
+    <div class="progress" id="progress">
+      <div class="bar"><div id="barFill"></div></div>
+      <div class="plabel" id="plabel">Working…</div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" style="display:none;">Choose your resolution and quality, then hit <strong>Convert</strong>.</p>
+  </main>
+
+  <footer>Runs entirely on your device · Powered by PDF.js</footer>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+    const dropzone   = document.getElementById('dropzone');
+    const fileInput  = document.getElementById('fileInput');
+    const filemeta   = document.getElementById('filemeta');
+    const fileNameEl = document.getElementById('fileName');
+    const fileInfoEl = document.getElementById('fileInfo');
+    const clearBtn   = document.getElementById('clearBtn');
+    const controls   = document.getElementById('controls');
+    const scaleSel   = document.getElementById('scale');
+    const qualityInp = document.getElementById('quality');
+    const qualityVal = document.getElementById('qualityVal');
+    const convertBtn = document.getElementById('convertBtn');
+    const zipBtn     = document.getElementById('zipBtn');
+    const progress   = document.getElementById('progress');
+    const barFill    = document.getElementById('barFill');
+    const plabel     = document.getElementById('plabel');
+    const grid       = document.getElementById('grid');
+    const empty      = document.getElementById('empty');
+
+    let pdfDoc = null;
+    let baseName = 'document';
+    let pageBlobs = [];   // { name, blob, url }
+
+    // ── File selection ──────────────────────────────────────────────
+    dropzone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+    ['dragenter', 'dragover'].forEach(ev =>
+      dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach(ev =>
+      dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('dragover'); }));
+    dropzone.addEventListener('drop', e => {
+      const f = e.dataTransfer.files[0];
+      if (f && /\.pdf$/i.test(f.name)) loadFile(f);
+      else if (f) alert('Please drop a PDF file.');
+    });
+
+    clearBtn.addEventListener('click', reset);
+
+    qualityInp.addEventListener('input', () => { qualityVal.textContent = qualityInp.value + '%'; });
+
+    async function loadFile(file) {
+      reset();
+      baseName = file.name.replace(/\.pdf$/i, '') || 'document';
+      fileNameEl.textContent = file.name;
+      try {
+        const buf = await file.arrayBuffer();
+        pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+        fileInfoEl.textContent = `· ${pdfDoc.numPages} page${pdfDoc.numPages === 1 ? '' : 's'} · ${formatSize(file.size)}`;
+        filemeta.classList.add('show');
+        controls.classList.add('show');
+        empty.style.display = 'block';
+      } catch (err) {
+        console.error(err);
+        alert('Could not read that PDF. It may be corrupted or password-protected.');
+        reset();
+      }
+    }
+
+    // ── Conversion ──────────────────────────────────────────────────
+    convertBtn.addEventListener('click', convert);
+
+    async function convert() {
+      if (!pdfDoc) return;
+      revokeBlobs();
+      grid.innerHTML = '';
+      empty.style.display = 'none';
+      convertBtn.disabled = true;
+      zipBtn.disabled = true;
+      progress.classList.add('show');
+
+      const scale = parseFloat(scaleSel.value);
+      const quality = parseInt(qualityInp.value, 10) / 100;
+      const total = pdfDoc.numPages;
+      const pad = String(total).length;
+
+      for (let n = 1; n <= total; n++) {
+        setProgress((n - 1) / total, `Rendering page ${n} of ${total}…`);
+        const page = await pdfDoc.getPage(n);
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const ctx = canvas.getContext('2d');
+        // JPEG has no transparency — fill white so nothing goes black.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+        const name = `${baseName}-p${String(n).padStart(pad, '0')}.jpg`;
+        const url = URL.createObjectURL(blob);
+        pageBlobs.push({ name, blob, url });
+        addCard(url, name, n, blob.size);
+        canvas.width = canvas.height = 0; // free memory
+      }
+
+      setProgress(1, `Done · ${total} JPEG${total === 1 ? '' : 's'} ready`);
+      convertBtn.disabled = false;
+      zipBtn.disabled = false;
+    }
+
+    function addCard(url, name, pageNum, size) {
+      const card = document.createElement('div');
+      card.className = 'page-card';
+      const img = document.createElement('img');
+      img.src = url; img.alt = `Page ${pageNum}`; img.loading = 'lazy';
+      const foot = document.createElement('div');
+      foot.className = 'pc-foot';
+      const label = document.createElement('span');
+      label.textContent = `Page ${pageNum} · ${formatSize(size)}`;
+      const dl = document.createElement('a');
+      dl.href = url; dl.download = name; dl.textContent = 'Save';
+      foot.append(label, dl);
+      card.append(img, foot);
+      grid.append(card);
+    }
+
+    // ── Zip download ────────────────────────────────────────────────
+    zipBtn.addEventListener('click', async () => {
+      if (!pageBlobs.length) return;
+      zipBtn.disabled = true;
+      progress.classList.add('show');
+      const zip = new JSZip();
+      pageBlobs.forEach(p => zip.file(p.name, p.blob));
+      setProgress(0.5, 'Building zip…');
+      const content = await zip.generateAsync({ type: 'blob' }, meta => {
+        setProgress(meta.percent / 100, `Zipping… ${Math.round(meta.percent)}%`);
+      });
+      triggerDownload(URL.createObjectURL(content), `${baseName}-jpegs.zip`);
+      setProgress(1, `Downloaded ${pageBlobs.length} images as a zip`);
+      zipBtn.disabled = false;
+    });
+
+    // ── Helpers ─────────────────────────────────────────────────────
+    function triggerDownload(url, name) {
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+
+    function setProgress(frac, text) {
+      barFill.style.width = Math.max(0, Math.min(1, frac)) * 100 + '%';
+      plabel.textContent = text;
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    }
+
+    function revokeBlobs() {
+      pageBlobs.forEach(p => URL.revokeObjectURL(p.url));
+      pageBlobs = [];
+    }
+
+    function reset() {
+      revokeBlobs();
+      pdfDoc = null;
+      fileInput.value = '';
+      grid.innerHTML = '';
+      filemeta.classList.remove('show');
+      controls.classList.remove('show');
+      progress.classList.remove('show');
+      empty.style.display = 'none';
+      zipBtn.disabled = true;
+      convertBtn.disabled = false;
+      setProgress(0, '');
+    }
+  </script>
+</body>
+</html>
