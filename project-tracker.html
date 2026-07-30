@@ -686,7 +686,7 @@
 <body>
 
 <header>
-    <h1>🩺 St. Luke's Project Tracker</h1>
+    <h1>🩺 St. Luke's Project Tracker <span style="font-size:0.6rem;font-weight:600;opacity:0.7;vertical-align:middle;">Excel-only storage</span></h1>
     <div class="header-buttons">
         <button class="btn btn-primary" onclick="showView('dashboard')">🏠 Dashboard</button>
         <button class="btn btn-secondary" onclick="showView('projects')">📁 All Projects</button>
@@ -702,6 +702,12 @@
 <input type="file" id="excel-input" accept=".xlsx" style="display:none;" onchange="onExcelFilePicked(this.files[0]); this.value='';">
 
 <div class="container">
+
+    <!-- DATA SOURCE BANNER — shows exactly which file the on-screen data came from -->
+    <div id="source-banner" style="display:none;background:#eafaf1;border:1px solid #27ae60;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:0.88rem;color:#1e6b47;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span id="source-banner-text">No file synced yet.</span>
+        <button class="btn btn-success" style="padding:5px 12px;font-size:0.8rem;margin-left:auto;" onclick="syncFromExcel()">🔄 Sync from Excel</button>
+    </div>
 
     <!-- DASHBOARD VIEW -->
     <div id="view-dashboard" class="view active">
@@ -1617,6 +1623,7 @@
 
             // …and the project data is merged in too, so the reload is a full sync.
             try { applyImportedWorkbook(buf); } catch (e) { /* empty/new file — no rows to merge */ }
+            try { updateSourceBanner(file.name, activeProjects().length); } catch (e) {}
             rememberExcelMeta(file.name);
             rememberImportMeta(file.name);
 
@@ -3658,7 +3665,23 @@
         return handle || null;
     }
 
+    // Show which file the on-screen data came from, and how many projects it held.
+    function updateSourceBanner(fileName, count) {
+        const banner = document.getElementById('source-banner');
+        const text = document.getElementById('source-banner-text');
+        if (!banner || !text) return;
+        if (!fileName) {
+            text.innerHTML = '⚠️ <strong>No file synced yet.</strong> Project data lives in the shared Excel file — click Sync to pull it in.';
+        } else {
+            const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            text.innerHTML = `📄 Showing <strong>${esc(String(count))}</strong> project${count === 1 ? '' : 's'} from <strong>${esc(fileName)}</strong> · synced ${t}. Not the file you expect? Click Sync and pick the current one.`;
+        }
+        banner.style.display = 'flex';
+    }
+
     // 🔄 SYNC — pull the latest data from the shared Excel file into this tracker.
+    // ALWAYS opens the file picker so Sync reads exactly the file you choose — it can
+    // never silently reuse an older/remembered copy (which was hiding your newest rows).
     async function syncFromExcel() {
         try {
             if (!FS_SUPPORTED) {
@@ -3666,21 +3689,32 @@
                 document.getElementById('import-input').click();
                 return;
             }
-            const handle = await getExcelHandle(true);
-            if (!handle) return; // user cancelled the picker
+            let handle;
+            try {
+                const picked = await window.showOpenFilePicker({ multiple: false, types: EXCEL_PICKER_TYPES });
+                handle = picked && picked[0];
+            } catch (e) {
+                if (e && e.name === 'AbortError') return; // user cancelled the picker
+                throw e;
+            }
+            if (!handle) return;
             let perm = await handle.queryPermission({ mode: 'read' });
             if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'read' });
             if (perm !== 'granted') { alert('Permission to read the shared file was not granted.'); return; }
 
             excelHandle = handle;
+            try { await idbSet('excelTargetHandle', handle); } catch (e) {}
+            try { await idbSet('lastImportHandle', handle); } catch (e) {}
             const file = await handle.getFile();
             rememberExcelMeta(file.name);
             rememberImportMeta(file.name);
             const result = applyImportedWorkbook(await file.arrayBuffer());
             if (result === false) {
+                updateSourceBanner(file.name, 0);
                 alert('No project rows were found in that file yet — nothing to sync in.');
                 return;
             }
+            updateSourceBanner(file.name, activeProjects().length);
             showImportSummary(result);
         } catch (e) {
             if (e && e.name === 'AbortError') return; // user closed the picker
@@ -3756,8 +3790,10 @@
 
     // Nothing is loaded from the browser — projects come from the Excel file. Keep the
     // file handle (IndexedDB) from being evicted so one-click reload keeps working.
+    console.log('[Project Tracker] build: Excel-only storage (no project data cached in the browser).');
     updateUserChip();
     ensurePersistentStorage();
+    updateSourceBanner(null);                // show the "no file synced yet" prompt
     renderDashboard();                       // empty until the workbook is pulled in
     // Sign-in reloads the shared Excel first (silent = no permission prompt on the
     // gesture-less first load), then asks who you are. That reload is what populates
