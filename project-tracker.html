@@ -706,7 +706,8 @@
     <!-- DATA SOURCE BANNER — shows exactly which file the on-screen data came from -->
     <div id="source-banner" style="display:none;background:#eafaf1;border:1px solid #27ae60;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:0.88rem;color:#1e6b47;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span id="source-banner-text">No file synced yet.</span>
-        <button class="btn btn-success" style="padding:5px 12px;font-size:0.8rem;margin-left:auto;" onclick="syncFromExcel()">🔄 Sync from Excel</button>
+        <button class="btn btn-success" style="padding:5px 12px;font-size:0.8rem;margin-left:auto;" onclick="syncFromExcel()">🔄 Sync</button>
+        <button class="btn btn-neutral" style="padding:5px 12px;font-size:0.8rem;" onclick="chooseSyncFile()" title="Pick a different Excel file to link (only needed if the file moved)">📁 Change file</button>
     </div>
 
     <!-- DASHBOARD VIEW -->
@@ -3694,13 +3695,15 @@
         else { banner.style.background = '#eafaf1'; banner.style.borderColor = '#27ae60'; banner.style.color = '#1e6b47'; }
         const t = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         text.innerHTML = `📄 Showing <strong>${esc(String(count))}</strong> project${count === 1 ? '' : 's'} from <strong>${esc(fileName)}</strong> · synced ${t}${savedTxt}.` +
-            (stale ? ' <strong>If you expected newer rows, wait for OneDrive to finish syncing (green check), then Sync again.</strong>' : '');
+            (stale ? ' <strong>If you expected newer rows, wait for OneDrive to finish syncing (green check), then Sync again.</strong>' : ' Wrong file? Use 📁 Change file.');
         banner.style.display = 'flex';
     }
 
     // 🔄 SYNC — pull the latest data from the shared Excel file into this tracker.
-    // ALWAYS opens the file picker so Sync reads exactly the file you choose — it can
-    // never silently reuse an older/remembered copy (which was hiding your newest rows).
+    // Reuses the remembered file path (the only thing stored locally) for one-click
+    // Sync, so you don't re-pick the file every time. It reads the file's LIVE bytes,
+    // so you always get whatever OneDrive has currently synced to this PC. Use
+    // 📁 Change file only if the shared file actually moves.
     async function syncFromExcel() {
         try {
             if (!FS_SUPPORTED) {
@@ -3708,37 +3711,50 @@
                 document.getElementById('import-input').click();
                 return;
             }
-            let handle;
-            try {
-                const picked = await window.showOpenFilePicker({ multiple: false, types: EXCEL_PICKER_TYPES });
-                handle = picked && picked[0];
-            } catch (e) {
-                if (e && e.name === 'AbortError') return; // user cancelled the picker
-                throw e;
-            }
-            if (!handle) return;
-            let perm = await handle.queryPermission({ mode: 'read' });
-            if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'read' });
-            if (perm !== 'granted') { alert('Permission to read the shared file was not granted.'); return; }
-
-            excelHandle = handle;
-            try { await idbSet('excelTargetHandle', handle); } catch (e) {}
-            try { await idbSet('lastImportHandle', handle); } catch (e) {}
-            const file = await handle.getFile();
-            rememberExcelMeta(file.name);
-            rememberImportMeta(file.name);
-            const result = applyImportedWorkbook(await file.arrayBuffer());
-            if (result === false) {
-                updateSourceBanner(file.name, 0, file.lastModified);
-                alert('No project rows were found in that file yet — nothing to sync in.');
-                return;
-            }
-            updateSourceBanner(file.name, activeProjects().length, file.lastModified);
-            showImportSummary(result);
+            const handle = await getExcelHandle(true); // reuse remembered path; prompt only if none
+            if (!handle) return; // user cancelled the picker
+            await readWorkbookHandle(handle);
         } catch (e) {
             if (e && e.name === 'AbortError') return; // user closed the picker
             alert('Could not sync from Excel: ' + (e && e.message ? e.message : e));
         }
+    }
+
+    // 📁 Explicitly link a different Excel file (only needed if the shared file moved).
+    // Replaces the remembered file path, then reads it.
+    async function chooseSyncFile() {
+        if (!FS_SUPPORTED) { document.getElementById('import-input').click(); return; }
+        try {
+            const picked = await window.showOpenFilePicker({ multiple: false, types: EXCEL_PICKER_TYPES });
+            const handle = picked && picked[0];
+            if (!handle) return;
+            await readWorkbookHandle(handle);
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+            alert('Could not open the file: ' + (e && e.message ? e.message : e));
+        }
+    }
+
+    // Shared read path: grant permission, remember the file path, pull live bytes in.
+    async function readWorkbookHandle(handle) {
+        let perm = await handle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'read' });
+        if (perm !== 'granted') { alert('Permission to read the shared file was not granted.'); return; }
+
+        excelHandle = handle;
+        try { await idbSet('excelTargetHandle', handle); } catch (e) {}
+        try { await idbSet('lastImportHandle', handle); } catch (e) {}
+        const file = await handle.getFile();
+        rememberExcelMeta(file.name);
+        rememberImportMeta(file.name);
+        const result = applyImportedWorkbook(await file.arrayBuffer());
+        if (result === false) {
+            updateSourceBanner(file.name, 0, file.lastModified);
+            alert('No project rows were found in that file yet — nothing to sync in.');
+            return;
+        }
+        updateSourceBanner(file.name, activeProjects().length, file.lastModified);
+        showImportSummary(result);
     }
 
     // 💾 SAVE — write this tracker's current projects into the shared Excel file.
