@@ -1,0 +1,3769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>St. Luke's Project Tracking Tool</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #eef2f7;
+            color: #333;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0a4b87, #1c7fc4);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            letter-spacing: 1px;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 9px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #219150;
+        }
+
+        .btn-secondary {
+            background: #2980b9;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #1f6fa0;
+        }
+
+        .btn-success {
+            background: #16a085;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #12866f;
+        }
+
+        .btn-warning {
+            background: #e67e22;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ca6f1e;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-info {
+            background: #8e44ad;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #7d3c98;
+        }
+
+        .btn-neutral {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-neutral:hover {
+            background: #7f8c8d;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* VIEWS */
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* DASHBOARD */
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-top: 4px solid #1c7fc4;
+        }
+
+        .stat-card.green { border-top-color: #27ae60; }
+        .stat-card.orange { border-top-color: #e67e22; }
+        .stat-card.red { border-top-color: #e74c3c; }
+        .stat-card.purple { border-top-color: #8e44ad; }
+
+        .stat-card h3 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0a4b87;
+        }
+
+        .stat-card p {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* PROJECT LIST */
+        .project-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+
+        .project-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 5px solid #1c7fc4;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .project-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+        }
+
+        .project-card.status-not-started { border-left-color: #95a5a6; }
+        .project-card.status-in-process { border-left-color: #e67e22; }
+        .project-card.status-complete { border-left-color: #27ae60; }
+        .project-card.status-na { border-left-color: #bdc3c7; }
+
+        .project-card h3 {
+            font-size: 1.1rem;
+            color: #0a4b87;
+            margin-bottom: 8px;
+        }
+
+        .project-card .meta {
+            font-size: 0.82rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .badge-not-started { background: #ecf0f1; color: #7f8c8d; }
+        .badge-in-process { background: #fef3e2; color: #e67e22; }
+        .badge-complete { background: #eafaf1; color: #27ae60; }
+        .badge-na { background: #f2f3f4; color: #aab7b8; }
+        .badge-with-legal { background: #fde8e8; color: #c0392b; }
+        .badge-with-compliance { background: #e8f4fd; color: #2980b9; }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* ALERT VIEW */
+        .alert-banner {
+            background: #fef3e2;
+            border: 1px solid #f39c12;
+            border-radius: 8px;
+            padding: 12px 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            color: #7d4e00;
+        }
+
+        /* MODAL */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 30px 15px;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 900px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #0a4b87, #1c7fc4);
+            color: white;
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.3rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 25px;
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+
+        /* FORM SECTIONS */
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 18px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .form-section h3 {
+            font-size: 1rem;
+            color: #0a4b87;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #1c7fc4;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 14px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            background: white;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #1c7fc4;
+            box-shadow: 0 0 0 3px rgba(28,127,196,0.15);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* STATUS TRACKER */
+        .status-tracker {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+
+        .status-tracker h4 {
+            font-size: 0.82rem;
+            color: #555;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .status-history {
+            font-size: 0.78rem;
+            color: #666;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .status-history-item {
+            padding: 3px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .duration-summary {
+            margin-top: 8px;
+            font-size: 0.78rem;
+        }
+
+        .duration-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            color: #555;
+        }
+
+        /* TABS */
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 5px;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            border: 1px solid #ccc;
+            background: #f5f5f5;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #555;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: #1c7fc4;
+            color: white;
+            border-color: #1c7fc4;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: #e0e8f0;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* MODAL FOOTER */
+        .modal-footer {
+            padding: 15px 25px;
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* CONFIRM MODAL */
+        .confirm-modal {
+            background: white;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 420px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .confirm-modal h3 {
+            font-size: 1.2rem;
+            color: #0a4b87;
+            margin-bottom: 12px;
+        }
+
+        .confirm-modal p {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        .confirm-modal .icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        /* LEGAL/GOVERNANCE ALERT VIEW */
+        .alert-project-card {
+            background: white;
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 5px solid #e74c3c;
+        }
+
+        .alert-project-card h3 {
+            font-size: 1rem;
+            color: #0a4b87;
+            margin-bottom: 10px;
+        }
+
+        .alert-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .alert-tag {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .tag-legal { background: #fde8e8; color: #c0392b; }
+        .tag-governance { background: #e8f4fd; color: #1a5276; }
+
+        /* TIMELINE BAR */
+        .timeline-bar {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .timeline-stage {
+            flex: 1;
+            min-width: 80px;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .stage-not-started { background: #ecf0f1; color: #7f8c8d; }
+        .stage-in-process { background: #fef3e2; color: #e67e22; }
+        .stage-complete { background: #eafaf1; color: #27ae60; }
+        .stage-na { background: #f2f3f4; color: #aab7b8; }
+
+        /* NOTES */
+        .notes-area {
+            width: 100%;
+            min-height: 120px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        /* FILTER BAR */
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+            background: white;
+            padding: 14px 18px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        .filter-bar label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .filter-bar input,
+        .filter-bar select {
+            padding: 7px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        /* EXPORT BUTTON */
+        .export-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 15px;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .project-list {
+                grid-template-columns: 1fr;
+            }
+
+            header {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+        }
+
+        .section-divider {
+            height: 2px;
+            background: linear-gradient(to right, #1c7fc4, transparent);
+            margin: 20px 0;
+        }
+
+        .in-process-timer {
+            font-size: 0.78rem;
+            color: #e67e22;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        /* PROJECT TABLE (dashboard) */
+        .project-table-wrap {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow-x: auto;
+        }
+
+        .project-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .project-table thead th {
+            background: #0a4b87;
+            color: white;
+            text-align: left;
+            padding: 11px 14px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .project-table tbody td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #eef0ee;
+            color: #444;
+            vertical-align: middle;
+        }
+
+        .project-table tbody tr {
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .project-table tbody tr:hover {
+            background: #eef5fb;
+        }
+
+        .project-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .project-table .pt-title {
+            font-weight: 600;
+            color: #0a4b87;
+        }
+
+        .project-table .row-actions {
+            display: flex;
+            gap: 6px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🩺 St. Luke's Project Tracker</h1>
+    <div class="header-buttons">
+        <button class="btn btn-primary" onclick="showView('dashboard')">🏠 Dashboard</button>
+        <button class="btn btn-secondary" onclick="showView('projects')">📁 All Projects</button>
+        <button class="btn btn-warning" onclick="showView('alerts')">🔎 Filter View</button>
+        <button class="btn btn-info" onclick="openNewProjectModal()">➕ New Project</button>
+        <button class="btn btn-success" onclick="syncFromExcel()" title="Pull the latest data from the shared Excel file into this tracker">🔄 Sync</button>
+        <button class="btn btn-warning" onclick="saveToExcel()" title="Write your current projects into the shared Excel file">💾 Save</button>
+        <button class="btn btn-neutral" onclick="openDeletedModal()" title="View & restore deleted projects">🗑️ Deleted</button>
+        <button class="btn btn-neutral" id="user-chip" onclick="openLoginModal()" title="Switch user">👤 Not signed in</button>
+    </div>
+</header>
+<input type="file" id="import-input" accept=".xlsx" style="display:none;" onchange="onFallbackPicked(this.files[0]); this.value='';">
+<input type="file" id="excel-input" accept=".xlsx" style="display:none;" onchange="onExcelFilePicked(this.files[0]); this.value='';">
+
+<div class="container">
+
+    <!-- DASHBOARD VIEW -->
+    <div id="view-dashboard" class="view active">
+        <div class="dashboard-stats" id="dashboard-stats"></div>
+        <h2 style="margin-bottom:15px; color:#0a4b87;">📌 Recent Projects</h2>
+        <div id="dashboard-projects"></div>
+    </div>
+
+    <!-- ALL PROJECTS VIEW -->
+    <div id="view-projects" class="view">
+        <div class="filter-bar">
+            <label>🔍 Search:</label>
+            <input type="text" id="search-input" placeholder="Title, Vendor, Owner..." oninput="renderProjectList()">
+            <label>Status:</label>
+            <select id="filter-status" onchange="renderProjectList()">
+                <option value="">All</option>
+                <option value="Not Started">Not Started</option>
+                <option value="In Process">In Process</option>
+                <option value="Complete">Complete</option>
+                <option value="N/A">N/A</option>
+            </select>
+            <label>In-Process Stage:</label>
+            <select id="filter-stage" onchange="renderProjectList()">
+                <option value="">All</option>
+                <option value="Contracting">Contracting</option>
+                <option value="Governance">Governance</option>
+                <option value="Onboarding">Onboarding</option>
+                <option value="Implementation">Implementation</option>
+            </select>
+        </div>
+        <div class="project-list" id="project-list"></div>
+    </div>
+
+    <!-- FILTER VIEW (outstanding items in In-Process stages) -->
+    <div id="view-alerts" class="view">
+        <div class="alert-banner">
+            🔎 <strong>Filter View:</strong> Showing projects with a stage summary that is <strong>In Process</strong>, and the outstanding items within those stages.
+        </div>
+        <div class="filter-bar">
+            <label>📊 Organize by:</label>
+            <select id="alert-view-mode" onchange="setAlertViewMode(this.value)">
+                <option value="project">By Project — all outstanding items</option>
+                <option value="stage">By Stage — group like stages together</option>
+                <option value="status">By Status — group like statuses together</option>
+            </select>
+            <button class="btn btn-secondary" style="margin-left:auto;" onclick="exportAlertView()">📤 Export This View</button>
+        </div>
+        <div id="alert-list"></div>
+    </div>
+
+</div>
+
+<!-- PROJECT MODAL -->
+<div class="modal-overlay" id="project-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="modal-title">➕ New Project</h2>
+            <button class="modal-close" onclick="closeModal('project-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="tab-nav">
+                <button class="tab-btn active" onclick="switchTab('general')">📋 General</button>
+                <button class="tab-btn" onclick="switchTab('contracting')">📄 Contracting</button>
+                <button class="tab-btn" onclick="switchTab('governance')">🏛️ Governance</button>
+                <button class="tab-btn" onclick="switchTab('onboarding')">🚀 Onboarding</button>
+                <button class="tab-btn" onclick="switchTab('implementation')">⚙️ Implementation</button>
+            </div>
+
+            <!-- GENERAL TAB -->
+            <div id="tab-general" class="tab-content active">
+                <div class="form-section">
+                    <h3>📋 General Information</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Title *</label>
+                            <input type="text" id="f-title" placeholder="Project Title">
+                        </div>
+                        <div class="form-group">
+                            <label>Vendor</label>
+                            <input type="text" id="f-vendor" placeholder="Vendor Name">
+                        </div>
+                        <div class="form-group">
+                            <label>Owner</label>
+                            <input type="text" id="f-owner" placeholder="Project Owner">
+                        </div>
+                        <div class="form-group">
+                            <label>Projected Timeline</label>
+                            <input type="date" id="f-timeline">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>🔄 Stage Statuses &amp; Overall Status</h3>
+                    <p style="font-size:0.8rem;color:#777;margin-bottom:12px;">A project is often in several stages at once — set the status of each stage independently.</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Contracting</label>
+                            <select id="f-contracting-status">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Governance</label>
+                            <select id="f-governance-status">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Onboarding</label>
+                            <select id="f-onboarding-status">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Implementation</label>
+                            <select id="f-implementation-status">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Overall Status</label>
+                            <select id="f-overall-status" onchange="handleOverallStatusChange()">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="overall-timer-display" class="in-process-timer" style="display:none;"></div>
+                </div>
+                <div class="form-section">
+                    <h3>📝 General Notes</h3>
+                    <div class="form-group full-width">
+                        <textarea id="f-notes-general" class="notes-area" placeholder="Notes for general information and overall status..."></textarea>
+                    </div>
+                </div>
+                <div class="form-section" id="general-history-section">
+                    <h3>📜 Change History &amp; Stage Timing</h3>
+                    <div id="stage-timing"></div>
+                    <div id="change-log-list" class="status-history" style="max-height:240px;margin-top:12px;"></div>
+                </div>
+            </div>
+
+            <!-- CONTRACTING TAB -->
+            <div id="tab-contracting" class="tab-content">
+                <div class="form-section">
+                    <h3>📄 Contracting Details</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select id="f-contract-type">
+                                <option value="">Select</option>
+                                <option value="New">New</option>
+                                <option value="Renew">Renew</option>
+                                <option value="Term">Term</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>📑 Contract Documents</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>BAA</label>
+                            <select id="f-baa" onchange="trackContractStatus('baa', this.value)">
+                                <option value="">Select</option>
+                                <option value="With Legal">With Legal</option>
+                                <option value="With Compliance">With Compliance</option>
+                                <option value="With Vendor">With Vendor</option>
+                                <option value="With Operations">With Operations</option>
+                                <option value="Out for Signature">Out for Signature</option>
+                                <option value="Executed">Executed</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                            <div id="baa-tracker" class="status-tracker" style="display:none;">
+                                <h4>⏱️ Status Time Tracking</h4>
+                                <div class="status-history" id="baa-history"></div>
+                                <div class="duration-summary" id="baa-duration"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>NDA</label>
+                            <select id="f-nda" onchange="trackContractStatus('nda', this.value)">
+                                <option value="">Select</option>
+                                <option value="With Legal">With Legal</option>
+                                <option value="With Compliance">With Compliance</option>
+                                <option value="With Vendor">With Vendor</option>
+                                <option value="With Operations">With Operations</option>
+                                <option value="Out for Signature">Out for Signature</option>
+                                <option value="Executed">Executed</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                            <div id="nda-tracker" class="status-tracker" style="display:none;">
+                                <h4>⏱️ Status Time Tracking</h4>
+                                <div class="status-history" id="nda-history"></div>
+                                <div class="duration-summary" id="nda-duration"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>SOW</label>
+                            <select id="f-sow" onchange="trackContractStatus('sow', this.value)">
+                                <option value="">Select</option>
+                                <option value="With Legal">With Legal</option>
+                                <option value="With Compliance">With Compliance</option>
+                                <option value="With Vendor">With Vendor</option>
+                                <option value="With Operations">With Operations</option>
+                                <option value="Out for Signature">Out for Signature</option>
+                                <option value="Executed">Executed</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                            <div id="sow-tracker" class="status-tracker" style="display:none;">
+                                <h4>⏱️ Status Time Tracking</h4>
+                                <div class="status-history" id="sow-history"></div>
+                                <div class="duration-summary" id="sow-duration"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>MSA</label>
+                            <select id="f-msa" onchange="trackContractStatus('msa', this.value)">
+                                <option value="">Select</option>
+                                <option value="With Legal">With Legal</option>
+                                <option value="With Compliance">With Compliance</option>
+                                <option value="With Vendor">With Vendor</option>
+                                <option value="With Operations">With Operations</option>
+                                <option value="Out for Signature">Out for Signature</option>
+                                <option value="Executed">Executed</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                            <div id="msa-tracker" class="status-tracker" style="display:none;">
+                                <h4>⏱️ Status Time Tracking</h4>
+                                <div class="status-history" id="msa-history"></div>
+                                <div class="duration-summary" id="msa-duration"></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>SAF</label>
+                            <select id="f-saf" onchange="trackContractStatus('saf', this.value)">
+                                <option value="">Select</option>
+                                <option value="With Legal">With Legal</option>
+                                <option value="With Compliance">With Compliance</option>
+                                <option value="With Vendor">With Vendor</option>
+                                <option value="With Operations">With Operations</option>
+                                <option value="Out for Signature">Out for Signature</option>
+                                <option value="Executed">Executed</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                            <div id="saf-tracker" class="status-tracker" style="display:none;">
+                                <h4>⏱️ Status Time Tracking</h4>
+                                <div class="status-history" id="saf-history"></div>
+                                <div class="duration-summary" id="saf-duration"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>📝 Contracting Notes</h3>
+                    <div class="form-group full-width">
+                        <textarea id="f-notes-contracting" class="notes-area" placeholder="Notes on contracting, documents, legal status..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GOVERNANCE TAB -->
+            <div id="tab-governance" class="tab-content">
+                <div class="form-section">
+                    <h3>🏛️ Governance Committees</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>New Solutions</label>
+                            <select id="f-new-solutions">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>DRRC</label>
+                            <select id="f-drrc">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>STIC</label>
+                            <select id="f-stic">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>TAC</label>
+                            <select id="f-tac">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>AI Governance</label>
+                            <select id="f-ai-gov">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Cyber Security Review</label>
+                            <select id="f-cyber-sec">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>📄 Governance Documents</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>New Solutions Questionnaire</label>
+                            <select id="f-nsq">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>DRRC Submission Document</label>
+                            <select id="f-drrc-doc">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Executive Summary</label>
+                            <select id="f-exec-summary">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Proforma</label>
+                            <select id="f-proforma">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Architectural Review</label>
+                            <select id="f-arch-review">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>📝 Governance Notes</h3>
+                    <div class="form-group full-width">
+                        <textarea id="f-notes-governance" class="notes-area" placeholder="Notes on governance committees and documents..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ONBOARDING TAB -->
+            <div id="tab-onboarding" class="tab-content">
+                <div class="form-section">
+                    <h3>🚀 Onboarding Documents</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>COI</label>
+                            <select id="f-coi">
+                                <option value="">(Select)</option>
+                                <option value="Requested">Requested</option>
+                                <option value="Received">Received</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>W9</label>
+                            <select id="f-w9">
+                                <option value="">(Select)</option>
+                                <option value="Requested">Requested</option>
+                                <option value="Received">Received</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>EPIC Access Request</label>
+                            <select id="f-epic">
+                                <option value="">(Select)</option>
+                                <option value="Requested">Requested</option>
+                                <option value="Received">Received</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>📋 Onboarding Tasks</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>PO #</label>
+                            <input type="text" id="f-po" placeholder="PO Number">
+                        </div>
+                        <div class="form-group">
+                            <label>D&A Ticket</label>
+                            <select id="f-da-ticket">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>📝 Onboarding Notes</h3>
+                    <div class="form-group full-width">
+                        <textarea id="f-notes-onboarding" class="notes-area" placeholder="Notes on onboarding documents and tasks..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IMPLEMENTATION TAB -->
+            <div id="tab-implementation" class="tab-content">
+                <div class="form-section">
+                    <h3>⚙️ Implementation Details</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Target Date</label>
+                            <input type="date" id="f-impl-date">
+                        </div>
+                        <div class="form-group">
+                            <label>Project Manager</label>
+                            <input type="text" id="f-pm" placeholder="Project Manager Name">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>🏥 EPIC Access</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>EPIC Agreement</label>
+                            <select id="f-epic-agreement">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Template Build</label>
+                            <select id="f-template-build">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Education</label>
+                            <select id="f-epic-education">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Access Ticket</label>
+                            <select id="f-access-ticket">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>🔌 Network and System Access</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>User Detail</label>
+                            <select id="f-user-detail">
+                                <option value="">(Select)</option>
+                                <option value="Requested">Requested</option>
+                                <option value="Received">Received</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>CNAA</label>
+                            <select id="f-cnaa">
+                                <option value="">(Select)</option>
+                                <option value="Requested">Requested</option>
+                                <option value="Received">Received</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Curio Account Creation</label>
+                            <select id="f-curio-create">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Curio Account Approval</label>
+                            <select id="f-curio-approve">
+                                <option value="">(Select)</option>
+                                <option value="Requested">Requested</option>
+                                <option value="Received">Received</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>System Education</label>
+                            <select id="f-system-education">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>🤝 Handoff & Kickoff</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Implementation Packet</label>
+                            <select id="f-impl-packet">
+                                <option value="">(Select)</option>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Process">In Process</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Implementation Team Pass-off</label>
+                            <select id="f-impl-passoff">
+                                <option value="">(Select)</option>
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Project Kick Off</label>
+                            <select id="f-kickoff">
+                                <option value="">(Select)</option>
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="Complete">Complete</option>
+                                <option value="N/A">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h3>📝 Implementation Notes</h3>
+                    <div class="form-group full-width">
+                        <textarea id="f-notes-implementation" class="notes-area" placeholder="Notes on implementation, education, tickets, kickoff..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-neutral" onclick="closeModal('project-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveProject()">💾 Save Project</button>
+        </div>
+    </div>
+</div>
+
+<!-- IMPORT PICKER MODAL -->
+<div class="modal-overlay" id="import-pick-modal">
+    <div class="modal" style="max-width:520px;">
+        <div class="modal-header">
+            <h2 id="import-pick-title">🔁 Sync Workbook</h2>
+            <button class="modal-close" onclick="closeModal('import-pick-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="color:#555;font-size:0.9rem;margin-bottom:16px;">Import the shared Excel workbook (each tab = one person). Statuses are merged into your tracker with the most recently updated value winning.</p>
+
+            <div id="import-last-box" class="form-section" style="display:none;margin-bottom:16px;">
+                <h3>🕑 Most recent file</h3>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:180px;">
+                        <div style="font-weight:700;color:#0a4b87;font-size:0.95rem;">📄 <span id="import-last-name">—</span></div>
+                        <div class="small-muted" id="import-last-when" style="font-size:0.76rem;color:#888;"></div>
+                    </div>
+                    <button class="btn btn-primary" id="import-reuse-btn" onclick="reuseLastFile()">✅ Sync this file</button>
+                </div>
+                <div id="import-reuse-note" class="small-muted" style="font-size:0.74rem;color:#999;margin-top:8px;"></div>
+            </div>
+
+            <div style="text-align:center;">
+                <button class="btn btn-secondary" onclick="pickNewFile()">📂 Choose a different file…</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- IMPORT RESULTS MODAL -->
+<div class="modal-overlay" id="import-modal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <h2>📥 Import Summary</h2>
+            <button class="modal-close" onclick="closeModal('import-modal')">✕</button>
+        </div>
+        <div class="modal-body" id="import-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeModal('import-modal')">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- SAVE-TO-SHARED-EXCEL MODAL -->
+<div class="modal-overlay" id="excel-modal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <h2>💾 Save / Upload</h2>
+            <button class="modal-close" onclick="closeModal('excel-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="color:#555;font-size:0.9rem;margin-bottom:16px;">Everyone shares <strong>one table</strong> in the workbook. Save / Upload re-reads the latest file, merges it field-by-field with your changes (newest edit wins, tagged with who made it), and writes the combined table back — so nobody's edits get clobbered.</p>
+
+            <div class="form-section" style="margin-bottom:16px;">
+                <h3>📄 Shared file</h3>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:160px;font-weight:700;color:#0a4b87;">📄 <span id="excel-target-name">(none chosen yet)</span>
+                        <div class="small-muted" id="excel-tabcount" style="font-size:0.76rem;color:#888;font-weight:normal;"></div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="chooseExcelTarget()">📂 Choose file…</button>
+                </div>
+            </div>
+
+            <div id="excel-status" class="small-muted" style="font-size:0.8rem;color:#666;"></div>
+        </div>
+        <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
+            <button class="btn btn-neutral" id="excel-download-btn" onclick="downloadUpdatedExcel()" disabled>⬇️ Download updated copy</button>
+            <button class="btn btn-primary" id="excel-save-btn" onclick="saveAndSync()" disabled>💾 Save / Upload</button>
+        </div>
+    </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-overlay" id="confirm-modal">
+    <div class="confirm-modal">
+        <div class="icon">🗑️</div>
+        <h3>Delete Project?</h3>
+        <p id="confirm-message">Are you sure you want to delete this project? This action cannot be undone.</p>
+        <div class="confirm-buttons">
+            <button class="btn btn-neutral" onclick="closeModal('confirm-modal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmDelete()">Yes, Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- DELETED PROJECTS MODAL -->
+<div class="modal-overlay" id="deleted-modal">
+    <div class="modal" style="max-width:640px;">
+        <div class="modal-header">
+            <h2>🗑️ Deleted Projects</h2>
+            <button class="modal-close" onclick="closeModal('deleted-modal')">✕</button>
+        </div>
+        <div class="modal-body" id="deleted-body"></div>
+    </div>
+</div>
+
+<!-- LOGIN / WHO ARE YOU MODAL -->
+<div class="modal-overlay" id="login-modal">
+    <div class="modal" style="max-width:440px;">
+        <div class="modal-header">
+            <h2>👤 Who are you?</h2>
+        </div>
+        <div class="modal-body">
+            <p style="color:#555;font-size:0.9rem;margin-bottom:16px;">Pick your name so your edits are recorded under you. Everyone shares one workbook — your name just tags the changes you make. The list below is refreshed from the <strong>Name</strong> column of the shared Excel each time you open this.</p>
+            <div id="login-sync-status" style="font-size:0.8rem;color:#666;background:#f4f7fb;border:1px solid #e0e8f0;border-radius:6px;padding:8px 10px;margin-bottom:14px;min-height:18px;"></div>
+            <div class="form-group" style="margin-bottom:14px;">
+                <label style="font-weight:600;color:#555;font-size:0.85rem;">Your name</label>
+                <select id="login-name-select" style="padding:9px 10px;border:1px solid #ccc;border-radius:6px;font-size:0.92rem;width:100%;"></select>
+            </div>
+            <div class="form-group" style="margin-bottom:6px;">
+                <label style="font-weight:600;color:#555;font-size:0.85rem;">Not listed? Add your name</label>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" id="login-name-new" placeholder="Type your name" style="flex:1;padding:9px 10px;border:1px solid #ccc;border-radius:6px;font-size:0.92rem;">
+                    <button class="btn btn-secondary" onclick="addLoginName()">➕ Add</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="confirmLogin()">✅ Continue</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* Each copy of this file shares the same file:// origin and thus one localStorage/
+       IndexedDB. Namespace all persisted keys by this file's own path so multiple copies
+       keep independent projects, settings and remembered import file. */
+    var PT_NS=(typeof location!=='undefined'&&location.pathname)?location.pathname:'default';
+    function PTK(k){ return k+':'+PT_NS; }
+    var _ls=window.localStorage;
+    var LS={ getItem:function(k){return _ls.getItem(PTK(k));},
+             setItem:function(k,v){return _ls.setItem(PTK(k),v);},
+             removeItem:function(k){return _ls.removeItem(PTK(k));} };
+
+    /* ---------------------------------------------------------------------------
+       STORAGE MODEL: the Excel file is the ONLY store of project data.
+       -----------------------------------------------------------------------
+       Nothing about the projects (titles, vendors, statuses, notes, contract or
+       governance details, change history) is ever written to the browser. The
+       ONLY things kept in localStorage are the pointers to the shared Excel file
+       — its display name / last-used time (lastImportMeta / excelTargetMeta) —
+       and the file handle itself lives in IndexedDB (a handle can't be stored as
+       text). Everything else is held in memory for the session only and is lost
+       on refresh unless you 💾 Save it back to the Excel file.
+
+       purgeCachedData() wipes any project data, signed-in name, or name roster
+       that older versions of this page may have left in localStorage, so a browser
+       that previously ran the caching build doesn't keep stale sensitive data. */
+    function purgeCachedData() {
+        try {
+            var kill = [];
+            for (var i = 0; i < _ls.length; i++) {
+                var k = _ls.key(i);
+                if (!k) continue;
+                // Match this file's namespaced keys AND any left by earlier copies.
+                if (/^(projects|currentUser|nameRoster):/.test(k)) kill.push(k);
+            }
+            kill.forEach(function (k) { try { _ls.removeItem(k); } catch (e) {} });
+        } catch (e) { /* storage unavailable — nothing to purge */ }
+    }
+    purgeCachedData();
+
+    // =====================
+    // DATA STORE
+    // =====================
+    // Loaded fresh from the Excel file each session — never from localStorage.
+    let projects = [];
+    let editingId = null;
+    let deleteTargetId = null;
+    let currentTab = 'general';
+    // True when there are in-memory edits not yet written to the Excel file.
+    // Nothing is cached locally, so a refresh with this set loses those edits —
+    // beforeunload (below) warns before that happens.
+    let unsavedChanges = false;
+
+    // =====================
+    // IDENTITY / LOGIN (login-by-name attribution)
+    // =====================
+    // Everyone shares ONE workbook table. There are no accounts — a person just
+    // picks their name, and every edit they make is stamped with that name so the
+    // shared table can record who changed what and when. The roster of names is
+    // rebuilt from the workbook (its "Name" column and the "by" field of everyone's
+    // change logs) on each load — it is NOT cached in the browser.
+    let currentUser = '';
+    let nameRoster = [];
+
+    // Roster lives in memory only; it repopulates from the workbook on every load.
+    function saveRoster() { /* intentionally not persisted — see STORAGE MODEL */ }
+
+    function addNameToRoster(name) {
+        name = (name || '').trim();
+        if (!name) return;
+        if (!nameRoster.some(n => n.toLowerCase() === name.toLowerCase())) {
+            nameRoster.push(name);
+            nameRoster.sort((a, b) => a.localeCompare(b));
+            saveRoster();
+        }
+    }
+
+    // Pull every distinct editor name out of the projects' change logs into the roster.
+    function refreshRosterFromProjects() {
+        projects.forEach(p => (p.changeLog || []).forEach(e => { if (e.by) addNameToRoster(e.by); }));
+    }
+
+    function renderLoginRoster() {
+        const sel = document.getElementById('login-name-select');
+        const opts = ['<option value="">— choose your name —</option>']
+            .concat(nameRoster.map(n => `<option value="${esc(n)}">${esc(n)}</option>`));
+        sel.innerHTML = opts.join('');
+        if (currentUser) sel.value = currentUser;
+    }
+
+    // Headers we treat as "the name column" when scanning the shared workbook for
+    // the roster of people who can sign in. Matched case-insensitively, whole-header.
+    const NAME_COLUMN_HEADERS = ['name', 'names', 'full name', 'team member', 'team members', 'user', 'person', 'staff', 'employee'];
+
+    // Pull every distinct person's name out of a "Name" column in the workbook.
+    // Any sheet may carry the column; the first matching header per sheet is used.
+    function namesFromSheets(sheets) {
+        const out = [];
+        const seen = new Set();
+        const add = (v) => {
+            const s = (v == null ? '' : String(v)).trim();
+            if (!s) return;
+            const key = s.toLowerCase();
+            if (!seen.has(key)) { seen.add(key); out.push(s); }
+        };
+        (sheets || []).forEach(sh => {
+            const rows = sh.rows || [];
+            for (let i = 0; i < rows.length; i++) {
+                const r = rows[i] || [];
+                let col = -1;
+                for (let j = 0; j < r.length; j++) {
+                    const h = (r[j] || '').trim().toLowerCase();
+                    if (NAME_COLUMN_HEADERS.indexOf(h) >= 0) { col = j; break; }
+                }
+                if (col >= 0) {
+                    for (let k = i + 1; k < rows.length; k++) add((rows[k] || [])[col]);
+                    break; // one name column per sheet is enough
+                }
+            }
+        });
+        return out;
+    }
+
+    // Reload the linked shared Excel from disk, then feed its "Name" column into the
+    // sign-in roster. Writes progress into the login modal's status line. `silent`
+    // skips the permission prompt (used on the automatic first-load open, which has
+    // no user gesture to authorize a prompt).
+    async function reloadRosterFromWorkbook(opts) {
+        const silent = !!(opts && opts.silent);
+        const statusEl = document.getElementById('login-sync-status');
+        const setStatus = (t) => { if (statusEl) statusEl.textContent = t || ''; };
+
+        if (!FS_SUPPORTED) {
+            setStatus('ℹ️ This browser can’t auto-reload the Excel — open 💾 Save / Upload to load it and refresh names. (Chrome or Edge supports auto-reload.)');
+            return;
+        }
+        let handle = null;
+        try { handle = (await idbGet('excelTargetHandle')) || (await idbGet('lastImportHandle')); } catch (e) {}
+        if (!handle) {
+            setStatus('ℹ️ No shared Excel linked yet — open 💾 Save / Upload once to choose it, then names load here automatically.');
+            return;
+        }
+        try {
+            setStatus('🔄 Reloading the shared Excel…');
+            let perm = await handle.queryPermission({ mode: 'read' });
+            if (perm !== 'granted' && !silent) perm = await handle.requestPermission({ mode: 'read' });
+            if (perm !== 'granted') {
+                setStatus('🔒 Click 👤 again to let the browser reopen the shared Excel and refresh the name list.');
+                return;
+            }
+            excelHandle = handle;
+            const file = await handle.getFile();
+            const buf = await file.arrayBuffer();
+
+            // Names come from the workbook's Name column…
+            const sheets = parseWorkbook(readZip(buf));
+            const names = namesFromSheets(sheets);
+            names.forEach(addNameToRoster);
+
+            // …and the project data is merged in too, so the reload is a full sync.
+            try { applyImportedWorkbook(buf); } catch (e) { /* empty/new file — no rows to merge */ }
+            rememberExcelMeta(file.name);
+            rememberImportMeta(file.name);
+
+            const extra = names.length
+                ? ` — ${names.length} name${names.length === 1 ? '' : 's'} from the Name column`
+                : ' — no Name column found, using names already on record';
+            setStatus('✅ Reloaded ' + file.name + extra + '.');
+        } catch (e) {
+            setStatus('⚠️ Could not reload the Excel automatically: ' + (e && e.message ? e.message : e) + '. Existing names are shown.');
+        }
+    }
+
+    // Sign-in: reload the shared Excel FIRST (so the name list is current), then ask
+    // for the name. Pass { silent:true } from non-gesture callers (the first-load open).
+    async function openLoginModal(opts) {
+        renderLoginRoster();                       // show cached names immediately
+        document.getElementById('login-name-new').value = '';
+        document.getElementById('login-modal').classList.add('active');
+        await reloadRosterFromWorkbook(opts);      // 1) reload the Excel
+        refreshRosterFromProjects();               // fold in edit-history names too
+        renderLoginRoster();                       // 2) re-render the refreshed roster
+    }
+
+    function addLoginName() {
+        const input = document.getElementById('login-name-new');
+        const name = input.value.trim();
+        if (!name) { alert('Type a name first.'); return; }
+        addNameToRoster(name);
+        renderLoginRoster();
+        document.getElementById('login-name-select').value = name;
+        input.value = '';
+    }
+
+    function confirmLogin() {
+        const name = (document.getElementById('login-name-select').value || '').trim();
+        if (!name) { alert('Pick your name, or add a new one.'); return; }
+        setCurrentUser(name);
+        closeModal('login-modal');
+    }
+
+    function setCurrentUser(name) {
+        currentUser = (name || '').trim();
+        // Not persisted — the signed-in name is a session value only (see STORAGE MODEL).
+        addNameToRoster(currentUser);
+        updateUserChip();
+    }
+
+    function updateUserChip() {
+        const chip = document.getElementById('user-chip');
+        if (chip) chip.textContent = currentUser ? ('👤 ' + currentUser) : '👤 Not signed in';
+    }
+
+    // Require a signed-in name before any action that writes attributed edits.
+    function requireUser() {
+        if (!currentUser) { openLoginModal(); return false; }
+        return true;
+    }
+
+    // =====================
+    // FIELD DEFINITIONS (used for change-log, export, and rollup)
+    // =====================
+    const FIELD_DEFS = [
+        {k:'title', l:'Title'},
+        {k:'vendor', l:'Vendor'},
+        {k:'owner', l:'Owner'},
+        {k:'timeline', l:'Projected Timeline'},
+        {k:'overallStatus', l:'Overall Status'},
+        {k:'contractType', l:'Contract Type'},
+        {k:'baa', l:'BAA'},
+        {k:'nda', l:'NDA'},
+        {k:'sow', l:'SOW'},
+        {k:'msa', l:'MSA'},
+        {k:'saf', l:'SAF'},
+        {k:'newSolutions', l:'New Solutions'},
+        {k:'drrc', l:'DRRC'},
+        {k:'stic', l:'STIC'},
+        {k:'tac', l:'TAC'},
+        {k:'aiGov', l:'AI Governance'},
+        {k:'cyberSecurityReview', l:'Cyber Security Review'},
+        {k:'nsq', l:'NS Questionnaire'},
+        {k:'drrcDoc', l:'DRRC Submission Doc'},
+        {k:'execSummary', l:'Executive Summary'},
+        {k:'proforma', l:'Proforma'},
+        {k:'architecturalReview', l:'Architectural Review'},
+        {k:'coi', l:'COI'},
+        {k:'w9', l:'W9'},
+        {k:'epic', l:'EPIC Access Request'},
+        {k:'po', l:'PO #'},
+        {k:'daTicket', l:'D&A Ticket'},
+        {k:'implDate', l:'Implementation Target Date'},
+        {k:'projectManager', l:'Project Manager'},
+        {k:'epicAgreement', l:'EPIC Agreement'},
+        {k:'templateBuild', l:'Template Build'},
+        {k:'epicEducation', l:'EPIC Education'},
+        {k:'accessTicket', l:'Access Ticket'},
+        {k:'userDetail', l:'User Detail'},
+        {k:'cnaa', l:'CNAA'},
+        {k:'curioCreation', l:'Curio Account Creation'},
+        {k:'curioApproval', l:'Curio Account Approval'},
+        {k:'systemEducation', l:'System Education'},
+        {k:'implPacket', l:'Implementation Packet'},
+        {k:'implPassoff', l:'Impl Team Pass-off'},
+        {k:'kickoff', l:'Project Kick Off'},
+        {k:'notesGeneral', l:'General Notes'},
+        {k:'notesContracting', l:'Contracting Notes'},
+        {k:'notesGovernance', l:'Governance Notes'},
+        {k:'notesOnboarding', l:'Onboarding Notes'},
+        {k:'notesImplementation', l:'Implementation Notes'},
+        {k:'contractingStatus', l:'Contracting Stage'},
+        {k:'governanceStatus', l:'Governance Stage'},
+        {k:'onboardingStatus', l:'Onboarding Stage'},
+        {k:'implementationStatus', l:'Implementation Stage'}
+    ];
+    const FIELD_LABEL = Object.fromEntries(FIELD_DEFS.map(f => [f.k, f.l]));
+    // Fields whose status-over-time we summarize as "stage timing"
+    const TIMED_FIELDS = ['overallStatus','contractingStatus','governanceStatus','onboardingStatus','implementationStatus'];
+
+    function truncVal(v) {
+        v = (v == null ? '' : String(v));
+        return v.length > 80 ? v.slice(0, 80) + '…' : v;
+    }
+
+    // Append timestamped entries for every field that changed between old and new data
+    function buildChangeLog(oldData, newData, prevLog, at, by) {
+        const log = prevLog ? prevLog.slice() : [];
+        FIELD_DEFS.forEach(({k, l}) => {
+            const ov = oldData ? (oldData[k] == null ? '' : String(oldData[k])) : '';
+            const nv = newData[k] == null ? '' : String(newData[k]);
+            if (ov !== nv) log.push({ f: k, l, from: truncVal(ov), to: truncVal(nv), at, by: by || '' });
+        });
+        return log;
+    }
+
+    // Seed log when a project is first created (gives stage timers a start point)
+    function seedChangeLog(newData, at, by) {
+        const log = [{ f: '_created', l: 'Project created', from: '', to: '', at, by: by || '' }];
+        TIMED_FIELDS.forEach(k => log.push({ f: k, l: FIELD_LABEL[k], from: '', to: newData[k] || '', at, by: by || '' }));
+        return log;
+    }
+
+    function lastUpdatedOf(p) {
+        const log = p.changeLog || [];
+        return log.length ? Math.max(...log.map(e => e.at || 0)) : (p.createdAt || 0);
+    }
+
+    // Who most recently touched this project (name on the newest change-log entry).
+    function lastUpdatedByOf(p) {
+        const log = (p.changeLog || []).filter(e => e.by);
+        if (!log.length) return '';
+        let best = log[0];
+        log.forEach(e => { if ((e.at || 0) >= (best.at || 0)) best = e; });
+        return best.by || '';
+    }
+
+    // Deletions are tombstones: a "_deleted" / "_restored" pair in the change log.
+    // The latest of the two wins, so a delete survives a merge (and can be undone by
+    // a later edit/restore) instead of being resurrected by someone else's stale copy.
+    function computeDeletedState(changeLog) {
+        let state = null, at = -1;
+        (changeLog || []).forEach(e => {
+            if ((e.f === '_deleted' || e.f === '_restored') && (e.at || 0) >= at) {
+                at = e.at || 0; state = e.f;
+            }
+        });
+        return state === '_deleted';
+    }
+    function applyDeletedState(p) { p.deleted = computeDeletedState(p.changeLog); return p; }
+
+    // Projects visible in the UI: everything that isn't tombstoned.
+    function activeProjects() { return projects.filter(p => !p.deleted); }
+
+    // For each timed field: current status, when it started, and total ms spent in each status
+    function computeStageDurations(p) {
+        const res = {};
+        TIMED_FIELDS.forEach(f => {
+            const entries = (p.changeLog || []).filter(e => e.f === f).sort((a, b) => a.at - b.at);
+            const totals = {};
+            for (let i = 0; i < entries.length; i++) {
+                const status = entries[i].to;
+                const start = entries[i].at;
+                const end = (i + 1 < entries.length) ? entries[i + 1].at : Date.now();
+                if (status) totals[status] = (totals[status] || 0) + (end - start);
+            }
+            const last = entries[entries.length - 1];
+            res[f] = { current: last ? last.to : '', since: last ? last.at : null, totals };
+        });
+        return res;
+    }
+
+    function renderHistoryPanel(p) {
+        const timingEl = document.getElementById('stage-timing');
+        const logEl = document.getElementById('change-log-list');
+        if (!p || !p.changeLog || p.changeLog.length === 0) {
+            timingEl.innerHTML = '<div style="font-size:0.82rem;color:#888;">No changes recorded yet. Stage timing begins once the project is saved.</div>';
+            logEl.innerHTML = '';
+            return;
+        }
+
+        const dur = computeStageDurations(p);
+        const stageRows = TIMED_FIELDS.map(f => {
+            const d = dur[f];
+            if (!d || !d.current) return '';
+            const sinceTxt = d.since ? formatDuration(Date.now() - d.since) : '—';
+            const breakdown = Object.entries(d.totals)
+                .map(([s, ms]) => `${s}: ${formatDuration(ms)}`).join(' &nbsp;•&nbsp; ');
+            return `
+                <div class="duration-item" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 0;border-bottom:1px solid #f0f0f0;">
+                    <div><strong>${FIELD_LABEL[f]}:</strong> <span class="status-badge ${getBadgeClass(d.current)}">${d.current}</span> <span style="color:#e67e22;font-weight:600;">for ${sinceTxt}</span></div>
+                    <div style="font-size:0.74rem;color:#888;">${breakdown}</div>
+                </div>`;
+        }).join('');
+        timingEl.innerHTML = `<h4 style="font-size:0.82rem;color:#555;margin-bottom:6px;">⏱️ Time in current status (per stage)</h4>${stageRows || '<div style="font-size:0.8rem;color:#888;">No stage activity yet.</div>'}`;
+
+        const log = [...p.changeLog].sort((a, b) => (b.at || 0) - (a.at || 0));
+        const byTxt = e => e.by ? ` <span style="color:#0a4b87;">by ${esc(e.by)}</span>` : '';
+        logEl.innerHTML = '<h4 style="font-size:0.82rem;color:#555;margin:4px 0 6px;">📝 All changes (newest first)</h4>' +
+            log.map(e => {
+                if (e.f === '_created') return `<div class="status-history-item"><strong>➕ Project created</strong>${byTxt(e)} <span style="color:#999;">— ${formatDate(e.at)}</span></div>`;
+                if (e.f === '_deleted') return `<div class="status-history-item"><strong>🗑️ Project deleted</strong>${byTxt(e)} <span style="color:#999;">— ${formatDate(e.at)}</span></div>`;
+                if (e.f === '_restored') return `<div class="status-history-item"><strong>♻️ Project restored</strong>${byTxt(e)} <span style="color:#999;">— ${formatDate(e.at)}</span></div>`;
+                const change = e.from ? `<em>${e.from}</em> → <strong>${e.to || '(blank)'}</strong>` : `set to <strong>${e.to || '(blank)'}</strong>`;
+                return `<div class="status-history-item"><strong>${e.l}</strong>: ${change}${byTxt(e)} <span style="color:#999;">— ${formatDate(e.at)}</span></div>`;
+            }).join('');
+    }
+
+    // Contract status tracking: { projectId: { doc: [{status, timestamp}] } }
+    // Stored inside each project object
+
+    // =====================
+    // UTILITY
+    // =====================
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    // Project data is never written to the browser (see STORAGE MODEL). This used
+    // to persist to localStorage; now it only marks that there are in-memory edits
+    // waiting to be 💾 Saved into the shared Excel file.
+    function saveToStorage() {
+        unsavedChanges = true;
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function formatDate(ts) {
+        if (!ts) return '—';
+        return new Date(ts).toLocaleString();
+    }
+
+    function formatDuration(ms) {
+        if (!ms || ms < 0) return '0m';
+        const mins = Math.floor(ms / 60000);
+        const hrs = Math.floor(mins / 60);
+        const days = Math.floor(hrs / 24);
+        if (days > 0) return `${days}d ${hrs % 24}h`;
+        if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+        return `${mins}m`;
+    }
+
+    function getBadgeClass(status) {
+        const map = {
+            'Not Started': 'badge-not-started',
+            'In Process': 'badge-in-process',
+            'Complete': 'badge-complete',
+            'N/A': 'badge-na',
+            'With Legal': 'badge-with-legal',
+            'With Compliance': 'badge-with-compliance'
+        };
+        return map[status] || 'badge-not-started';
+    }
+
+    function getStageClass(status) {
+        const map = {
+            'Not Started': 'stage-not-started',
+            'In Process': 'stage-in-process',
+            'Complete': 'stage-complete',
+            'N/A': 'stage-na'
+        };
+        return map[status] || 'stage-not-started';
+    }
+
+    // =====================
+    // VIEW MANAGEMENT
+    // =====================
+    function showView(view) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById('view-' + view).classList.add('active');
+        if (view === 'dashboard') renderDashboard();
+        if (view === 'projects') renderProjectList();
+        if (view === 'alerts') renderAlertView();
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        event.target.classList.add('active');
+        currentTab = tab;
+    }
+
+    // =====================
+    // DASHBOARD
+    // =====================
+    function renderDashboard() {
+        const stats = document.getElementById('dashboard-stats');
+        const live = activeProjects();
+        const total = live.length;
+        const inProcess = live.filter(p => p.overallStatus === 'In Process').length;
+        const complete = live.filter(p => p.overallStatus === 'Complete').length;
+        const withLegal = live.filter(p => hasLegalTask(p)).length;
+        const govAlert = live.filter(p => hasGovAlert(p)).length;
+
+        stats.innerHTML = `
+            <div class="stat-card">
+                <h3>${total}</h3>
+                <p>Total Projects</p>
+            </div>
+            <div class="stat-card orange">
+                <h3>${inProcess}</h3>
+                <p>In Process</p>
+            </div>
+            <div class="stat-card green">
+                <h3>${complete}</h3>
+                <p>Complete</p>
+            </div>
+            <div class="stat-card red">
+                <h3>${withLegal}</h3>
+                <p>With Legal</p>
+            </div>
+            <div class="stat-card purple">
+                <h3>${govAlert}</h3>
+                <p>Gov. Alerts</p>
+            </div>
+        `;
+
+        const recentList = document.getElementById('dashboard-projects');
+        const recent = [...live].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+        if (recent.length === 0) {
+            recentList.innerHTML = `<div class="empty-state"><div class="icon">🔄</div>
+                <p>No projects loaded. Project data lives in the shared Excel file, not in this browser.</p>
+                <p style="margin-top:8px;"><button class="btn btn-success" onclick="syncFromExcel()">🔄 Sync from Excel</button> to pull it in — or create a new project and 💾 Save it to the file.</p></div>`;
+        } else {
+            recentList.innerHTML = renderProjectTable(recent);
+        }
+    }
+
+    function renderProjectTable(list) {
+        const rows = list.map(p => {
+            const badgeClass = getBadgeClass(p.overallStatus || 'Not Started');
+            const overallTimer = getOverallTimer(p);
+            const stageChips = inProcessStageChips(p) || '<span style="color:#bbb;">—</span>';
+            const flags = flagChipsHtml(p) || '<span style="color:#bbb;">—</span>';
+            return `
+            <tr onclick="openEditProject('${p.id}')">
+                <td class="pt-title">📁 ${p.title || 'Untitled Project'}</td>
+                <td>${p.vendor || '—'}</td>
+                <td>${p.owner || '—'}</td>
+                <td>
+                    <span class="status-badge ${badgeClass}">${p.overallStatus || '(Select)'}</span>
+                    ${overallTimer ? `<div class="in-process-timer">⏱️ ${overallTimer}</div>` : ''}
+                </td>
+                <td>${p.timeline ? new Date(p.timeline).toLocaleDateString() : '—'}</td>
+                <td><div class="alert-tags">${stageChips}</div></td>
+                <td><div class="alert-tags">${flags}</div></td>
+                <td>${lastUpdatedByOf(p) ? '👤 ' + esc(lastUpdatedByOf(p)) : '—'}</td>
+                <td onclick="event.stopPropagation()">
+                    <div class="row-actions">
+                        <button class="btn btn-secondary" style="font-size:0.75rem;padding:5px 9px;" onclick="openEditProject('${p.id}')">✏️ Edit</button>
+                        <button class="btn btn-danger" style="font-size:0.75rem;padding:5px 9px;" onclick="promptDelete('${p.id}')">🗑️</button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+
+        return `
+        <div class="project-table-wrap">
+            <table class="project-table">
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Vendor</th>
+                        <th>Owner</th>
+                        <th>Status</th>
+                        <th>Timeline</th>
+                        <th>In-Process Stages</th>
+                        <th>Flags</th>
+                        <th>Updated By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    }
+
+    // =====================
+    // PROJECT LIST
+    // =====================
+    function renderProjectList() {
+        const list = document.getElementById('project-list');
+        const search = (document.getElementById('search-input')?.value || '').toLowerCase();
+        const statusFilter = document.getElementById('filter-status')?.value || '';
+        const stageFilter = document.getElementById('filter-stage')?.value || '';
+
+        const STAGE_STATUS_KEY = { Contracting:'contractingStatus', Governance:'governanceStatus',
+            Onboarding:'onboardingStatus', Implementation:'implementationStatus' };
+        let filtered = activeProjects().filter(p => {
+            const matchSearch = !search ||
+                (p.title||'').toLowerCase().includes(search) ||
+                (p.vendor||'').toLowerCase().includes(search) ||
+                (p.owner||'').toLowerCase().includes(search);
+            const matchStatus = !statusFilter || p.overallStatus === statusFilter;
+            const matchStage = !stageFilter || p[STAGE_STATUS_KEY[stageFilter]] === 'In Process';
+            return matchSearch && matchStatus && matchStage;
+        });
+
+        if (filtered.length === 0) {
+            list.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No projects match your filters.</p></div>`;
+        } else {
+            list.innerHTML = filtered.map(p => renderProjectCard(p)).join('');
+        }
+    }
+
+    function renderProjectCard(p) {
+        const statusClass = (p.overallStatus || 'Not Started').toLowerCase().replace(' ', '-');
+        const badgeClass = getBadgeClass(p.overallStatus || 'Not Started');
+        const legalAlert = hasLegalTask(p) ? '<span class="alert-tag tag-legal">⚖️ With Legal</span>' : '';
+        const govAlert = hasGovAlert(p) ? '<span class="alert-tag tag-governance">🏛️ Gov Alert</span>' : '';
+        const overallTimer = getOverallTimer(p);
+
+        return `
+        <div class="project-card status-${statusClass}" onclick="openEditProject('${p.id}')">
+            <h3>📁 ${p.title || 'Untitled Project'}</h3>
+            <div class="meta">🏢 ${p.vendor || '—'}</div>
+            <div class="meta">👤 ${p.owner || '—'}</div>
+            <div class="meta">📅 ${p.timeline ? new Date(p.timeline).toLocaleDateString() : '—'}</div>
+            <div class="meta">🔖 In Process: ${inProcessStages(p).map(d => d.stage).join(', ') || '—'}</div>
+            ${overallTimer ? `<div class="in-process-timer">⏱️ In Process: ${overallTimer}</div>` : ''}
+            <div>
+                <span class="status-badge ${badgeClass}">${p.overallStatus || 'Not Started'}</span>
+            </div>
+            <div class="alert-tags">${legalAlert}${govAlert}</div>
+            <div class="timeline-bar" style="margin-top:10px;">
+                <div class="timeline-stage ${getStageClass(p.contractingStatus || 'Not Started')}">📄 Contract</div>
+                <div class="timeline-stage ${getStageClass(p.governanceStatus || 'Not Started')}">🏛️ Gov</div>
+                <div class="timeline-stage ${getStageClass(p.onboardingStatus || 'Not Started')}">🚀 Onboard</div>
+                <div class="timeline-stage ${getStageClass(p.implementationStatus || 'Not Started')}">⚙️ Impl</div>
+            </div>
+            <div class="card-actions" onclick="event.stopPropagation()">
+                <button class="btn btn-secondary" style="font-size:0.78rem;padding:5px 10px;" onclick="openEditProject('${p.id}')">✏️ Edit</button>
+                <button class="btn btn-danger" style="font-size:0.78rem;padding:5px 10px;" onclick="promptDelete('${p.id}')">🗑️ Delete</button>
+            </div>
+        </div>`;
+    }
+
+    // =====================
+    // ALERT HELPERS
+    // =====================
+    function hasLegalTask(p) {
+        return ['baa','nda','sow','msa','saf'].some(doc => p[doc] === 'With Legal');
+    }
+
+    function hasGovAlert(p) {
+        const govFields = ['newSolutions','drrc','stic','tac','aiGov','cyberSecurityReview',
+                           'nsq','drrcDoc','execSummary','proforma','architecturalReview'];
+        return govFields.some(f => p[f] === 'In Process' || p[f] === 'Not Started');
+    }
+
+    function getOverallTimer(p) {
+        if (!p.inProcessStart) return null;
+        if (p.overallStatus === 'In Process') {
+            const elapsed = Date.now() - p.inProcessStart;
+            return formatDuration(elapsed + (p.inProcessAccum || 0));
+        }
+        if (p.inProcessAccum) return formatDuration(p.inProcessAccum);
+        return null;
+    }
+
+    // =====================
+    // OUTSTANDING-ITEM / FLAG MODEL
+    // =====================
+    // A stage's items only count as "flags" when that stage's summary status is
+    // In Process, and the individual item's status is one of the qualifying values.
+    const STAGE_ALERT_DEFS = [
+        { stage:'Contracting', icon:'📄', summaryKey:'contractingStatus', tagClass:'tag-legal',
+          items:[{k:'baa',l:'BAA'},{k:'nda',l:'NDA'},{k:'sow',l:'SOW'},{k:'msa',l:'MSA'},{k:'saf',l:'SAF'}],
+          statuses:['With Vendor','With Operations','Out for Signature','With Compliance'] },
+        { stage:'Governance', icon:'🏛️', summaryKey:'governanceStatus', tagClass:'tag-governance',
+          items:[{k:'newSolutions',l:'New Solutions'},{k:'drrc',l:'DRRC'},{k:'stic',l:'STIC'},{k:'tac',l:'TAC'},
+                 {k:'aiGov',l:'AI Governance'},{k:'cyberSecurityReview',l:'Cyber Security Review'},
+                 {k:'nsq',l:'NS Questionnaire'},{k:'drrcDoc',l:'DRRC Submission Doc'},
+                 {k:'execSummary',l:'Executive Summary'},{k:'proforma',l:'Proforma'},
+                 {k:'architecturalReview',l:'Architectural Review'}],
+          statuses:['With Vendor','With Operations','Out for Signature','With Compliance','In Process','Not Started',''] },
+        { stage:'Onboarding', icon:'🚀', summaryKey:'onboardingStatus', tagClass:'tag-governance',
+          items:[{k:'coi',l:'COI'},{k:'w9',l:'W9'},{k:'epic',l:'EPIC Access Request'},{k:'daTicket',l:'D&A Ticket'}],
+          statuses:['Requested',''] },
+        { stage:'Implementation', icon:'⚙️', summaryKey:'implementationStatus', tagClass:'tag-governance',
+          items:[{k:'epicAgreement',l:'EPIC Agreement'},{k:'templateBuild',l:'Template Build'},
+                 {k:'epicEducation',l:'EPIC Education'},{k:'accessTicket',l:'Access Ticket'},
+                 {k:'curioCreation',l:'Curio Account Creation'},{k:'systemEducation',l:'System Education'},
+                 {k:'implPacket',l:'Implementation Packet'}],
+          statuses:['Not Started','In Process',''] }
+    ];
+    const STAGE_BY_NAME = Object.fromEntries(STAGE_ALERT_DEFS.map(d => [d.stage, d]));
+
+    // Stages whose summary status is currently In Process.
+    function inProcessStages(p) {
+        return STAGE_ALERT_DEFS.filter(d => (p[d.summaryKey] || '') === 'In Process');
+    }
+
+    // All outstanding items for a project: [{stage, icon, tagClass, key, label, status}]
+    function outstandingItems(p) {
+        const out = [];
+        inProcessStages(p).forEach(def => {
+            def.items.forEach(it => {
+                const v = (p[it.k] == null ? '' : String(p[it.k])).trim();
+                if (def.statuses.includes(v)) {
+                    out.push({ stage:def.stage, icon:def.icon, tagClass:def.tagClass,
+                               key:it.k, label:it.l, status: v || '(Select)' });
+                }
+            });
+        });
+        return out;
+    }
+
+    // A project belongs in the Filter View if it has at least one outstanding item.
+    function isAlertProject(p) { return outstandingItems(p).length > 0; }
+
+    // Chips of the stages currently In Process (dashboard column).
+    function inProcessStageChips(p) {
+        return inProcessStages(p)
+            .map(d => `<span class="alert-tag ${d.tagClass}">${d.icon} ${d.stage}</span>`).join(' ');
+    }
+
+    // Chips of outstanding items (dashboard Flags column).
+    function flagChipsHtml(p) {
+        return outstandingItems(p)
+            .map(i => `<span class="alert-tag ${i.tagClass}">${i.icon} ${i.label}: ${i.status}</span>`).join(' ');
+    }
+
+    // Sort helper: nearest timeline date first; undated projects last.
+    function timelineValue(p) { const t = Date.parse(p.timeline); return isNaN(t) ? Infinity : t; }
+    function byNearestTimeline(a, b) { return timelineValue(a) - timelineValue(b); }
+    function timelineLabel(p) { return p.timeline ? new Date(p.timeline).toLocaleDateString() : 'No date'; }
+
+    // =====================
+    // FILTER VIEW
+    // =====================
+    let alertViewMode = 'project'; // 'project' | 'stage' | 'status'
+
+    function setAlertViewMode(mode) {
+        alertViewMode = mode;
+        renderAlertView();
+    }
+
+    function renderAlertView() {
+        const list = document.getElementById('alert-list');
+        const modeSel = document.getElementById('alert-view-mode');
+        if (modeSel) modeSel.value = alertViewMode;
+
+        const alertProjects = activeProjects().filter(isAlertProject).sort(byNearestTimeline);
+        if (alertProjects.length === 0) {
+            list.innerHTML = `<div class="empty-state"><div class="icon">✅</div><p>No projects currently have outstanding items in an In-Process stage.</p></div>`;
+            return;
+        }
+        if (alertViewMode === 'stage') list.innerHTML = renderAlertByStage(alertProjects);
+        else if (alertViewMode === 'status') list.innerHTML = renderAlertByStatus(alertProjects);
+        else list.innerHTML = renderAlertByProject(alertProjects);
+    }
+
+    function alertGroupHeader(text, count) {
+        return `<h2 style="color:#0a4b87;font-size:1.1rem;margin:18px 0 12px;border-bottom:2px solid #1c7fc4;padding-bottom:6px;">${text} <span style="font-weight:normal;color:#888;font-size:0.85rem;">(${count})</span></h2>`;
+    }
+
+    function projectHeaderLine(p) {
+        return `<h3>📁 ${esc(p.title) || 'Untitled'} <span style="font-weight:normal;color:#666;font-size:0.85rem;">— ${esc(p.vendor) || '—'} | 📅 ${timelineLabel(p)}</span></h3>`;
+    }
+
+    // --- By Project: each project card with all outstanding items ---
+    function renderAlertByProject(list) {
+        return list.map(p => {
+            const items = outstandingItems(p);
+            return `
+            <div class="alert-project-card">
+                ${projectHeaderLine(p)}
+                <div style="font-size:0.82rem;color:#555;margin-bottom:8px;">In-Process Stages: ${inProcessStages(p).map(d => esc(d.stage)).join(', ') || '—'} | Overall: ${esc(p.overallStatus) || '(Select)'}</div>
+                <div class="alert-tags">
+                    ${items.map(i => `<span class="alert-tag ${i.tagClass}">${i.icon} ${i.stage} · ${esc(i.label)}: ${esc(i.status)}</span>`).join('')}
+                </div>
+                <div class="card-actions" style="margin-top:10px;">
+                    <button class="btn btn-secondary" style="font-size:0.78rem;padding:5px 10px;" onclick="openEditProject('${p.id}')">✏️ Open Project</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // --- By Stage: group projects under each In-Process stage ---
+    function renderAlertByStage(list) {
+        let html = '';
+        STAGE_ALERT_DEFS.forEach(def => {
+            const rows = list
+                .map(p => ({ p, items: outstandingItems(p).filter(i => i.stage === def.stage) }))
+                .filter(x => x.items.length > 0)
+                .sort((a, b) => byNearestTimeline(a.p, b.p));
+            if (rows.length === 0) return;
+            html += alertGroupHeader(`${def.icon} ${def.stage}`, rows.length);
+            html += rows.map(({ p, items }) => `
+                <div class="alert-project-card" style="border-left-color:#1c7fc4;">
+                    ${projectHeaderLine(p)}
+                    <div class="alert-tags">
+                        ${items.map(i => `<span class="alert-tag ${i.tagClass}">${esc(i.label)}: ${esc(i.status)}</span>`).join('')}
+                    </div>
+                    <div class="card-actions" style="margin-top:10px;">
+                        <button class="btn btn-secondary" style="font-size:0.78rem;padding:5px 10px;" onclick="openEditProject('${p.id}')">✏️ Open Project</button>
+                    </div>
+                </div>`).join('');
+        });
+        return html;
+    }
+
+    // --- By Status: group items under each distinct status value ---
+    function renderAlertByStatus(list) {
+        const byStatus = {};
+        list.forEach(p => outstandingItems(p).forEach(i => {
+            (byStatus[i.status] = byStatus[i.status] || []).push({ p, item: i });
+        }));
+        const statuses = Object.keys(byStatus).sort();
+        let html = '';
+        statuses.forEach(status => {
+            const entries = byStatus[status].sort((a, b) => byNearestTimeline(a.p, b.p));
+            html += alertGroupHeader(`🏷️ ${esc(status)}`, entries.length);
+            html += entries.map(({ p, item }) => `
+                <div class="alert-project-card" style="border-left-color:#8e44ad;">
+                    ${projectHeaderLine(p)}
+                    <div class="alert-tags">
+                        <span class="alert-tag ${item.tagClass}">${item.icon} ${item.stage} · ${esc(item.label)}</span>
+                    </div>
+                    <div class="card-actions" style="margin-top:10px;">
+                        <button class="btn btn-secondary" style="font-size:0.78rem;padding:5px 10px;" onclick="openEditProject('${p.id}')">✏️ Open Project</button>
+                    </div>
+                </div>`).join('');
+        });
+        return html;
+    }
+
+    // =====================
+    // CONTRACT STATUS TRACKING
+    // =====================
+    let tempContractHistory = {};
+
+    function trackContractStatus(doc, newStatus) {
+        if (!newStatus) return;
+        if (!tempContractHistory[doc]) tempContractHistory[doc] = [];
+
+        const history = tempContractHistory[doc];
+        const now = Date.now();
+
+        // Close out previous status
+        if (history.length > 0) {
+            const last = history[history.length - 1];
+            if (!last.end) {
+                last.end = now;
+                last.duration = now - last.start;
+            }
+        }
+
+        // Add new status
+        history.push({ status: newStatus, start: now, end: null, duration: null });
+
+        renderContractTracker(doc);
+    }
+
+    function renderContractTracker(doc) {
+        const tracker = document.getElementById(`${doc}-tracker`);
+        const histEl = document.getElementById(`${doc}-history`);
+        const durEl = document.getElementById(`${doc}-duration`);
+        const history = tempContractHistory[doc] || [];
+
+        if (history.length === 0) {
+            tracker.style.display = 'none';
+            return;
+        }
+
+        tracker.style.display = 'block';
+
+        histEl.innerHTML = history.map(h => `
+            <div class="status-history-item">
+                <strong>${h.status}</strong> — Started: ${formatDate(h.start)}
+                ${h.end ? ` | Ended: ${formatDate(h.end)} | Duration: ${formatDuration(h.duration)}` : ' <em>(current)</em>'}
+            </div>`).join('');
+
+        // Aggregate durations by status
+        const agg = {};
+        history.forEach(h => {
+            const dur = h.duration || (h.end ? h.end - h.start : Date.now() - h.start);
+            agg[h.status] = (agg[h.status] || 0) + dur;
+        });
+
+        durEl.innerHTML = '<strong>⏱️ Total Time per Status:</strong><br>' +
+            Object.entries(agg).map(([s, d]) => `
+                <div class="duration-item">
+                    <span>${s}</span>
+                    <span>${formatDuration(d)}</span>
+                </div>`).join('');
+    }
+
+    // =====================
+    // OVERALL STATUS TIMER
+    // =====================
+    function handleOverallStatusChange() {
+        const sel = document.getElementById('f-overall-status');
+        const status = sel.value;
+        const display = document.getElementById('overall-timer-display');
+
+        if (editingId) {
+            const p = projects.find(x => x.id === editingId);
+            if (p) {
+                const now = Date.now();
+                if (status === 'In Process' && p.overallStatus !== 'In Process') {
+                    p.inProcessStart = now;
+                } else if (status !== 'In Process' && p.overallStatus === 'In Process') {
+                    const elapsed = now - (p.inProcessStart || now);
+                    p.inProcessAccum = (p.inProcessAccum || 0) + elapsed;
+                    p.inProcessStart = null;
+                }
+                if (status === 'Complete' && !p.completedAt) {
+                    p.completedAt = now;
+                }
+            }
+        }
+
+        display.style.display = status === 'In Process' ? 'block' : 'none';
+        if (status === 'In Process') {
+            display.textContent = '⏱️ Timer started — tracking In Process duration.';
+        }
+    }
+
+    // =====================
+    // MODAL MANAGEMENT
+    // =====================
+    function openNewProjectModal() {
+        editingId = null;
+        tempContractHistory = {};
+        resetForm();
+        document.getElementById('modal-title').textContent = '➕ New Project';
+        document.getElementById('project-modal').classList.add('active');
+        switchTabDirect('general');
+    }
+
+    function openEditProject(id) {
+        const p = projects.find(x => x.id === id);
+        if (!p) return;
+        editingId = id;
+        tempContractHistory = JSON.parse(JSON.stringify(p.contractHistory || {}));
+        populateForm(p);
+        document.getElementById('modal-title').textContent = `✏️ Edit: ${p.title}`;
+        document.getElementById('project-modal').classList.add('active');
+        switchTabDirect('general');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+    }
+
+    function switchTabDirect(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(`'${tab}'`)) {
+                b.classList.add('active');
+            }
+        });
+    }
+
+    // =====================
+    // FORM RESET & POPULATE
+    // =====================
+    function resetForm() {
+        // General
+        document.getElementById('f-title').value = '';
+        document.getElementById('f-vendor').value = '';
+        document.getElementById('f-owner').value = '';
+        document.getElementById('f-timeline').value = '';
+        document.getElementById('f-overall-status').value = '';
+        ['f-contracting-status','f-governance-status','f-onboarding-status','f-implementation-status']
+            .forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById('overall-timer-display').style.display = 'none';
+
+        // Contracting
+        document.getElementById('f-contract-type').value = '';
+        ['baa','nda','sow','msa','saf'].forEach(doc => {
+            document.getElementById(`f-${doc}`).value = '';
+            document.getElementById(`${doc}-tracker`).style.display = 'none';
+            document.getElementById(`${doc}-history`).innerHTML = '';
+            document.getElementById(`${doc}-duration`).innerHTML = '';
+        });
+
+        // Governance (default all to (Select))
+        ['f-new-solutions','f-drrc','f-stic','f-tac','f-ai-gov','f-cyber-sec',
+         'f-nsq','f-drrc-doc','f-exec-summary','f-proforma','f-arch-review'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+
+        // Onboarding (default all to (Select))
+        ['f-coi','f-w9','f-epic','f-da-ticket'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('f-po').value = '';
+
+        // Implementation (default all selects to (Select))
+        document.getElementById('f-impl-date').value = '';
+        document.getElementById('f-pm').value = '';
+        ['f-epic-agreement','f-template-build','f-epic-education','f-access-ticket',
+         'f-user-detail','f-cnaa','f-curio-create','f-curio-approve','f-system-education',
+         'f-impl-packet','f-impl-passoff','f-kickoff'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+
+        // Notes (one per stage tab)
+        ['f-notes-general','f-notes-contracting','f-notes-governance',
+         'f-notes-onboarding','f-notes-implementation'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+
+        renderHistoryPanel(null);
+    }
+
+    function populateForm(p) {
+        document.getElementById('f-title').value = p.title || '';
+        document.getElementById('f-vendor').value = p.vendor || '';
+        document.getElementById('f-owner').value = p.owner || '';
+        document.getElementById('f-timeline').value = p.timeline || '';
+        document.getElementById('f-overall-status').value = p.overallStatus || '';
+        document.getElementById('f-contracting-status').value = p.contractingStatus || '';
+        document.getElementById('f-governance-status').value = p.governanceStatus || '';
+        document.getElementById('f-onboarding-status').value = p.onboardingStatus || '';
+        document.getElementById('f-implementation-status').value = p.implementationStatus || '';
+        document.getElementById('f-contract-type').value = p.contractType || '';
+        document.getElementById('f-baa').value = p.baa || '';
+        document.getElementById('f-nda').value = p.nda || '';
+        document.getElementById('f-sow').value = p.sow || '';
+        document.getElementById('f-msa').value = p.msa || '';
+        document.getElementById('f-saf').value = p.saf || '';
+        document.getElementById('f-new-solutions').value = p.newSolutions || '';
+        document.getElementById('f-drrc').value = p.drrc || '';
+        document.getElementById('f-stic').value = p.stic || '';
+        document.getElementById('f-tac').value = p.tac || '';
+        document.getElementById('f-ai-gov').value = p.aiGov || '';
+        document.getElementById('f-cyber-sec').value = p.cyberSecurityReview || '';
+        document.getElementById('f-nsq').value = p.nsq || '';
+        document.getElementById('f-drrc-doc').value = p.drrcDoc || '';
+        document.getElementById('f-exec-summary').value = p.execSummary || '';
+        document.getElementById('f-proforma').value = p.proforma || '';
+        document.getElementById('f-arch-review').value = p.architecturalReview || '';
+        document.getElementById('f-coi').value = p.coi || '';
+        document.getElementById('f-w9').value = p.w9 || '';
+        document.getElementById('f-epic').value = p.epic || '';
+        document.getElementById('f-po').value = p.po || '';
+        document.getElementById('f-da-ticket').value = p.daTicket || '';
+        document.getElementById('f-impl-date').value = p.implDate || '';
+        document.getElementById('f-pm').value = p.projectManager || '';
+        document.getElementById('f-epic-agreement').value = p.epicAgreement || '';
+        document.getElementById('f-template-build').value = p.templateBuild || '';
+        document.getElementById('f-epic-education').value = p.epicEducation || '';
+        document.getElementById('f-access-ticket').value = p.accessTicket || '';
+        document.getElementById('f-user-detail').value = p.userDetail || '';
+        document.getElementById('f-cnaa').value = p.cnaa || '';
+        document.getElementById('f-curio-create').value = p.curioCreation || '';
+        document.getElementById('f-curio-approve').value = p.curioApproval || '';
+        document.getElementById('f-system-education').value = p.systemEducation || '';
+        document.getElementById('f-impl-packet').value = p.implPacket || '';
+        document.getElementById('f-impl-passoff').value = p.implPassoff || '';
+        document.getElementById('f-kickoff').value = p.kickoff || '';
+        document.getElementById('f-notes-general').value = p.notesGeneral || p.notes || '';
+        document.getElementById('f-notes-contracting').value = p.notesContracting || '';
+        document.getElementById('f-notes-governance').value = p.notesGovernance || '';
+        document.getElementById('f-notes-onboarding').value = p.notesOnboarding || '';
+        document.getElementById('f-notes-implementation').value = p.notesImplementation || '';
+
+        // Render contract trackers
+        ['baa','nda','sow','msa','saf'].forEach(doc => {
+            if (tempContractHistory[doc] && tempContractHistory[doc].length > 0) {
+                renderContractTracker(doc);
+            }
+        });
+
+        // Overall timer display
+        const display = document.getElementById('overall-timer-display');
+        if (p.overallStatus === 'In Process') {
+            display.style.display = 'block';
+            const elapsed = Date.now() - (p.inProcessStart || Date.now());
+            display.textContent = `⏱️ In Process for: ${formatDuration(elapsed + (p.inProcessAccum || 0))}`;
+        } else {
+            display.style.display = 'none';
+        }
+
+        renderHistoryPanel(p);
+    }
+
+    // =====================
+    // SAVE PROJECT
+    // =====================
+    function saveProject() {
+        if (!requireUser()) { alert('Please pick your name first — your edits are recorded under it.'); return; }
+        const title = document.getElementById('f-title').value.trim();
+        if (!title) {
+            alert('Please enter a project title.');
+            return;
+        }
+
+        const overallStatus = document.getElementById('f-overall-status').value;
+        const now = Date.now();
+
+        if (editingId) {
+            const idx = projects.findIndex(x => x.id === editingId);
+            if (idx === -1) return;
+            const existing = projects[idx];
+
+            // Handle overall status timer transition
+            if (overallStatus === 'In Process' && existing.overallStatus !== 'In Process') {
+                existing.inProcessStart = now;
+            } else if (overallStatus !== 'In Process' && existing.overallStatus === 'In Process') {
+                const elapsed = now - (existing.inProcessStart || now);
+                existing.inProcessAccum = (existing.inProcessAccum || 0) + elapsed;
+                existing.inProcessStart = null;
+            }
+            if (overallStatus === 'Complete' && !existing.completedAt) {
+                existing.completedAt = now;
+            }
+
+            const newData = collectFormData();
+            const changeLog = buildChangeLog(existing, newData, existing.changeLog, now, currentUser);
+
+            projects[idx] = { ...existing, ...newData, contractHistory: tempContractHistory, changeLog };
+            projects[idx].inProcessStart = existing.inProcessStart;
+            projects[idx].inProcessAccum = existing.inProcessAccum;
+            projects[idx].completedAt = existing.completedAt;
+        } else {
+            const newData = collectFormData();
+            const newProject = {
+                id: generateId(),
+                createdAt: now,
+                contractHistory: tempContractHistory,
+                inProcessStart: overallStatus === 'In Process' ? now : null,
+                inProcessAccum: 0,
+                completedAt: overallStatus === 'Complete' ? now : null,
+                changeLog: seedChangeLog(newData, now, currentUser),
+                ...newData
+            };
+            projects.push(newProject);
+        }
+
+        saveToStorage();
+        closeModal('project-modal');
+        renderDashboard();
+        renderProjectList();
+        renderAlertView();
+    }
+
+    function collectFormData() {
+        return {
+            title: document.getElementById('f-title').value.trim(),
+            vendor: document.getElementById('f-vendor').value.trim(),
+            owner: document.getElementById('f-owner').value.trim(),
+            timeline: document.getElementById('f-timeline').value,
+            overallStatus: document.getElementById('f-overall-status').value,
+            contractType: document.getElementById('f-contract-type').value,
+            baa: document.getElementById('f-baa').value,
+            nda: document.getElementById('f-nda').value,
+            sow: document.getElementById('f-sow').value,
+            msa: document.getElementById('f-msa').value,
+            saf: document.getElementById('f-saf').value,
+            newSolutions: document.getElementById('f-new-solutions').value,
+            drrc: document.getElementById('f-drrc').value,
+            stic: document.getElementById('f-stic').value,
+            tac: document.getElementById('f-tac').value,
+            aiGov: document.getElementById('f-ai-gov').value,
+            cyberSecurityReview: document.getElementById('f-cyber-sec').value,
+            nsq: document.getElementById('f-nsq').value,
+            drrcDoc: document.getElementById('f-drrc-doc').value,
+            execSummary: document.getElementById('f-exec-summary').value,
+            proforma: document.getElementById('f-proforma').value,
+            architecturalReview: document.getElementById('f-arch-review').value,
+            coi: document.getElementById('f-coi').value,
+            w9: document.getElementById('f-w9').value,
+            epic: document.getElementById('f-epic').value,
+            po: document.getElementById('f-po').value.trim(),
+            daTicket: document.getElementById('f-da-ticket').value,
+            implDate: document.getElementById('f-impl-date').value,
+            projectManager: document.getElementById('f-pm').value.trim(),
+            epicAgreement: document.getElementById('f-epic-agreement').value,
+            templateBuild: document.getElementById('f-template-build').value,
+            epicEducation: document.getElementById('f-epic-education').value,
+            accessTicket: document.getElementById('f-access-ticket').value,
+            userDetail: document.getElementById('f-user-detail').value,
+            cnaa: document.getElementById('f-cnaa').value,
+            curioCreation: document.getElementById('f-curio-create').value,
+            curioApproval: document.getElementById('f-curio-approve').value,
+            systemEducation: document.getElementById('f-system-education').value,
+            implPacket: document.getElementById('f-impl-packet').value,
+            implPassoff: document.getElementById('f-impl-passoff').value,
+            kickoff: document.getElementById('f-kickoff').value,
+            notesGeneral: document.getElementById('f-notes-general').value,
+            notesContracting: document.getElementById('f-notes-contracting').value,
+            notesGovernance: document.getElementById('f-notes-governance').value,
+            notesOnboarding: document.getElementById('f-notes-onboarding').value,
+            notesImplementation: document.getElementById('f-notes-implementation').value,
+            // Stage summary statuses — set explicitly on the General tab so a project
+            // can be tracked across several stages at once.
+            contractingStatus: document.getElementById('f-contracting-status').value,
+            governanceStatus: document.getElementById('f-governance-status').value,
+            onboardingStatus: document.getElementById('f-onboarding-status').value,
+            implementationStatus: document.getElementById('f-implementation-status').value
+        };
+    }
+
+    // =====================
+    // DELETE
+    // =====================
+    function promptDelete(id) {
+        deleteTargetId = id;
+        const p = projects.find(x => x.id === id);
+        document.getElementById('confirm-message').textContent =
+            `Are you sure you want to delete "${p?.title || 'this project'}"? This action cannot be undone.`;
+        document.getElementById('confirm-modal').classList.add('active');
+    }
+
+    function confirmDelete() {
+        if (!deleteTargetId) return;
+        if (!requireUser()) { alert('Please pick your name first.'); return; }
+        const p = projects.find(x => x.id === deleteTargetId);
+        if (p) {
+            // Tombstone rather than hard-delete, so the deletion survives a merge with
+            // teammates' copies instead of being resurrected from their stale data.
+            const now = Date.now();
+            p.changeLog = (p.changeLog || []).concat([{ f: '_deleted', l: 'Deleted', from: '', to: '', at: now, by: currentUser }]);
+            p.deleted = true;
+            p.deletedAt = now;
+            p.deletedBy = currentUser;
+        }
+        deleteTargetId = null;
+        saveToStorage();
+        closeModal('confirm-modal');
+        renderDashboard();
+        renderProjectList();
+        renderAlertView();
+    }
+
+    // =====================
+    // RESTORE (undo a tombstoned delete)
+    // =====================
+    function openDeletedModal() {
+        const body = document.getElementById('deleted-body');
+        const del = projects.filter(p => p.deleted)
+            .sort((a, b) => (b.deletedAt || lastUpdatedOf(b)) - (a.deletedAt || lastUpdatedOf(a)));
+        if (!del.length) {
+            body.innerHTML = `<div class="empty-state"><div class="icon">✅</div><p>No deleted projects. Anything you delete shows up here and can be restored.</p></div>`;
+        } else {
+            body.innerHTML = del.map(p => {
+                const when = p.deletedAt ? formatDate(p.deletedAt) : '—';
+                const who = p.deletedBy ? esc(p.deletedBy) : (lastUpdatedByOf(p) ? esc(lastUpdatedByOf(p)) : '—');
+                return `
+                <div class="alert-project-card" style="border-left-color:#95a5a6;">
+                    <h3>🗑️ ${esc(p.title) || 'Untitled'} <span style="font-weight:normal;color:#666;font-size:0.85rem;">— ${esc(p.vendor) || '—'}</span></h3>
+                    <div style="font-size:0.8rem;color:#777;margin-top:4px;">Deleted by ${who} — ${when}</div>
+                    <div class="card-actions" style="margin-top:10px;">
+                        <button class="btn btn-primary" style="font-size:0.78rem;padding:5px 10px;" onclick="restoreProject('${p.id}')">♻️ Restore</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        document.getElementById('deleted-modal').classList.add('active');
+    }
+
+    function restoreProject(id) {
+        if (!requireUser()) { alert('Please pick your name first.'); return; }
+        const p = projects.find(x => x.id === id);
+        if (!p) return;
+        // A "_restored" marker that is newer than the "_deleted" one wins the merge,
+        // so the restore propagates to teammates just like the delete did.
+        const now = Date.now();
+        p.changeLog = (p.changeLog || []).concat([{ f: '_restored', l: 'Restored', from: '', to: '', at: now, by: currentUser }]);
+        p.deleted = false;
+        p.deletedAt = null;
+        p.deletedBy = null;
+        saveToStorage();
+        renderDashboard();
+        renderProjectList();
+        renderAlertView();
+        openDeletedModal(); // refresh the list in place
+    }
+
+    // =====================
+    // EXPORT TO EXCEL (.xlsx)
+    // =====================
+    const EXTRA_COLS = ['Created','Last Updated','Last Updated By','Completed','In-Process Total',
+        'Contracting Time','Governance Time','Onboarding Time','Implementation Time','Deleted','Change Log (JSON)'];
+
+    function buildExportRows() {
+        // One shared table: every project (including tombstoned ones, so deletions
+        // propagate) written as one row, keyed by the stable Project ID.
+        const header = ['Project ID', ...FIELD_DEFS.map(f => f.l), ...EXTRA_COLS];
+        const rows = [header];
+        projects.forEach(p => {
+            const dur = computeStageDurations(p);
+            const stageCell = (k) => {
+                const d = dur[k];
+                if (!d || !d.current) return '—';
+                return `${d.current} (${formatDuration(d.totals[d.current] || 0)})`;
+            };
+            const ipTotal = formatDuration((p.inProcessAccum || 0) +
+                (p.overallStatus === 'In Process' && p.inProcessStart ? Date.now() - p.inProcessStart : 0));
+            rows.push([
+                p.id || '',
+                ...FIELD_DEFS.map(f => p[f.k] == null ? '' : String(p[f.k])),
+                formatDate(p.createdAt), formatDate(lastUpdatedOf(p)), lastUpdatedByOf(p),
+                formatDate(p.completedAt), ipTotal,
+                stageCell('contractingStatus'), stageCell('governanceStatus'),
+                stageCell('onboardingStatus'), stageCell('implementationStatus'),
+                (p.deleted ? 'Yes' : 'No'),
+                JSON.stringify(p.changeLog || [])
+            ]);
+        });
+        return rows;
+    }
+
+    function exportData() {
+        if (projects.length === 0) { alert('No projects to export yet.'); return; }
+        const rows = buildExportRows();
+        const bytes = buildXlsx('My Projects', rows);
+        downloadBytes(bytes, `project-tracker-${new Date().toISOString().split('T')[0]}.xlsx`,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    function downloadBytes(bytes, filename, mime) {
+        const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // ---- Minimal dependency-free XLSX writer (single worksheet, stored ZIP) ----
+    function colName(n) {
+        let s = ''; n++;
+        while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+        return s;
+    }
+    function xmlEsc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+    }
+    function sheetXml(rows) {
+        let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+        rows.forEach((row, ri) => {
+            x += `<row r="${ri + 1}">`;
+            row.forEach((cell, ci) => {
+                x += `<c r="${colName(ci)}${ri + 1}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(cell)}</t></is></c>`;
+            });
+            x += '</row>';
+        });
+        return x + '</sheetData></worksheet>';
+    }
+    function buildXlsx(sheetName, rows) {
+        const enc = new TextEncoder();
+        const safeName = String(sheetName).replace(/[\\\/\?\*\[\]:]/g, ' ').slice(0, 31) || 'Sheet1';
+        const files = [
+            { name: '[Content_Types].xml', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>') },
+            { name: '_rels/.rels', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>') },
+            { name: 'xl/workbook.xml', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + xmlEsc(safeName) + '" sheetId="1" r:id="rId1"/></sheets></workbook>') },
+            { name: 'xl/_rels/workbook.xml.rels', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>') },
+            { name: 'xl/worksheets/sheet1.xml', data: enc.encode(sheetXml(rows)) }
+        ];
+        return zipStore(files);
+    }
+    function crc32(bytes) {
+        let c = ~0;
+        for (let i = 0; i < bytes.length; i++) {
+            c ^= bytes[i];
+            for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
+        }
+        return (~c) >>> 0;
+    }
+    function zipStore(files) {
+        const enc = new TextEncoder();
+        const chunks = []; const central = []; let offset = 0;
+        const u16 = n => [n & 255, (n >> 8) & 255];
+        const u32 = n => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255];
+        files.forEach(f => {
+            const nameBytes = enc.encode(f.name);
+            const data = f.data;
+            const crc = crc32(data);
+            const local = [].concat(u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+                u32(crc), u32(data.length), u32(data.length), u16(nameBytes.length), u16(0));
+            chunks.push(new Uint8Array(local), nameBytes, data);
+            const cen = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+                u32(crc), u32(data.length), u32(data.length), u16(nameBytes.length),
+                u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset));
+            central.push({ head: new Uint8Array(cen), name: nameBytes });
+            offset += local.length + nameBytes.length + data.length;
+        });
+        const cdStart = offset;
+        central.forEach(c => { chunks.push(c.head, c.name); offset += c.head.length + c.name.length; });
+        const cdSize = offset - cdStart;
+        const eocd = [].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+            u32(cdSize), u32(cdStart), u16(0));
+        chunks.push(new Uint8Array(eocd));
+        let total = 0; chunks.forEach(c => total += c.length);
+        const out = new Uint8Array(total); let p = 0;
+        chunks.forEach(c => { out.set(c, p); p += c.length; });
+        return out;
+    }
+
+    // Export reflects whichever Filter View mode is active.
+    function exportAlertView() {
+        const alertProjects = activeProjects().filter(isAlertProject).sort(byNearestTimeline);
+        if (alertProjects.length === 0) { alert('No outstanding items to export.'); return; }
+
+        let rows, sheetName, fileTag;
+        if (alertViewMode === 'stage') {
+            sheetName = 'Filter — By Stage'; fileTag = 'by-stage';
+            rows = [['Stage','Project','Vendor','Timeline','Item','Status']];
+            STAGE_ALERT_DEFS.forEach(def => {
+                alertProjects.forEach(p => {
+                    outstandingItems(p).filter(i => i.stage === def.stage).forEach(i => {
+                        rows.push([def.stage, p.title||'', p.vendor||'', timelineLabel(p), i.label, i.status]);
+                    });
+                });
+            });
+        } else if (alertViewMode === 'status') {
+            sheetName = 'Filter — By Status'; fileTag = 'by-status';
+            rows = [['Status','Project','Vendor','Timeline','Stage','Item']];
+            const all = [];
+            alertProjects.forEach(p => outstandingItems(p).forEach(i => all.push({ p, i })));
+            all.sort((a, b) => (a.i.status).localeCompare(b.i.status) || byNearestTimeline(a.p, b.p));
+            all.forEach(({ p, i }) => rows.push([i.status, p.title||'', p.vendor||'', timelineLabel(p), i.stage, i.label]));
+        } else {
+            sheetName = 'Filter — By Project'; fileTag = 'by-project';
+            rows = [['Project','Vendor','Owner','Timeline','Stage','Item','Status']];
+            alertProjects.forEach(p => {
+                outstandingItems(p).forEach(i => {
+                    rows.push([p.title||'', p.vendor||'', p.owner||'', timelineLabel(p), i.stage, i.label, i.status]);
+                });
+            });
+        }
+
+        const bytes = buildXlsx(sheetName, rows);
+        downloadBytes(bytes, `filter-view-${fileTag}-${new Date().toISOString().split('T')[0]}.xlsx`,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    // =====================
+    // IMPORT FROM SHARED WORKBOOK (.xlsx)
+    // =====================
+    // Each morning a team member imports the shared workbook. Every sheet/tab =
+    // one person's exported data. Projects are matched by name (case-insensitive).
+    // For every field, the most recently updated value wins (your own un-exported
+    // edits are preserved, because your local copy joins the merge too).
+
+    // Build a quick label -> field-key lookup from the export definitions.
+    const LABEL_TO_KEY = Object.fromEntries(FIELD_DEFS.map(f => [f.l.toLowerCase(), f.k]));
+
+    // ---- Upload / Reupload: remember the last file and reload it in one click ----
+    const FS_SUPPORTED = (typeof window !== 'undefined') && !!window.showOpenFilePicker;
+    let lastImportMeta = null;
+    try { lastImportMeta = JSON.parse(LS.getItem('lastImportMeta') || 'null'); } catch (e) {}
+
+    function rememberImportMeta(name) {
+        lastImportMeta = { name: name || 'workbook.xlsx', at: Date.now() };
+        try { LS.setItem('lastImportMeta', JSON.stringify(lastImportMeta)); } catch (e) {}
+    }
+
+    // Tiny IndexedDB key/value store (file handles can't be saved in localStorage).
+    function idbOpen() {
+        return new Promise((resolve, reject) => {
+            const r = indexedDB.open('rms-import:' + PT_NS, 1);
+            r.onupgradeneeded = () => r.result.createObjectStore('kv');
+            r.onsuccess = () => resolve(r.result);
+            r.onerror = () => reject(r.error);
+        });
+    }
+    async function idbSet(key, val) {
+        const db = await idbOpen();
+        await new Promise((res, rej) => {
+            const tx = db.transaction('kv', 'readwrite');
+            tx.objectStore('kv').put(val, key);
+            tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+        });
+        db.close();
+    }
+    async function idbGet(key) {
+        const db = await idbOpen();
+        const val = await new Promise((res, rej) => {
+            const tx = db.transaction('kv', 'readonly');
+            const g = tx.objectStore('kv').get(key);
+            g.onsuccess = () => res(g.result); g.onerror = () => rej(g.error);
+        });
+        db.close();
+        return val;
+    }
+
+    // Ask the browser to keep this site's storage instead of evicting it. The remembered
+    // file lives in IndexedDB (a file handle can't be saved as plain text), and for a local
+    // file:// page Chrome treats that storage as "best-effort" — so it can drop the saved
+    // file on a restart even though projects (localStorage) survive. Requesting persistent
+    // storage tells the browser not to evict it.
+    async function ensurePersistentStorage() {
+        try {
+            if (navigator.storage && navigator.storage.persist) {
+                const already = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+                if (!already) await navigator.storage.persist();
+            }
+        } catch (e) { /* not supported in this browser/context — nothing we can do */ }
+    }
+
+    // Open the sync panel: shows the most recent file with one-click reload, plus
+    // a "choose a different file" option.
+    async function openImportPanel() {
+        document.getElementById('import-pick-title').textContent = '🔁 Sync Workbook';
+        const box = document.getElementById('import-last-box');
+        const reuseBtn = document.getElementById('import-reuse-btn');
+        const note = document.getElementById('import-reuse-note');
+
+        let hasHandle = false;
+        if (FS_SUPPORTED) { try { hasHandle = !!(await idbGet('lastImportHandle')); } catch (e) {} }
+
+        if (lastImportMeta && lastImportMeta.name) {
+            box.style.display = 'block';
+            document.getElementById('import-last-name').textContent = lastImportMeta.name;
+            document.getElementById('import-last-when').textContent =
+                lastImportMeta.at ? ('last used ' + new Date(lastImportMeta.at).toLocaleString()) : '';
+            if (FS_SUPPORTED && hasHandle) {
+                reuseBtn.style.display = 'inline-block';
+                note.textContent = 'Reads the current contents of that file — so overnight changes come in automatically.';
+            } else {
+                reuseBtn.style.display = 'none';
+                note.textContent = FS_SUPPORTED
+                    ? 'Choose the file once more to enable one-click reupload next time.'
+                    : 'This browser can’t reload a file automatically — use “Choose a different file…”. (Chrome or Edge supports one-click reupload.)';
+            }
+        } else {
+            box.style.display = 'none';
+        }
+        document.getElementById('import-pick-modal').classList.add('active');
+    }
+
+    // Pick a brand-new file (and remember it for next time).
+    async function pickNewFile() {
+        if (FS_SUPPORTED) {
+            try {
+                const [handle] = await window.showOpenFilePicker({
+                    multiple: false,
+                    types: [{ description: 'Excel workbook', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+                });
+                await idbSet('lastImportHandle', handle);
+                const file = await handle.getFile();
+                rememberImportMeta(file.name);
+                closeModal('import-pick-modal');
+                handleImportFile(file);
+            } catch (e) {
+                if (e && e.name === 'AbortError') return; // user cancelled the dialog
+                alert('Could not open the file: ' + (e.message || e));
+            }
+        } else {
+            document.getElementById('import-input').click(); // fallback <input type=file>
+        }
+    }
+
+    // Reload the remembered file in one click (Chrome/Edge).
+    async function reuseLastFile() {
+        if (!FS_SUPPORTED) { document.getElementById('import-input').click(); return; }
+        try {
+            const handle = await idbGet('lastImportHandle');
+            if (!handle) { alert('No remembered file yet — choose a file first.'); return; }
+            let perm = await handle.queryPermission({ mode: 'read' });
+            if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'read' });
+            if (perm !== 'granted') { alert('Permission to read the file was not granted.'); return; }
+            const file = await handle.getFile();
+            rememberImportMeta(file.name);
+            closeModal('import-pick-modal');
+            handleImportFile(file);
+        } catch (e) {
+            alert('Could not reopen the last file: ' + (e.message || e));
+        }
+    }
+
+    // Fallback <input> path for browsers without the File System Access API.
+    function onFallbackPicked(file) {
+        if (!file) return;
+        rememberImportMeta(file.name);
+        closeModal('import-pick-modal');
+        handleImportFile(file);
+    }
+
+    // Parse a workbook's raw bytes, merge every project tab into the tracker, and
+    // re-render. Returns the merge summary, or false if no project rows were found.
+    function applyImportedWorkbook(buf) {
+        const files = readZip(buf);
+        const sheets = parseWorkbook(files);
+        const records = recordsFromSheets(sheets);
+        if (records.length === 0) return false;
+        const result = mergeImportedRecords(records);
+        // Data pulled from the file is not, by itself, an unsaved edit — leave the
+        // unsavedChanges flag as it was (any local edits merged in stay flagged).
+        renderDashboard();
+        renderProjectList();
+        renderAlertView();
+        return result;
+    }
+
+    function handleImportFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const result = applyImportedWorkbook(reader.result);
+                if (result === false) {
+                    alert('No project rows were found in that file. Make sure it is an export from this tracker (with a "Title" / "Project Key" header row).');
+                    return;
+                }
+                showImportSummary(result);
+            } catch (err) {
+                alert('Could not read that file: ' + (err && err.message ? err.message : err));
+                console.error(err);
+            }
+        };
+        reader.onerror = () => alert('Failed to read the file.');
+        reader.readAsArrayBuffer(file);
+    }
+
+    // Turn parsed sheets into flat per-person project records.
+    function recordsFromSheets(sheets) {
+        const records = [];
+        sheets.forEach(sh => {
+            const rows = sh.rows;
+            // Locate the header row. New single-table files have a "Project ID" column;
+            // legacy per-person tabs used "Title" / "Project Key". All are still read.
+            let hi = -1;
+            for (let i = 0; i < rows.length; i++) {
+                const r = rows[i] || [];
+                if (r.some(c => { const v = (c || '').trim().toLowerCase(); return v === 'title' || v === 'project key' || v === 'project id'; })) { hi = i; break; }
+            }
+            if (hi < 0) return; // not a project sheet
+            const idx = {};
+            (rows[hi] || []).forEach((c, i) => { const h = (c || '').trim().toLowerCase(); if (h) idx[h] = i; });
+            const cell = (r, label) => { const j = idx[label.toLowerCase()]; return j == null ? '' : (r[j] == null ? '' : r[j]); };
+            for (let i = hi + 1; i < rows.length; i++) {
+                const r = rows[i] || [];
+                const title = (cell(r, 'Title') || '').trim();
+                if (!title) continue;
+                const id = (cell(r, 'Project ID') || '').trim();
+                // Stable key: the Project ID when present, otherwise fall back to the
+                // (case-insensitive) title so legacy title-keyed files still merge.
+                const key = id || (cell(r, 'Project Key') || title).trim().toLowerCase();
+                // Map every known label column back to a field key.
+                const values = {};
+                Object.keys(idx).forEach(label => {
+                    const k = LABEL_TO_KEY[label];
+                    if (k) { const v = r[idx[label]]; values[k] = v == null ? '' : v; }
+                });
+                values.title = title;
+                let changeLog = [];
+                const lj = cell(r, 'Change Log (JSON)');
+                if (lj) { try { const parsed = JSON.parse(lj); if (Array.isArray(parsed)) changeLog = parsed; } catch (e) {} }
+                const createdAt = Date.parse(cell(r, 'Created')) || 0;
+                records.push({ id, key, title, values, changeLog, createdAt });
+            }
+        });
+        return records;
+    }
+
+    // Most recent change-log timestamp for a given field in a record (fallback: createdAt).
+    function fieldTime(rec, k) {
+        let mx = -1;
+        (rec.changeLog || []).forEach(e => { if (e.f === k && (e.at || 0) > mx) mx = e.at; });
+        return mx >= 0 ? mx : (rec.createdAt || 0);
+    }
+
+    // Wrap an existing local project so it can join the field-level merge.
+    function localAsRecord(p) {
+        const values = {};
+        FIELD_DEFS.forEach(({ k }) => { if (p[k] != null) values[k] = p[k]; });
+        return { id: p.id || '', key: p.id || (p.title || '').trim().toLowerCase(),
+                 title: p.title || '', values,
+                 changeLog: p.changeLog || [], createdAt: p.createdAt || 0 };
+    }
+
+    // Dedupe + sort a combined change log (attribution "by" is part of the identity).
+    function mergeChangeLogs(recs) {
+        const seen = new Set();
+        const out = [];
+        recs.forEach(r => (r.changeLog || []).forEach(e => {
+            const sig = [e.f, e.from, e.to, e.at, e.by || ''].join('|');
+            if (!seen.has(sig)) { seen.add(sig); out.push(e); }
+        }));
+        return out.sort((a, b) => (a.at || 0) - (b.at || 0));
+    }
+
+    // Reconstruct In-Process timer + completion from a project's merged change log.
+    function reconcileTimers(p) {
+        const entries = (p.changeLog || []).filter(e => e.f === 'overallStatus').sort((a, b) => (a.at || 0) - (b.at || 0));
+        let accum = 0, start = null;
+        for (let i = 0; i < entries.length; i++) {
+            if (entries[i].to === 'In Process') {
+                const next = entries[i + 1];
+                if (next) accum += (next.at - entries[i].at);
+                else start = entries[i].at; // still in process
+            }
+        }
+        p.inProcessAccum = accum;
+        p.inProcessStart = (p.overallStatus === 'In Process') ? (start || Date.now()) : null;
+        if (p.overallStatus === 'Complete') {
+            const comp = entries.filter(e => e.to === 'Complete').pop();
+            p.completedAt = comp ? comp.at : (p.completedAt || Date.now());
+        }
+    }
+
+    // Find a local project matching an imported group: by stable Project ID first,
+    // then by case-insensitive title (so legacy title-keyed data still lines up).
+    function findLocalIndexForGroup(recs) {
+        const id = (recs.find(r => r.id) || {}).id;
+        if (id) {
+            const byId = projects.findIndex(p => p.id === id);
+            if (byId >= 0) return byId;
+        }
+        const title = (recs[0].title || '').trim().toLowerCase();
+        return projects.findIndex(p => (p.title || '').trim().toLowerCase() === title);
+    }
+
+    // Merge imported records (grouped by stable key) into the local store.
+    function mergeImportedRecords(records) {
+        // Group imported records by their stable key (Project ID, else title).
+        const groups = {};
+        const order = [];
+        records.forEach(r => { if (!groups[r.key]) { groups[r.key] = []; order.push(r.key); } groups[r.key].push(r); });
+
+        const summary = { added: [], updated: [], unchanged: [], deleted: [] };
+
+        order.forEach(key => {
+            const importedRecs = groups[key];
+            const existingIdx = findLocalIndexForGroup(importedRecs);
+            const existing = existingIdx >= 0 ? projects[existingIdx] : null;
+
+            // All participants: imported copies for this project + your local copy (if any).
+            const participants = importedRecs.slice();
+            if (existing) participants.push(localAsRecord(existing));
+
+            // Field-level "most recently updated wins".
+            const merged = {};
+            FIELD_DEFS.forEach(({ k }) => {
+                let bestVal = '', bestAt = -1, found = false;
+                participants.forEach(r => {
+                    const v = r.values[k];
+                    if (v == null || v === '') return;
+                    const at = fieldTime(r, k);
+                    if (at > bestAt) { bestAt = at; bestVal = v; found = true; }
+                });
+                if (found) merged[k] = bestVal;
+            });
+
+            const changeLog = mergeChangeLogs(participants);
+            const createdAt = Math.min(...participants.map(r => r.createdAt || 0).filter(Boolean).concat([Date.now()]));
+            // Keep the creator's stable ID so everyone shares one row per project.
+            const stableId = (existing && existing.id) || (importedRecs.find(r => r.id) || {}).id || generateId();
+
+            if (existing) {
+                const before = JSON.stringify(FIELD_DEFS.map(f => existing[f.k] == null ? '' : String(existing[f.k])));
+                const wasDeleted = !!existing.deleted;
+                const updatedProject = { ...existing, id: stableId, ...merged, changeLog, createdAt };
+                reconcileTimers(updatedProject);
+                applyDeletedState(updatedProject);
+                projects[existingIdx] = updatedProject;
+                const after = JSON.stringify(FIELD_DEFS.map(f => updatedProject[f.k] == null ? '' : String(updatedProject[f.k])));
+                if (updatedProject.deleted && !wasDeleted) summary.deleted.push(updatedProject.title || key);
+                else if (before === after && updatedProject.deleted === wasDeleted) summary.unchanged.push(updatedProject.title || key);
+                else summary.updated.push(updatedProject.title || key);
+            } else {
+                const newProject = { id: stableId, createdAt, contractHistory: {}, changeLog, ...merged };
+                reconcileTimers(newProject);
+                applyDeletedState(newProject);
+                projects.push(newProject);
+                if (!newProject.deleted) summary.added.push(newProject.title || key);
+            }
+        });
+
+        // Bring any editor names in the merged data into the shared roster.
+        refreshRosterFromProjects();
+        saveRoster();
+        return summary;
+    }
+
+    function showImportSummary(s) {
+        const del = s.deleted || [];
+        const total = s.added.length + s.updated.length + s.unchanged.length + del.length;
+        const list = (arr) => arr.length
+            ? '<ul style="margin:6px 0 0 18px;font-size:0.85rem;color:#444;">' + arr.map(t => `<li>${xmlEsc(t)}</li>`).join('') + '</ul>'
+            : '<div style="font-size:0.82rem;color:#999;margin-top:4px;">None</div>';
+        document.getElementById('import-body').innerHTML = `
+            <p style="margin-bottom:14px;color:#555;font-size:0.9rem;">Synced <strong>${total}</strong> project${total === 1 ? '' : 's'} from the shared workbook. For each field, the most recently updated value was kept.</p>
+            <div class="form-section" style="margin-bottom:14px;">
+                <h3>🆕 New projects added (${s.added.length})</h3>${list(s.added)}
+            </div>
+            <div class="form-section" style="margin-bottom:14px;">
+                <h3>🔄 Projects updated (${s.updated.length})</h3>${list(s.updated)}
+            </div>
+            <div class="form-section" style="margin-bottom:14px;">
+                <h3>🗑️ Deleted by a teammate (${del.length})</h3>${list(del)}
+            </div>
+            <div class="form-section" style="margin-bottom:0;">
+                <h3>✅ Already up to date (${s.unchanged.length})</h3>${list(s.unchanged)}
+            </div>`;
+        document.getElementById('import-modal').classList.add('active');
+    }
+
+    // ---- Dependency-free XLSX reader: ZIP + raw DEFLATE inflate + XML parse ----
+    function inflateRaw(data, expected) {
+        let pos = 0, bitBuf = 0, bitCnt = 0;
+        let out = new Uint8Array(expected && expected > 0 ? expected : 1024);
+        let outLen = 0;
+        function ensure(n){ if (outLen + n > out.length){ let ns = out.length * 2; while (ns < outLen + n) ns *= 2; const nb = new Uint8Array(ns); nb.set(out); out = nb; } }
+        function getBit(){ if (bitCnt === 0){ bitBuf = data[pos++]; bitCnt = 8; } const b = bitBuf & 1; bitBuf >>= 1; bitCnt--; return b; }
+        function getBits(n){ let v = 0; for (let i = 0; i < n; i++) v |= getBit() << i; return v; }
+        function build(lengths){
+            const count = new Array(16).fill(0);
+            for (const l of lengths) if (l) count[l]++;
+            const offs = new Array(16).fill(0);
+            for (let i = 1; i < 15; i++) offs[i+1] = offs[i] + count[i];
+            const sym = new Array(lengths.length).fill(0);
+            for (let s = 0; s < lengths.length; s++) if (lengths[s]) sym[offs[lengths[s]]++] = s;
+            return { count, sym };
+        }
+        function decode(h){
+            let code = 0, first = 0, index = 0;
+            for (let len = 1; len <= 15; len++){
+                code = (code << 1) | getBit();
+                const c = h.count[len];
+                if (code - first < c) return h.sym[index + (code - first)];
+                index += c; first = (first + c) << 1;
+            }
+            return -1;
+        }
+        const lenBase=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+        const lenExtra=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+        const distBase=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+        const distExtra=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+        let last = 0;
+        do {
+            last = getBit();
+            const type = getBits(2);
+            if (type === 0) {
+                bitCnt = 0; // byte-align
+                const len = data[pos] | (data[pos+1] << 8); pos += 4; // skip LEN + NLEN
+                ensure(len);
+                for (let i = 0; i < len; i++) out[outLen++] = data[pos++];
+            } else {
+                let lenT, distT;
+                if (type === 1) {
+                    const ll = [];
+                    for (let i=0;i<144;i++) ll.push(8);
+                    for (let i=144;i<256;i++) ll.push(9);
+                    for (let i=256;i<280;i++) ll.push(7);
+                    for (let i=280;i<288;i++) ll.push(8);
+                    lenT = build(ll); distT = build(new Array(30).fill(5));
+                } else {
+                    const hlit = getBits(5)+257, hdist = getBits(5)+1, hclen = getBits(4)+4;
+                    const order = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+                    const cl = new Array(19).fill(0);
+                    for (let i=0;i<hclen;i++) cl[order[i]] = getBits(3);
+                    const clT = build(cl);
+                    const all = [];
+                    while (all.length < hlit + hdist) {
+                        const s = decode(clT);
+                        if (s < 16) all.push(s);
+                        else if (s === 16) { const r = getBits(2)+3, pv = all[all.length-1]; for(let i=0;i<r;i++) all.push(pv); }
+                        else if (s === 17) { const r = getBits(3)+3; for(let i=0;i<r;i++) all.push(0); }
+                        else { const r = getBits(7)+11; for(let i=0;i<r;i++) all.push(0); }
+                    }
+                    lenT = build(all.slice(0, hlit));
+                    distT = build(all.slice(hlit, hlit + hdist));
+                }
+                for (;;) {
+                    const s = decode(lenT);
+                    if (s === 256) break;
+                    if (s < 256) { ensure(1); out[outLen++] = s; }
+                    else {
+                        const si = s - 257;
+                        const length = lenBase[si] + getBits(lenExtra[si]);
+                        const ds = decode(distT);
+                        const dist = distBase[ds] + getBits(distExtra[ds]);
+                        ensure(length);
+                        let start = outLen - dist;
+                        for (let i = 0; i < length; i++) out[outLen++] = out[start + i];
+                    }
+                }
+            }
+        } while (!last);
+        return out.subarray(0, outLen);
+    }
+
+    function readZip(buf) {
+        const data = new Uint8Array(buf);
+        const dv = new DataView(buf);
+        let eocd = -1;
+        const minStart = Math.max(0, data.length - 22 - 65536);
+        for (let i = data.length - 22; i >= minStart; i--) {
+            if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+        }
+        if (eocd < 0) throw new Error('This does not look like a valid .xlsx file (no ZIP end record found).');
+        const cdCount = dv.getUint16(eocd + 10, true);
+        const cdOffset = dv.getUint32(eocd + 16, true);
+        const files = {};
+        let p = cdOffset;
+        for (let n = 0; n < cdCount; n++) {
+            if (dv.getUint32(p, true) !== 0x02014b50) break;
+            const method = dv.getUint16(p + 10, true);
+            const compSize = dv.getUint32(p + 20, true);
+            const uncompSize = dv.getUint32(p + 24, true);
+            const nameLen = dv.getUint16(p + 28, true);
+            const extraLen = dv.getUint16(p + 30, true);
+            const commentLen = dv.getUint16(p + 32, true);
+            const localOff = dv.getUint32(p + 42, true);
+            const name = new TextDecoder().decode(data.subarray(p + 46, p + 46 + nameLen));
+            const lNameLen = dv.getUint16(localOff + 26, true);
+            const lExtraLen = dv.getUint16(localOff + 28, true);
+            const dataStart = localOff + 30 + lNameLen + lExtraLen;
+            const comp = data.subarray(dataStart, dataStart + compSize);
+            let content;
+            if (method === 0) content = comp;
+            else if (method === 8) content = inflateRaw(comp, uncompSize);
+            else throw new Error('Unsupported compression in workbook (method ' + method + ').');
+            files[name] = content;
+            p += 46 + nameLen + extraLen + commentLen;
+        }
+        return files;
+    }
+
+    function colToIdx(ref) { let n = 0; for (let i = 0; i < ref.length; i++) n = n * 26 + (ref.charCodeAt(i) - 64); return n - 1; }
+
+    function parseSheetDoc(doc, shared) {
+        const rows = [];
+        const rowEls = doc.getElementsByTagName('row');
+        for (let ri = 0; ri < rowEls.length; ri++) {
+            const cellEls = rowEls[ri].getElementsByTagName('c');
+            const cells = [];
+            for (let i = 0; i < cellEls.length; i++) {
+                const c = cellEls[i];
+                const ref = c.getAttribute('r') || '';
+                const m = ref.match(/^([A-Z]+)/);
+                const ci = m ? colToIdx(m[1]) : cells.length;
+                const t = c.getAttribute('t');
+                let val = '';
+                if (t === 'inlineStr') {
+                    const ts = c.getElementsByTagName('t');
+                    for (let j = 0; j < ts.length; j++) val += ts[j].textContent;
+                } else if (t === 's') {
+                    const v = c.getElementsByTagName('v')[0];
+                    val = v ? (shared[parseInt(v.textContent)] || '') : '';
+                } else {
+                    const v = c.getElementsByTagName('v')[0];
+                    val = v ? v.textContent : '';
+                }
+                cells[ci] = val;
+            }
+            rows.push(cells);
+        }
+        return rows;
+    }
+
+    function parseWorkbook(files) {
+        const dec = new TextDecoder();
+        const parser = new DOMParser();
+        const xml = (name) => files[name] ? parser.parseFromString(dec.decode(files[name]), 'application/xml') : null;
+
+        let shared = [];
+        if (files['xl/sharedStrings.xml']) {
+            const ss = xml('xl/sharedStrings.xml');
+            const sis = ss.getElementsByTagName('si');
+            for (let i = 0; i < sis.length; i++) {
+                const ts = sis[i].getElementsByTagName('t');
+                let s = '';
+                for (let j = 0; j < ts.length; j++) s += ts[j].textContent;
+                shared.push(s);
+            }
+        }
+        const relsDoc = xml('xl/_rels/workbook.xml.rels');
+        const relMap = {};
+        if (relsDoc) {
+            const rs = relsDoc.getElementsByTagName('Relationship');
+            for (let i = 0; i < rs.length; i++) relMap[rs[i].getAttribute('Id')] = rs[i].getAttribute('Target');
+        }
+        const wb = xml('xl/workbook.xml');
+        if (!wb) throw new Error('Workbook is missing its internal structure (xl/workbook.xml).');
+        const sheetEls = wb.getElementsByTagName('sheet');
+        const sheets = [];
+        for (let i = 0; i < sheetEls.length; i++) {
+            const s = sheetEls[i];
+            const nm = s.getAttribute('name') || ('Sheet' + (i + 1));
+            const rid = s.getAttribute('r:id') || s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+            let target = relMap[rid] || ('worksheets/sheet' + (i + 1) + '.xml');
+            if (target.charAt(0) === '/') target = target.slice(1); else target = 'xl/' + target;
+            const doc = xml(target);
+            if (!doc) continue;
+            sheets.push({ name: nm, rows: parseSheetDoc(doc, shared) });
+        }
+        return sheets;
+    }
+
+    // =====================
+    // SAVE TO SHARED EXCEL — write my data into my tab, in place
+    // =====================
+    // Reads the shared workbook, replaces only the chosen person's tab with this
+    // tracker's current data (other tabs are kept byte-for-byte), and writes it
+    // back to the same file (Chrome/Edge) or downloads an updated copy.
+    let excelFiles = null;     // decompressed parts of the loaded target workbook { name: Uint8Array }
+    let excelSheets = [];      // [{ name, part }] — sheet name -> worksheet part path
+    let excelHandle = null;    // File System Access handle for the target file
+    let excelTargetMeta = null;
+    try { excelTargetMeta = JSON.parse(LS.getItem('excelTargetMeta') || 'null'); } catch (e) {}
+
+    function rememberExcelMeta(name) {
+        excelTargetMeta = { name: name || 'workbook.xlsx', at: Date.now() };
+        try { LS.setItem('excelTargetMeta', JSON.stringify(excelTargetMeta)); } catch (e) {}
+    }
+
+    // Map each sheet name to the worksheet part path inside the package.
+    function resolveSheetParts(files) {
+        const dec = new TextDecoder();
+        const parser = new DOMParser();
+        const xml = (n) => files[n] ? parser.parseFromString(dec.decode(files[n]), 'application/xml') : null;
+        const relsDoc = xml('xl/_rels/workbook.xml.rels');
+        const relMap = {};
+        if (relsDoc) {
+            const rs = relsDoc.getElementsByTagName('Relationship');
+            for (let i = 0; i < rs.length; i++) relMap[rs[i].getAttribute('Id')] = rs[i].getAttribute('Target');
+        }
+        const wb = xml('xl/workbook.xml');
+        const out = [];
+        if (!wb) return out;
+        const sheetEls = wb.getElementsByTagName('sheet');
+        for (let i = 0; i < sheetEls.length; i++) {
+            const s = sheetEls[i];
+            const nm = s.getAttribute('name') || ('Sheet' + (i + 1));
+            const rid = s.getAttribute('r:id') || s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+            let target = relMap[rid] || ('worksheets/sheet' + (i + 1) + '.xml');
+            if (target.charAt(0) === '/') target = target.slice(1); else target = 'xl/' + target;
+            out.push({ name: nm, part: target });
+        }
+        return out;
+    }
+
+    // Load a workbook's raw bytes into the Excel-panel state and fill the dropdown.
+    // The shared workbook is now a single "Projects" table, so we build fresh bytes
+    // from the (already-merged) local store rather than surgically patching one sheet.
+    function buildSharedWorkbookBytes() {
+        return buildXlsx('Projects', buildExportRows());
+    }
+
+    // Read a chosen file's bytes and merge its single table into the local store (the
+    // "pull" half). Returns the merge summary, or false when the file has no rows yet.
+    function pullWorkbookBytes(buf, name) {
+        rememberExcelMeta(name);
+        let result = false;
+        try { result = applyImportedWorkbook(buf); } catch (e) { throw e; }
+        const n = activeProjects().length;
+        document.getElementById('excel-target-name').textContent = name || '—';
+        document.getElementById('excel-tabcount').textContent =
+            `${n} project${n === 1 ? '' : 's'} in the shared table`;
+        updateExcelButtons();
+        return result;
+    }
+
+    function updateExcelButtons() {
+        document.getElementById('excel-download-btn').disabled = false; // can always export local
+        document.getElementById('excel-save-btn').disabled = !(FS_SUPPORTED && excelHandle);
+    }
+
+    async function openExcelPanel() {
+        if (!requireUser()) { alert('Pick your name first — Save / Upload records edits under it.'); return; }
+        document.getElementById('excel-tabcount').textContent = '';
+        document.getElementById('excel-target-name').textContent =
+            (excelTargetMeta && excelTargetMeta.name) ? excelTargetMeta.name : '(none chosen yet)';
+        document.getElementById('excel-status').textContent = '';
+        updateExcelButtons();
+        document.getElementById('excel-modal').classList.add('active');
+
+        // Auto-open the remembered file and pull its latest data in. The browser drops
+        // read permission between visits, so ask for it back (one quick prompt).
+        if (FS_SUPPORTED) {
+            try {
+                const handle = (await idbGet('excelTargetHandle')) || (await idbGet('lastImportHandle'));
+                if (handle) {
+                    document.getElementById('excel-status').textContent = 'Opening the remembered file…';
+                    let perm = await handle.queryPermission({ mode: 'read' });
+                    if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'read' });
+                    if (perm === 'granted') {
+                        excelHandle = handle;
+                        const file = await handle.getFile();
+                        pullWorkbookBytes(await file.arrayBuffer(), file.name);
+                        document.getElementById('excel-status').textContent = 'Loaded the latest shared file. Click Save / Upload to push your changes back.';
+                        return;
+                    }
+                    document.getElementById('excel-status').textContent = 'Couldn’t get permission to read the remembered file — click “Choose file…” to reselect it.';
+                    return;
+                }
+            } catch (e) { /* fall through to manual choose */ }
+        }
+        document.getElementById('excel-status').textContent = FS_SUPPORTED
+            ? 'Choose the shared Excel file to begin.'
+            : 'Choose the shared Excel file — your browser will save an updated copy you can put back.';
+    }
+
+    async function chooseExcelTarget() {
+        if (FS_SUPPORTED) {
+            try {
+                const [handle] = await window.showOpenFilePicker({
+                    multiple: false,
+                    types: [{ description: 'Excel workbook', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+                });
+                await idbSet('excelTargetHandle', handle);
+                excelHandle = handle;
+                const file = await handle.getFile();
+                pullWorkbookBytes(await file.arrayBuffer(), file.name);
+                document.getElementById('excel-status').textContent = 'File loaded and merged in. Click Save / Upload to write your changes back.';
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;
+                alert('Could not open the file: ' + (e.message || e));
+            }
+        } else {
+            document.getElementById('excel-input').click();
+        }
+    }
+
+    function onExcelFilePicked(file) {
+        if (!file) return;
+        excelHandle = null; // fallback path: no handle -> download only
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                pullWorkbookBytes(reader.result, file.name);
+                document.getElementById('excel-status').textContent = 'File loaded and merged in. Use “Download updated copy”, then save it over the shared file.';
+            } catch (err) { alert('Could not read that file: ' + (err.message || err)); }
+        };
+        reader.onerror = () => alert('Failed to read the file.');
+        reader.readAsArrayBuffer(file);
+    }
+
+    // One-click "Save / Upload": re-read the latest shared file and merge it in (so we
+    // never clobber a teammate), then write the combined single table back in place.
+    async function saveAndSync() {
+        if (!requireUser()) { alert('Pick your name first.'); return; }
+        if (!FS_SUPPORTED || !excelHandle) {
+            alert('Save / Upload needs Chrome or Edge with a chosen file. Use “Download updated copy” instead, then save it over the shared file.');
+            return;
+        }
+        const fileName = excelTargetMeta ? excelTargetMeta.name : 'the file';
+        if (!confirm(`Merge the latest ${fileName} with your changes, then write the combined table back?\n\nEveryone's edits are kept (newest per field wins). There is no undo on the file write.`)) return;
+
+        const statusEl = document.getElementById('excel-status');
+        try {
+            let perm = await excelHandle.queryPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') perm = await excelHandle.requestPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') { alert('Write permission was not granted.'); return; }
+
+            // 1) PULL — read the freshest file and merge it into local first.
+            statusEl.textContent = 'Reading the latest shared file…';
+            const fresh = await excelHandle.getFile();
+            let result;
+            try { result = applyImportedWorkbook(await fresh.arrayBuffer()); }
+            catch (e) { result = false; } // brand-new/empty file — nothing to pull
+            if (result === false) result = { added: [], updated: [], unchanged: [], deleted: [] };
+
+            // 2) PUSH — write the combined single table back in place.
+            statusEl.textContent = 'Saving the combined table back…';
+            const bytes = buildSharedWorkbookBytes();
+            const writable = await excelHandle.createWritable();
+            await writable.write(bytes);
+            await writable.close();
+            unsavedChanges = false; // in-memory edits are now safely in the file
+
+            // Keep this the one remembered file for everything.
+            try { await idbSet('lastImportHandle', excelHandle); } catch (e) {}
+            rememberImportMeta(fileName);
+
+            closeModal('excel-modal');
+            showImportSummary(result);
+        } catch (e) {
+            alert('Could not Save / Upload: ' + (e.message || e));
+        }
+    }
+
+    function downloadUpdatedExcel() {
+        if (projects.length === 0) { alert('No projects to save yet.'); return; }
+        const bytes = buildSharedWorkbookBytes();
+        const base = (excelTargetMeta && excelTargetMeta.name) ? excelTargetMeta.name.replace(/\.xlsx$/i, '') : 'project-tracker';
+        downloadBytes(bytes, `${base}-updated.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        document.getElementById('excel-status').textContent = '⬇️ Downloaded the combined table. Save it over the shared file so everyone gets it.';
+    }
+
+    // =====================
+    // TWO-BUTTON EXCEL FLOW — Sync (pull) and Save (push)
+    // =====================
+    // The header used to have a single "Save / Upload" button that did both at
+    // once. It's now split in two:
+    //   • 🔄 Sync — read the latest data OUT of the shared Excel file INTO this
+    //     tracker. Never writes to the file.
+    //   • 💾 Save — write this tracker's current projects INTO the shared Excel
+    //     file. It re-reads the file and merges first (newest-per-field wins), so
+    //     a teammate's edits are never clobbered, then writes the combined table.
+    const EXCEL_PICKER_TYPES = [{
+        description: 'Excel workbook',
+        accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }
+    }];
+    const EXCEL_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    // Find the shared file we already remember (choosing one if we don't). Returns
+    // a File System Access handle, or null when we fall back to <input>/download.
+    async function getExcelHandle(promptIfMissing) {
+        if (!FS_SUPPORTED) return null;
+        let handle = excelHandle;
+        if (!handle) {
+            try { handle = (await idbGet('excelTargetHandle')) || (await idbGet('lastImportHandle')); } catch (e) {}
+        }
+        if (!handle && promptIfMissing) {
+            const picked = await window.showOpenFilePicker({ multiple: false, types: EXCEL_PICKER_TYPES });
+            handle = picked && picked[0];
+            if (handle) {
+                try { await idbSet('excelTargetHandle', handle); } catch (e) {}
+                try { await idbSet('lastImportHandle', handle); } catch (e) {}
+            }
+        }
+        return handle || null;
+    }
+
+    // 🔄 SYNC — pull the latest data from the shared Excel file into this tracker.
+    async function syncFromExcel() {
+        try {
+            if (!FS_SUPPORTED) {
+                // Older browser: use the plain file input, which merges on read only.
+                document.getElementById('import-input').click();
+                return;
+            }
+            const handle = await getExcelHandle(true);
+            if (!handle) return; // user cancelled the picker
+            let perm = await handle.queryPermission({ mode: 'read' });
+            if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'read' });
+            if (perm !== 'granted') { alert('Permission to read the shared file was not granted.'); return; }
+
+            excelHandle = handle;
+            const file = await handle.getFile();
+            rememberExcelMeta(file.name);
+            rememberImportMeta(file.name);
+            const result = applyImportedWorkbook(await file.arrayBuffer());
+            if (result === false) {
+                alert('No project rows were found in that file yet — nothing to sync in.');
+                return;
+            }
+            showImportSummary(result);
+        } catch (e) {
+            if (e && e.name === 'AbortError') return; // user closed the picker
+            alert('Could not sync from Excel: ' + (e && e.message ? e.message : e));
+        }
+    }
+
+    // 💾 SAVE — write this tracker's current projects into the shared Excel file.
+    async function saveToExcel() {
+        if (!requireUser()) { alert('Pick your name first — Save records your edits under it.'); return; }
+        if (activeProjects().length === 0) { alert('No projects to save yet.'); return; }
+
+        if (!FS_SUPPORTED) {
+            // Older browser can't write files in place — hand back an updated copy.
+            const bytes = buildSharedWorkbookBytes();
+            const base = (excelTargetMeta && excelTargetMeta.name) ? excelTargetMeta.name.replace(/\.xlsx$/i, '') : 'project-tracker';
+            downloadBytes(bytes, `${base}-updated.xlsx`, EXCEL_MIME);
+            alert('Your browser can’t write files directly, so an updated copy was downloaded. Save it over the shared file.');
+            return;
+        }
+
+        try {
+            const handle = await getExcelHandle(true);
+            if (!handle) return; // user cancelled the picker
+            let perm = await handle.queryPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') { alert('Write permission was not granted.'); return; }
+            excelHandle = handle;
+
+            const fileName = (excelTargetMeta && excelTargetMeta.name) ? excelTargetMeta.name : 'the shared file';
+            if (!confirm(`Write your current projects into ${fileName}?\n\nThe latest file is merged with your changes first (newest edit per field wins) so nobody’s edits are lost. There is no undo on the file write.`)) return;
+
+            // 1) PULL fresh + merge so we never clobber a teammate's edits.
+            let result;
+            try { result = applyImportedWorkbook(await (await handle.getFile()).arrayBuffer()); }
+            catch (e) { result = false; } // brand-new/empty file — nothing to pull
+            if (result === false) result = { added: [], updated: [], unchanged: [], deleted: [] };
+
+            // 2) PUSH the combined single table back in place.
+            const bytes = buildSharedWorkbookBytes();
+            const writable = await handle.createWritable();
+            await writable.write(bytes);
+            await writable.close();
+            unsavedChanges = false; // in-memory edits are now safely in the file
+
+            rememberExcelMeta(fileName);
+            rememberImportMeta(fileName);
+
+            const pulledIn = result.added.length + result.updated.length + (result.deleted ? result.deleted.length : 0);
+            const saved = activeProjects().length;
+            let msg = `✅ Saved ${saved} project${saved === 1 ? '' : 's'} into ${fileName}.`;
+            if (pulledIn > 0) {
+                msg += `\n\n${pulledIn} change${pulledIn === 1 ? '' : 's'} from a teammate came in during the save and ${pulledIn === 1 ? 'was' : 'were'} merged before writing — nobody's edits were lost.`;
+            }
+            alert(msg);
+        } catch (e) {
+            if (e && e.name === 'AbortError') return; // user closed the picker
+            alert('Could not save to Excel: ' + (e && e.message ? e.message : e));
+        }
+    }
+
+    // =====================
+    // INIT
+    // =====================
+    // Warn before leaving/refreshing with edits that were never written to the file.
+    // Because nothing is cached in the browser, an unsaved refresh loses those edits.
+    window.addEventListener('beforeunload', function (e) {
+        if (!unsavedChanges) return;
+        e.preventDefault();
+        e.returnValue = '';   // triggers the browser's "Leave site?" confirmation
+        return '';
+    });
+
+    // Nothing is loaded from the browser — projects come from the Excel file. Keep the
+    // file handle (IndexedDB) from being evicted so one-click reload keeps working.
+    updateUserChip();
+    ensurePersistentStorage();
+    renderDashboard();                       // empty until the workbook is pulled in
+    // Sign-in reloads the shared Excel first (silent = no permission prompt on the
+    // gesture-less first load), then asks who you are. That reload is what populates
+    // projects from the file; if the browser needs a click to grant file access, the
+    // dashboard stays empty until you click 🔄 Sync or 👤.
+    openLoginModal({ silent: true });
+</script>
+</body>
+</html>
