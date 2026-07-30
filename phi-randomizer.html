@@ -2,6 +2,7 @@
 <title>PHI Randomizer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.js"></script>
 <style>
   :root{
     --bg:#0f1420; --panel:#171d2b; --panel2:#1e2536; --line:#2a3248;
@@ -72,7 +73,7 @@
       <label class="opt" style="padding-bottom:9px"><input type="checkbox" id="showpw"> Show</label>
     </div>
     <div class="muted" style="font-size:11px;margin-top:6px">
-      The password is used only in this browser to open the file — it is never stored or sent anywhere. Modern Excel (AES/agile) encryption often can't be opened in-browser; if it fails, remove the password in Excel and re-save.
+      The password is used only in this browser to open the file — it is never stored or sent anywhere. Modern Excel (AES/agile) encryption is decrypted locally right here; decrypting can take a few seconds. Press Enter in this box to retry without re-dropping the file.
     </div>
     <div id="fileinfo" class="muted" style="margin-top:12px;display:none"></div>
   </div>
@@ -241,6 +242,8 @@
   drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("hot");if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
   fileEl.addEventListener("change",e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
 
+  function setInfo(html){fileinfo.style.display="block";fileinfo.innerHTML=html;}
+
   function handleFile(f){
     if(typeof XLSX==="undefined"){alert("The spreadsheet library failed to load. You need an internet connection the first time you open this file (it loads SheetJS from a CDN).");return;}
     lastFile=f;
@@ -248,37 +251,175 @@
     const pw=$("#pw").value;
     const reader=new FileReader();
     reader.onload=e=>{
+      const buf=new Uint8Array(e.target.result);
+      // Detect an encrypted OOXML file: it's a CFB/OLE container (magic D0 CF 11 E0)
+      // wrapping EncryptionInfo + EncryptedPackage streams.
+      const isCFB = buf.length>8 && buf[0]===0xD0 && buf[1]===0xCF && buf[2]===0x11 && buf[3]===0xE0;
+      if(isCFB && XLSX.CFB){
+        let encInfo=null, encPkg=null;
+        try{
+          const cfb=XLSX.CFB.read(buf,{type:"array"});
+          encInfo=findStream(cfb,"EncryptionInfo");
+          encPkg=findStream(cfb,"EncryptedPackage");
+        }catch(_){}
+        if(encInfo && encPkg){
+          if(!pw){
+            setInfo("🔒 <b>"+esc(f.name)+"</b> is password-protected. Type the password in the box above and press <b>Enter</b>.");
+            $("#pw").focus();
+            return;
+          }
+          if(typeof CryptoJS==="undefined"){alert("The decryption library didn't load — you need an internet connection the first time you open this file.");return;}
+          setInfo("🔓 Decrypting <b>"+esc(f.name)+"</b>… this can take a few seconds.");
+          setTimeout(()=>{
+            try{
+              const zip=decryptOOXML(encInfo, encPkg, pw);
+              const wb=XLSX.read(zip,{type:"array",cellDates:true});
+              loadWorkbook(wb,f);
+            }catch(err){ decryptError(err); }
+          },30);
+          return;
+        }
+        // CFB but not encrypted → legacy .xls; fall through to the normal reader.
+      }
       try{
         const opts={type:"array",cellDates:true};
         if(pw) opts.password=pw;
-        const wb=XLSX.read(e.target.result,opts);
-        sheetName=wb.SheetNames[0];
-        const ws=wb.Sheets[sheetName];
-        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
-        if(!aoa.length){alert("That sheet looks empty.");return;}
-        headers=aoa[0].map(h=>String(h??""));
-        rows=aoa.slice(1).filter(r=>r.some(c=>c!==""&&c!=null));
-        fileinfo.style.display="block";
-        fileinfo.innerHTML="Loaded <b>"+f.name+"</b> — "+rows.length+" rows, "+headers.length+" columns.";
-        buildCfg();
-        cfgCard.style.display="block";
-        previewCard.style.display="none";
-        dlBtn.disabled=true; statusEl.textContent="";
+        const wb=XLSX.read(buf,opts);
+        loadWorkbook(wb,f);
       }catch(err){
         const m=String(err&&err.message||err);
         if(/password|encrypt|decrypt/i.test(m)){
-          alert(
-            (pw?"That password didn't work, or this file uses an encryption type the browser can't open.\n\n":"This file is password-protected. Enter the password in the field below the drop zone and try again.\n\n")+
-            "Note: modern Excel encryption (AES / agile, the default for 'Encrypt with Password' in Excel 2013+) can't be decrypted in-browser. If a correct password still fails, open the file in Excel, remove the password (File → Info → Protect Workbook → Encrypt with Password → clear it), save, then run it through here."
-          );
-        } else {
+          alert("This file looks protected but isn't standard AES-encrypted Office format, or the password is wrong. If it's an older .xls with legacy encryption, open it in Excel, remove the password, and re-save as .xlsx.");
+        }else{
           alert("Couldn't read that file: "+m);
         }
       }
     };
     reader.readAsArrayBuffer(f);
   }
-  // re-run the loaded file when the password changes so users don't have to re-drop
+
+  function loadWorkbook(wb,f){
+    sheetName=wb.SheetNames[0];
+    const ws=wb.Sheets[sheetName];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
+    if(!aoa.length){alert("That sheet looks empty.");return;}
+    headers=aoa[0].map(h=>String(h??""));
+    rows=aoa.slice(1).filter(r=>r.some(c=>c!==""&&c!=null));
+    setInfo("Loaded <b>"+esc(f.name)+"</b> — "+rows.length+" rows, "+headers.length+" columns.");
+    buildCfg();
+    cfgCard.style.display="block";
+    previewCard.style.display="none";
+    dlBtn.disabled=true; statusEl.textContent="";
+  }
+
+  function decryptError(err){
+    const m=String(err&&err.message||err);
+    if(/unsupported-encryption/.test(m)){
+      alert("This file uses an older Office encryption type (standard/RC4) this tool doesn't handle. Open it in Excel, remove the password (File → Info → Protect Workbook → Encrypt with Password → clear it), save, then run it through here.");
+    }else if(/bad-password/.test(m)){
+      setInfo("❌ That password didn't work. Check it and press <b>Enter</b> in the password box to retry.");
+    }else{
+      alert("Couldn't decrypt that file: "+m);
+    }
+  }
+
+  // ---- Encrypted-OOXML (MS-OFFCRYPTO agile) decryption, all client-side ----
+  function findStream(cfb,name){
+    let ent = (XLSX.CFB.find && (XLSX.CFB.find(cfb,name)||XLSX.CFB.find(cfb,"/"+name)))||null;
+    if(!ent && cfb.FullPaths){
+      for(let i=0;i<cfb.FullPaths.length;i++){
+        if(cfb.FullPaths[i].replace(/^.*[\/\\]/,"")===name){ent=cfb.FileIndex[i];break;}
+      }
+    }
+    if(!ent||!ent.content) return null;
+    const c=ent.content;
+    return c instanceof Uint8Array ? c : new Uint8Array(c);
+  }
+
+  const BLOCK_KEY=[0x14,0x6e,0x0b,0xe7,0xab,0xac,0xd0,0xd6]; // "encryptedKeyValue" block key
+
+  function u8ToWA(u8){
+    const words=[];
+    for(let i=0;i<u8.length;i++) words[i>>>2]|=(u8[i]&0xff)<<(24-(i%4)*8);
+    return CryptoJS.lib.WordArray.create(words,u8.length);
+  }
+  function waToU8(wa){
+    const {words,sigBytes}=wa, u8=new Uint8Array(sigBytes);
+    for(let i=0;i<sigBytes;i++) u8[i]=(words[i>>>2]>>>(24-(i%4)*8))&0xff;
+    return u8;
+  }
+  function int32LE(n){return u8ToWA(new Uint8Array([n&0xff,(n>>>8)&0xff,(n>>>16)&0xff,(n>>>24)&0xff]));}
+  function concatWA(a,b){return a.clone().concat(b.clone());}
+  function truncWA(wa,len){return u8ToWA(waToU8(wa).subarray(0,len));}
+  function adjustLen(wa,len){
+    const src=waToU8(wa), out=new Uint8Array(len).fill(0x36);
+    out.set(src.subarray(0,Math.min(len,src.length)));
+    return u8ToWA(out);
+  }
+  function hashWA(alg,wa){
+    const a=String(alg).toUpperCase().replace(/[^A-Z0-9]/g,"");
+    if(a==="SHA512") return CryptoJS.SHA512(wa);
+    if(a==="SHA384") return CryptoJS.SHA384(wa);
+    if(a==="SHA256") return CryptoJS.SHA256(wa);
+    if(a==="SHA1")   return CryptoJS.SHA1(wa);
+    throw new Error("unsupported-encryption");
+  }
+  function aesDec(ctWA,keyWA,ivWA){
+    return CryptoJS.AES.decrypt({ciphertext:ctWA},keyWA,{iv:ivWA,mode:CryptoJS.mode.CBC,padding:CryptoJS.pad.NoPadding});
+  }
+  function deriveKey(pw,saltWA,spin,hashAlg,blockKeyBytes,keyLen){
+    const pwWA=CryptoJS.enc.Utf16LE.parse(pw);
+    let h=hashWA(hashAlg,concatWA(saltWA,pwWA));
+    for(let i=0;i<spin;i++) h=hashWA(hashAlg,concatWA(int32LE(i),h));
+    h=hashWA(hashAlg,concatWA(h,u8ToWA(new Uint8Array(blockKeyBytes))));
+    return adjustLen(h,keyLen);
+  }
+
+  function decryptOOXML(encInfo,encPkg,pw){
+    const vMajor=encInfo[0]|(encInfo[1]<<8), vMinor=encInfo[2]|(encInfo[3]<<8);
+    if(vMajor===4 && vMinor===4) return decryptAgile(encInfo,encPkg,pw); // agile (Excel 2013+ default)
+    throw new Error("unsupported-encryption"); // standard/RC4 — not handled
+  }
+
+  function decryptAgile(encInfo,encPkg,pw){
+    const xml=new TextDecoder("utf-8").decode(encInfo.subarray(8));
+    const doc=new DOMParser().parseFromString(xml,"application/xml");
+    const kd=doc.getElementsByTagNameNS("*","keyData")[0];
+    const ek=doc.getElementsByTagNameNS("*","encryptedKey")[0];
+    if(!kd||!ek) throw new Error("unsupported-encryption");
+    const B64=s=>CryptoJS.enc.Base64.parse(s);
+
+    // 1) Derive the intermediate key from the password and unwrap the package key.
+    const ekSalt=B64(ek.getAttribute("saltValue"));
+    const ekSpin=parseInt(ek.getAttribute("spinCount"),10);
+    const ekHash=ek.getAttribute("hashAlgorithm");
+    const ekKeyLen=parseInt(ek.getAttribute("keyBits"),10)/8;
+    const ekBlock=parseInt(ek.getAttribute("blockSize"),10)||16;
+    const keyForKey=deriveKey(pw,ekSalt,ekSpin,ekHash,BLOCK_KEY,ekKeyLen);
+    const secretKey=truncWA(aesDec(B64(ek.getAttribute("encryptedKeyValue")),keyForKey,truncWA(ekSalt,ekBlock)),ekKeyLen);
+
+    // 2) Decrypt the package: 8-byte length header, then 4096-byte AES-CBC segments,
+    //    each with IV = hash(keyDataSalt || segmentIndexLE).
+    const kdSalt=B64(kd.getAttribute("saltValue"));
+    const kdHash=kd.getAttribute("hashAlgorithm");
+    const kdBlock=parseInt(kd.getAttribute("blockSize"),10)||16;
+    const dv=new DataView(encPkg.buffer,encPkg.byteOffset,8);
+    const totalSize=dv.getUint32(0,true)+dv.getUint32(4,true)*4294967296;
+    const data=encPkg.subarray(8);
+    const SEG=4096, out=new Uint8Array(Math.ceil(data.length/16)*16);
+    let outLen=0;
+    for(let i=0,seg=0;i<data.length;i+=SEG,seg++){
+      const chunk=data.subarray(i,Math.min(i+SEG,data.length));
+      const iv=truncWA(hashWA(kdHash,concatWA(kdSalt,int32LE(seg))),kdBlock);
+      const dec=waToU8(aesDec(u8ToWA(chunk),secretKey,iv));
+      out.set(dec,outLen); outLen+=dec.length;
+    }
+    const zip=out.subarray(0,totalSize);
+    if(!(zip[0]===0x50 && zip[1]===0x4B)) throw new Error("bad-password"); // not a "PK" zip → wrong password
+    return zip;
+  }
+
+  // re-run the loaded file on password toggle/retry so users don't have to re-drop
   $("#showpw").addEventListener("change",e=>{$("#pw").type=e.target.checked?"text":"password";});
   $("#pw").addEventListener("keydown",e=>{if(e.key==="Enter"&&lastFile)handleFile(lastFile);});
 
