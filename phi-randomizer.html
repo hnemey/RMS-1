@@ -63,6 +63,17 @@
       <p>or click to choose a file</p>
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
     </div>
+    <div class="row" style="margin-top:14px;align-items:flex-end;gap:10px">
+      <div style="flex:1;min-width:220px">
+        <label for="pw" style="display:block;font-size:12px;color:var(--mut);margin-bottom:4px">Password (if the file is protected)</label>
+        <input id="pw" type="password" placeholder="Leave blank if not protected" autocomplete="off"
+          style="width:100%;font:inherit;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px 11px">
+      </div>
+      <label class="opt" style="padding-bottom:9px"><input type="checkbox" id="showpw"> Show</label>
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:6px">
+      The password is used only in this browser to open the file — it is never stored or sent anywhere. Modern Excel (AES/agile) encryption often can't be opened in-browser; if it fails, remove the password in Excel and re-save.
+    </div>
     <div id="fileinfo" class="muted" style="margin-top:12px;display:none"></div>
   </div>
 
@@ -106,7 +117,7 @@
   const cfgCard=$("#cfgCard"), cfgEl=$("#cfg"), previewCard=$("#previewCard");
   const runBtn=$("#run"), dlBtn=$("#download"), statusEl=$("#status");
 
-  let headers=[], rows=[], outRows=[], wbName="data", sheetName="Sheet1";
+  let headers=[], rows=[], outRows=[], wbName="data", sheetName="Sheet1", lastFile=null;
 
   // ---- data pools ----
   const FIRST=["James","Mary","Robert","Patricia","John","Jennifer","Michael","Linda","David","Elizabeth","William","Barbara","Richard","Susan","Joseph","Jessica","Thomas","Sarah","Charles","Karen","Daniel","Nancy","Matthew","Lisa","Anthony","Betty","Mark","Sandra","Donald","Ashley","Steven","Kimberly","Paul","Emily","Andrew","Donna","Joshua","Michelle","Kevin","Carol","Brian","Amanda","George","Dorothy","Ana","Rosa","Carlos","Maria","Wei","Priya","Omar","Fatima","Ivan","Ingrid","Kofi","Aisha"];
@@ -189,6 +200,7 @@
     if(/date/.test(n)) return "date";
     if(/time/.test(n)) return "time";
     if(/(dept|department|location|clinic|facility)/.test(n)) return "dept";
+    if(/(copay|amount|balance|charge|due|paid|payment|cost|price|\$)/.test(n) && !/(type|user|payer|payor|history|date|time|status)/.test(n)) return "keep";
     if(/(error text|note|comment|reason|description|details|message text)/.test(n)) return "redact";
     if(/(message type|error type|workflow|type|status|category)/.test(n)) return "category";
     return "category";
@@ -231,11 +243,15 @@
 
   function handleFile(f){
     if(typeof XLSX==="undefined"){alert("The spreadsheet library failed to load. You need an internet connection the first time you open this file (it loads SheetJS from a CDN).");return;}
+    lastFile=f;
     wbName=f.name.replace(/\.[^.]+$/,"");
+    const pw=$("#pw").value;
     const reader=new FileReader();
     reader.onload=e=>{
       try{
-        const wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
+        const opts={type:"array",cellDates:true};
+        if(pw) opts.password=pw;
+        const wb=XLSX.read(e.target.result,opts);
         sheetName=wb.SheetNames[0];
         const ws=wb.Sheets[sheetName];
         const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
@@ -248,10 +264,23 @@
         cfgCard.style.display="block";
         previewCard.style.display="none";
         dlBtn.disabled=true; statusEl.textContent="";
-      }catch(err){alert("Couldn't read that file: "+err.message);}
+      }catch(err){
+        const m=String(err&&err.message||err);
+        if(/password|encrypt|decrypt/i.test(m)){
+          alert(
+            (pw?"That password didn't work, or this file uses an encryption type the browser can't open.\n\n":"This file is password-protected. Enter the password in the field below the drop zone and try again.\n\n")+
+            "Note: modern Excel encryption (AES / agile, the default for 'Encrypt with Password' in Excel 2013+) can't be decrypted in-browser. If a correct password still fails, open the file in Excel, remove the password (File → Info → Protect Workbook → Encrypt with Password → clear it), save, then run it through here."
+          );
+        } else {
+          alert("Couldn't read that file: "+m);
+        }
+      }
     };
     reader.readAsArrayBuffer(f);
   }
+  // re-run the loaded file when the password changes so users don't have to re-drop
+  $("#showpw").addEventListener("change",e=>{$("#pw").type=e.target.checked?"text":"password";});
+  $("#pw").addEventListener("keydown",e=>{if(e.key==="Enter"&&lastFile)handleFile(lastFile);});
 
   function buildCfg(){
     cfgEl.innerHTML="";
