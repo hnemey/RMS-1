@@ -1623,7 +1623,7 @@
 
             // …and the project data is merged in too, so the reload is a full sync.
             try { applyImportedWorkbook(buf); } catch (e) { /* empty/new file — no rows to merge */ }
-            try { updateSourceBanner(file.name, activeProjects().length); } catch (e) {}
+            try { updateSourceBanner(file.name, activeProjects().length, file.lastModified); } catch (e) {}
             rememberExcelMeta(file.name);
             rememberImportMeta(file.name);
 
@@ -3665,17 +3665,36 @@
         return handle || null;
     }
 
-    // Show which file the on-screen data came from, and how many projects it held.
-    function updateSourceBanner(fileName, count) {
+    // Show which file the on-screen data came from, how many projects it held, and —
+    // crucially for a OneDrive/SharePoint file — WHEN that file was last saved. If the
+    // "last saved" time is older than an edit you know was just made elsewhere, OneDrive
+    // hasn't finished syncing the newest copy down to this PC yet, so Sync again once
+    // OneDrive shows a green check.
+    function updateSourceBanner(fileName, count, lastModified) {
         const banner = document.getElementById('source-banner');
         const text = document.getElementById('source-banner-text');
         if (!banner || !text) return;
         if (!fileName) {
+            banner.style.background = '#eafaf1'; banner.style.borderColor = '#27ae60'; banner.style.color = '#1e6b47';
             text.innerHTML = '⚠️ <strong>No file synced yet.</strong> Project data lives in the shared Excel file — click Sync to pull it in.';
-        } else {
-            const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            text.innerHTML = `📄 Showing <strong>${esc(String(count))}</strong> project${count === 1 ? '' : 's'} from <strong>${esc(fileName)}</strong> · synced ${t}. Not the file you expect? Click Sync and pick the current one.`;
+            banner.style.display = 'flex';
+            return;
         }
+        const now = Date.now();
+        let savedTxt = '';
+        let stale = false;
+        if (lastModified) {
+            const ageMs = now - lastModified;
+            const ago = formatDuration(ageMs);
+            savedTxt = ` · this file was last saved <strong>${new Date(lastModified).toLocaleString()}</strong> (${ago} ago)`;
+            stale = ageMs > 24 * 60 * 60 * 1000; // older than a day → worth a second look
+        }
+        // Amber the banner when the file looks old, so a not-yet-synced copy stands out.
+        if (stale) { banner.style.background = '#fef3e2'; banner.style.borderColor = '#e67e22'; banner.style.color = '#7d4e00'; }
+        else { banner.style.background = '#eafaf1'; banner.style.borderColor = '#27ae60'; banner.style.color = '#1e6b47'; }
+        const t = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        text.innerHTML = `📄 Showing <strong>${esc(String(count))}</strong> project${count === 1 ? '' : 's'} from <strong>${esc(fileName)}</strong> · synced ${t}${savedTxt}.` +
+            (stale ? ' <strong>If you expected newer rows, wait for OneDrive to finish syncing (green check), then Sync again.</strong>' : '');
         banner.style.display = 'flex';
     }
 
@@ -3710,11 +3729,11 @@
             rememberImportMeta(file.name);
             const result = applyImportedWorkbook(await file.arrayBuffer());
             if (result === false) {
-                updateSourceBanner(file.name, 0);
+                updateSourceBanner(file.name, 0, file.lastModified);
                 alert('No project rows were found in that file yet — nothing to sync in.');
                 return;
             }
-            updateSourceBanner(file.name, activeProjects().length);
+            updateSourceBanner(file.name, activeProjects().length, file.lastModified);
             showImportSummary(result);
         } catch (e) {
             if (e && e.name === 'AbortError') return; // user closed the picker
