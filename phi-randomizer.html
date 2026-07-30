@@ -1,0 +1,303 @@
+<meta charset="utf-8">
+<title>PHI Randomizer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171d2b; --panel2:#1e2536; --line:#2a3248;
+    --txt:#e8ecf5; --mut:#95a0b8; --accent:#5b8cff; --accent2:#3ad0a0;
+    --danger:#ff6b6b; --warn:#ffbe5c;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f6fb; --panel:#ffffff; --panel2:#f0f3fa; --line:#d9dfec;
+      --txt:#131826; --mut:#5a6580; --accent:#2f6bff; --accent2:#0aa579;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.45}
+  .wrap{max-width:1150px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:var(--mut);font-size:14px;margin-bottom:24px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+  .drop{border:2px dashed var(--line);border-radius:14px;padding:44px 20px;text-align:center;
+    cursor:pointer;transition:.15s;background:var(--panel2)}
+  .drop.hot{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--panel2))}
+  .drop h2{margin:0 0 6px;font-size:18px}
+  .drop p{margin:0;color:var(--mut);font-size:13px}
+  button{font:inherit;border:none;border-radius:9px;padding:10px 18px;cursor:pointer;font-weight:600}
+  .btn{background:var(--accent);color:#fff}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn2{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  th,td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+  th{background:var(--panel2);position:sticky;top:0;font-weight:600}
+  .muted{color:var(--mut)}
+  .cfg{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center}
+  .cfg .cname{font-weight:600;font-size:13px}
+  .cfg select{font:inherit;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+  .pill{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:10px}
+  .legend b{color:var(--txt);font-weight:600}
+  .warnbox{background:color-mix(in srgb,var(--warn) 14%,var(--panel));border:1px solid var(--warn);
+    border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:18px}
+  a.gh{color:var(--accent)}
+  code{background:var(--panel2);padding:1px 5px;border-radius:5px;font-size:12px}
+  label.opt{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--mut)}
+</style>
+
+<div class="wrap">
+  <h1>PHI Randomizer</h1>
+  <div class="sub">Drop your Excel file in. It's de-identified <b>entirely in your browser</b> — nothing is uploaded. Download a clean copy.</div>
+
+  <div class="warnbox">
+    ⚠️ This is a best-effort scrubber for creating test/demo data. Review the output before treating it as fully de-identified. All processing happens locally on this page.
+  </div>
+
+  <div class="card">
+    <div id="drop" class="drop">
+      <h2>Drop .xlsx / .xls / .csv here</h2>
+      <p>or click to choose a file</p>
+      <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
+    </div>
+    <div id="fileinfo" class="muted" style="margin-top:12px;display:none"></div>
+  </div>
+
+  <div id="cfgCard" class="card" style="display:none">
+    <div class="row" style="justify-content:space-between;margin-bottom:14px">
+      <div><b>De-identification settings</b> <span class="muted" style="font-size:12px">— per column</span></div>
+      <label class="opt"><input type="checkbox" id="preserveLinks" checked> Keep values consistent (same input → same fake output)</label>
+    </div>
+    <div id="cfg" class="cfg"></div>
+    <div class="legend">
+      <span><b>Fake name</b> realistic person name</span>
+      <span><b>Fake patient</b> name + fake MRN</span>
+      <span><b>Fake ID</b> random record number</span>
+      <span><b>Shift date</b> all dates moved by one random offset (gaps preserved)</span>
+      <span><b>Random time</b> random clock time</span>
+      <span><b>Category</b> map to fake label from a pool</span>
+      <span><b>Redact</b> replace with [REDACTED]</span>
+      <span><b>Keep</b> leave unchanged</span>
+    </div>
+    <div class="row" style="margin-top:18px">
+      <button id="run" class="btn">Randomize</button>
+      <button id="download" class="btn2" disabled>Download clean file</button>
+      <span id="status" class="muted"></span>
+    </div>
+  </div>
+
+  <div id="previewCard" class="card" style="display:none">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <b>Preview <span class="muted" style="font-weight:400">(first 15 rows, after randomizing)</span></b>
+      <span id="rowcount" class="pill"></span>
+    </div>
+    <div class="scroll"><table id="preview"></table></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const drop=$("#drop"), fileEl=$("#file"), fileinfo=$("#fileinfo");
+  const cfgCard=$("#cfgCard"), cfgEl=$("#cfg"), previewCard=$("#previewCard");
+  const runBtn=$("#run"), dlBtn=$("#download"), statusEl=$("#status");
+
+  let headers=[], rows=[], outRows=[], wbName="data", sheetName="Sheet1";
+
+  // ---- data pools ----
+  const FIRST=["James","Mary","Robert","Patricia","John","Jennifer","Michael","Linda","David","Elizabeth","William","Barbara","Richard","Susan","Joseph","Jessica","Thomas","Sarah","Charles","Karen","Daniel","Nancy","Matthew","Lisa","Anthony","Betty","Mark","Sandra","Donald","Ashley","Steven","Kimberly","Paul","Emily","Andrew","Donna","Joshua","Michelle","Kevin","Carol","Brian","Amanda","George","Dorothy","Ana","Rosa","Carlos","Maria","Wei","Priya","Omar","Fatima","Ivan","Ingrid","Kofi","Aisha"];
+  const LAST=["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller","Davis","Rodriguez","Martinez","Hernandez","Lopez","Gonzalez","Wilson","Anderson","Thomas","Taylor","Moore","Jackson","Martin","Lee","Perez","Thompson","White","Harris","Sanchez","Clark","Ramirez","Lewis","Robinson","Walker","Young","Allen","King","Wright","Scott","Torres","Nguyen","Hill","Flores","Green","Adams","Nelson","Baker","Patel","Kim","Cohen","Okafor","Novak","Rossi"];
+  const DEPTS=["Cardiology Clinic","Family Medicine","Emergency Dept","Radiology","Internal Medicine","Pediatrics Clinic","Orthopedics","OB/GYN","Neurology","Oncology Center","Primary Care North","Primary Care South","Urgent Care","Dermatology","Endocrinology","Gastroenterology"];
+
+  const catPools={}; // per-column category pool + assignment
+
+  function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+  function pick(arr,seed){return arr[seed%arr.length];}
+
+  // consistent map storage
+  const maps={};
+  function mapped(col,val,gen){
+    const key=col;
+    if(!preserveLinks()){return gen(val,Math.floor(Math.random()*1e9));}
+    if(!maps[key]) maps[key]=new Map();
+    const m=maps[key];
+    const k=String(val);
+    if(m.has(k)) return m.get(k);
+    const seed=hashStr(col+"|"+k+"|"+Math.random().toString());
+    const out=gen(val,hashStr(col+"|"+k));
+    m.set(k,out);
+    return out;
+  }
+  function preserveLinks(){return $("#preserveLinks").checked;}
+
+  // ---- generators ----
+  function genName(_,seed){return pick(FIRST,seed)+" "+pick(LAST,seed>>>7);}
+  function genUserId(_,seed){return (pick(FIRST,seed)[0]+pick(LAST,seed>>>5)).toLowerCase()+String(1+seed%99);}
+  function genPatient(_,seed){return pick(LAST,seed)+", "+pick(FIRST,seed>>>6)+" (MRN "+(1000000+seed%9000000)+")";}
+  function genId(_,seed){return (seed%36).toString(36).toUpperCase().padStart(2,"0")+"-"+(1000000+seed%9000000);}
+  function genCategory(col,val,seed){
+    if(!catPools[col]) catPools[col]={pool:[],map:new Map(),n:0};
+    const cp=catPools[col];
+    const k=String(val);
+    if(cp.map.has(k)) return cp.map.get(k);
+    const label=(String(col).replace(/[^a-z0-9]/gi,"")||"CAT").toUpperCase().slice(0,6)+"-"+String.fromCharCode(65+(cp.n%26))+(cp.n>25?Math.floor(cp.n/26):"");
+    cp.map.set(k,label); cp.n++;
+    return label;
+  }
+
+  // date shifting: one global random offset in days, applied to all date cells
+  let DATE_OFFSET = Math.floor((Math.random()*730)-365); // -1yr..+1yr
+  function toDate(v){
+    if(v instanceof Date) return v;
+    if(typeof v==="number"){ // excel serial
+      const d=XLSX.SSF ? null:null;
+      const epoch=new Date(Date.UTC(1899,11,30));
+      return new Date(epoch.getTime()+v*86400000);
+    }
+    const d=new Date(v);
+    return isNaN(d)?null:d;
+  }
+  function fmtDate(d){
+    const mm=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");
+    return mm+"/"+dd+"/"+d.getFullYear();
+  }
+  function genDate(val){
+    if(val===""||val==null) return val;
+    const d=toDate(val);
+    if(!d) return val;
+    const shifted=new Date(d.getTime()+DATE_OFFSET*86400000);
+    return fmtDate(shifted);
+  }
+  function genTime(val,seed){
+    if(val===""||val==null) return val;
+    const s=seed==null?Math.floor(Math.random()*1e9):seed;
+    let h=6+(s%12), m=(s>>>4)%60;
+    const ampm=h<12?"AM":"PM"; let h12=h%12; if(h12===0)h12=12;
+    return h12+":"+String(m).padStart(2,"0")+" "+ampm;
+  }
+
+  // ---- infer default treatment per column name ----
+  function defaultGen(name){
+    const n=name.toLowerCase();
+    if(/patient/.test(n)) return "patient";
+    if(/(check.?in.?user|^user$|user\b|clinician|provider|staff|login user)/.test(n)) return "name";
+    if(/(associated record|record|mrn|account|acct|encounter id|csn|^id$)/.test(n)) return "id";
+    if(/date/.test(n)) return "date";
+    if(/time/.test(n)) return "time";
+    if(/(dept|department|location|clinic|facility)/.test(n)) return "dept";
+    if(/(error text|note|comment|reason|description|details|message text)/.test(n)) return "redact";
+    if(/(message type|error type|workflow|type|status|category)/.test(n)) return "category";
+    return "category";
+  }
+
+  const GENS={
+    keep:{label:"Keep"},
+    name:{label:"Fake name"},
+    patient:{label:"Fake patient"},
+    id:{label:"Fake ID"},
+    date:{label:"Shift date"},
+    time:{label:"Random time"},
+    dept:{label:"Category (dept names)"},
+    category:{label:"Category"},
+    redact:{label:"Redact"},
+  };
+
+  function applyGen(gen,col,val){
+    if(val===""||val==null) return val;
+    switch(gen){
+      case "keep": return val;
+      case "name": return mapped(col,val,genName);
+      case "patient": return mapped(col,val,genPatient);
+      case "id": return mapped(col,val,genId);
+      case "date": return genDate(val);
+      case "time": return preserveLinks()?mapped(col,val,(v,s)=>genTime(v,s)):genTime(val,null);
+      case "dept": return mapped(col,val,(v,s)=>pick(DEPTS,s));
+      case "category": return genCategory(col,val,0);
+      case "redact": return "[REDACTED]";
+      default: return val;
+    }
+  }
+
+  // ---- file handling ----
+  drop.addEventListener("click",()=>fileEl.click());
+  drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("hot");});
+  drop.addEventListener("dragleave",()=>drop.classList.remove("hot"));
+  drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("hot");if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+  fileEl.addEventListener("change",e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+
+  function handleFile(f){
+    if(typeof XLSX==="undefined"){alert("The spreadsheet library failed to load. You need an internet connection the first time you open this file (it loads SheetJS from a CDN).");return;}
+    wbName=f.name.replace(/\.[^.]+$/,"");
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
+        sheetName=wb.SheetNames[0];
+        const ws=wb.Sheets[sheetName];
+        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
+        if(!aoa.length){alert("That sheet looks empty.");return;}
+        headers=aoa[0].map(h=>String(h??""));
+        rows=aoa.slice(1).filter(r=>r.some(c=>c!==""&&c!=null));
+        fileinfo.style.display="block";
+        fileinfo.innerHTML="Loaded <b>"+f.name+"</b> — "+rows.length+" rows, "+headers.length+" columns.";
+        buildCfg();
+        cfgCard.style.display="block";
+        previewCard.style.display="none";
+        dlBtn.disabled=true; statusEl.textContent="";
+      }catch(err){alert("Couldn't read that file: "+err.message);}
+    };
+    reader.readAsArrayBuffer(f);
+  }
+
+  function buildCfg(){
+    cfgEl.innerHTML="";
+    headers.forEach((h,i)=>{
+      const cname=document.createElement("div");
+      cname.className="cname"; cname.textContent=h||("(column "+(i+1)+")");
+      const sel=document.createElement("select");
+      sel.dataset.idx=i;
+      Object.keys(GENS).forEach(k=>{
+        const o=document.createElement("option");o.value=k;o.textContent=GENS[k].label;sel.appendChild(o);
+      });
+      sel.value=defaultGen(h);
+      cfgEl.appendChild(cname);cfgEl.appendChild(sel);
+    });
+  }
+
+  runBtn.addEventListener("click",()=>{
+    // reset consistent maps each run so toggles take effect
+    for(const k in maps)delete maps[k];
+    for(const k in catPools)delete catPools[k];
+    DATE_OFFSET=Math.floor((Math.random()*730)-365);
+    const gens=[...cfgEl.querySelectorAll("select")].map(s=>s.value);
+    outRows=rows.map(r=>headers.map((h,i)=>applyGen(gens[i],h,r[i]===undefined?"":r[i])));
+    renderPreview();
+    previewCard.style.display="block";
+    dlBtn.disabled=false;
+    statusEl.textContent="Done — "+outRows.length+" rows randomized.";
+  });
+
+  function renderPreview(){
+    const t=$("#preview");
+    let html="<tr>"+headers.map(h=>"<th>"+esc(h)+"</th>").join("")+"</tr>";
+    outRows.slice(0,15).forEach(r=>{
+      html+="<tr>"+r.map(c=>"<td>"+esc(c)+"</td>").join("")+"</tr>";
+    });
+    t.innerHTML=html;
+    $("#rowcount").textContent=outRows.length+" rows";
+  }
+  function esc(s){return String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+  dlBtn.addEventListener("click",()=>{
+    const aoa=[headers,...outRows];
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,sheetName.slice(0,31)||"Sheet1");
+    XLSX.writeFile(wb,wbName+"_deidentified.xlsx");
+  });
+})();
+</script>
