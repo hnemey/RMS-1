@@ -302,8 +302,13 @@ table.rms-table.drill tr.drill-detail > td { padding: 0; background: var(--surfa
 @media (max-width: 720px) { #rulebar .rulebar-newlist { grid-template-columns: 1fr; } }
 
 /* ===== persistent page header ===== */
-.app-header { background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: var(--sh);
-  position: sticky; top: 0; z-index: 50; }
+/* the whole top cluster (header + filters + tabs) is frozen as one unit */
+.topbar { position: sticky; top: 0; z-index: 60; background: var(--bg); box-shadow: 0 8px 18px rgba(16,16,20,.07); }
+:root[data-theme="dark"] .topbar { box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .topbar { box-shadow: 0 8px 20px rgba(0,0,0,.45); } }
+.topbar .global-filters { margin-top: 14px; }
+.topbar #moduletabs { padding-bottom: 2px; }
+.app-header { background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: var(--sh); }
 .app-header-inner { max-width: 1180px; margin: 0 auto; padding: 16px 22px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .app-title { display: flex; align-items: center; gap: 13px; min-width: 0; }
 .app-logo { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-size: 20px;
@@ -342,6 +347,7 @@ table.rms-table.drill tr.drill-detail > td { padding: 0; background: var(--surfa
 </head>
 <body>
 <div class="builder">
+  <div class="topbar" id="topbar">
   <header class="app-header" id="appheader">
     <div class="app-header-inner">
       <div class="app-title">
@@ -357,6 +363,9 @@ table.rms-table.drill tr.drill-detail > td { padding: 0; background: var(--surfa
       </div>
     </div>
   </header>
+  <div id="globalfilters" class="global-filters" style="display:none"></div>
+  <div id="moduletabs" class="module-tabs" style="display:none"></div>
+  </div><!-- /topbar -->
 
   <div class="b-wrap" id="importwrap">
     <div class="b-top">
@@ -409,8 +418,6 @@ table.rms-table.drill tr.drill-detail > td { padding: 0; background: var(--surfa
     <p>High-level overview → drill into a department → drill into an employee. Export at any level.</p>
   </div>
 
-  <div id="globalfilters" class="global-filters" style="display:none"></div>
-  <div id="moduletabs" class="module-tabs" style="display:none"></div>
   <div id="rulebar" class="rulebar" style="display:none"></div>
   <div id="dashboard" style="display:none"></div>
 </div>
@@ -1966,6 +1973,65 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
   }
 
+  /* ---------- exports (rendered in the frozen header on EVERY tab; build the whole dashboard
+     — Bypass + Copays + Coverage — scoped to the current Department/Employee filters) ---------- */
+  var PAS_SYN = "__PAS_DEPT__";
+  function shellDownload(html, name) {
+    var blob = new Blob([html], { type: "text/html" }), a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  }
+  function exportFileName(name) { return String(name || "export").replace(/[\\/:*?"<>|\r\n\t]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 90) + ".html"; }
+  function setHeaderXStatus(msg) { var e = document.getElementById("rms-xstatus"); if (e) e.textContent = msg || ""; }
+  function bypassExportScope() {
+    var dH = bypassDeptHeader(), recs0 = bypassDisplayRecords();
+    var recs1 = (gState.dept && dH) ? recs0.filter(function (r) { var v = trimVal(r[dH]); if (v === "") v = "(blank)"; return v === gState.dept; }) : recs0;
+    var deptDisplay = gState.dept || "All Departments";
+    recs1.forEach(function (r) { r[PAS_SYN] = deptDisplay; });
+    return { recs: recs1, deptDisplay: deptDisplay };
+  }
+  function uniqEmpNames(subset) { var s = {}; subset.forEach(function (r) { var v = trimVal(r[empKey]); if (v === "") v = "(blank)"; s[v] = 1; }); return Object.keys(s); }
+  function copayForNames(names) {
+    if (!copayRecords.length) return null;
+    var ccm = copayColsNow(), recsC = copayRecords;
+    if (names && names.length && ccm.checkinUser) {
+      var want = {}; names.forEach(function (nm) { var k = covNameKey(nm); if (k && k !== "|") want[k] = 1; });
+      if (Object.keys(want).length) recsC = copayRecords.filter(function (r) { return want[covNameKey(r[ccm.checkinUser])]; });
+    }
+    return { records: recsC, headers: copayHeaders, title: "PAS Quality — Copays", generatedAt: nowLabel(), groupKey: "checkin" };
+  }
+  function bypassPayload(level, dept, emp, subset, ro, cpay) {
+    return { level: level, dept: dept, emp: emp, records: subset, headers: headers, colMap: colMap,
+      deptKey: PAS_SYN, empKey: empKey, deptLabel: "department", empLabel: labelFromHeader(empKey, "employee"),
+      title: "PAS Quality — Bypassed Warnings", generatedAt: nowLabel(),
+      regData: regEntries.length ? { entries: regEntries, month: regMonth } : null, readOnly: !!ro, copayData: cpay || null };
+  }
+  function covSnap(names) { return coverageRecords.length ? coverageSnapshotHTML(names ? coverageKeysFor(names) : null) : null; }
+  function exportLeadership() {
+    var sc = bypassExportScope(), cp = copayForNames(null), name = "Leadership — " + sc.deptDisplay;
+    shellDownload(RMSViewer.buildHTML(bypassPayload("overview", null, null, sc.recs, true, cp), name, cp, covSnap(null)), exportFileName("Leadership - " + sc.deptDisplay));
+    setHeaderXStatus("Downloaded leadership summary.");
+  }
+  function exportClinic() {
+    var sc = bypassExportScope(), emps = uniqEmpNames(sc.recs), cp = copayForNames(emps);
+    shellDownload(RMSViewer.buildHTML(bypassPayload("department", sc.deptDisplay, null, sc.recs, false, cp), sc.deptDisplay, cp, covSnap(emps)), exportFileName(sc.deptDisplay));
+    setHeaderXStatus("Downloaded clinic export — open it to export by employee.");
+  }
+  function exportEmployee() {
+    var sc = bypassExportScope(), emp = gState.emp;
+    var subset = sc.recs.filter(function (r) { var v = trimVal(r[empKey]); if (v === "") v = "(blank)"; return v === emp; });
+    var cp = copayForNames([emp]);
+    shellDownload(RMSViewer.buildHTML(bypassPayload("employee", sc.deptDisplay, emp, subset, true, cp), emp, cp, covSnap([emp])), exportFileName(emp));
+    setHeaderXStatus("Downloaded " + emp + ".");
+  }
+  function renderExportsBar() {
+    if (!rawRecords.length) { clearHeaderExports(); return; }
+    var specs = [{ label: "⬇ Export for leadership", on: exportLeadership },
+                 { label: "⬇ Clinic export", on: exportClinic }];
+    if (gState.emp) specs.push({ label: "⬇ Export this employee", on: exportEmployee });
+    renderHeaderExports(specs);
+  }
+
   function render() {
     renderHeaderActions();
     var hasBypass = rawRecords.length, hasCopay = copayRecords.length, hasCoverage = coverageRecords.length;
@@ -1983,7 +2049,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderRuleBar();
     if (activeModule === "coverage") { covState.dept = gState.dept; covState.emp = gState.emp; }
     renderGlobalFilters();
-    clearHeaderExports();   // only the Bypassed Warnings tab has exports; it repopulates via onExports below
+    renderExportsBar();   // exports live in the frozen header on every tab
 
     if (activeModule === "coverage") { renderCoverage(); return; }
 
@@ -2017,7 +2083,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       records: recs1, headers: headers, colMap: colMap,
       deptKey: SYN, empKey: empKey, deptLabel: "department", empLabel: empLabel,
       title: "PAS Quality — Bypassed Warnings" + (filterActive ? " (Include-only)" : ""), generatedAt: nowLabel(), onReset: showImport, externalFilters: true,
-      onExports: renderHeaderExports,
       copayData: copayRecords.length ? { records: copayRecords, headers: copayHeaders, title: "PAS Quality — Copays", generatedAt: nowLabel() } : null,
       regData: regEntries.length ? { entries: regEntries, month: regMonth } : null,
       getCoverageSnapshot: coverageRecords.length ? function (names) { return coverageSnapshotHTML(coverageKeysFor(names)); } : null
