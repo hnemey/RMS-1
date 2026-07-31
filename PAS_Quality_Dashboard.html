@@ -1652,17 +1652,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function coverageUserKeySet() {
     var set = {};
     function add(v) { var k = covNameKey(v); if (k && k !== "|") set[k] = 1; }
-    // Match the Bypassed Warnings tab exactly: restrict to the employees that tab
-    // lists — i.e. the distinct empKey values among the records that survive the
-    // include/exclude + same-day + same-user rules (NOT raw, unfiltered rawRecords).
-    // Do NOT fold in the bypass check-in/user columns or the copay sheet's users; those
-    // add people (system accounts, copay-only staff) who never appear on that tab.
-    if (rawRecords.length && empKey) {
-      bypassDisplayRecords().forEach(function (r) { add(r[empKey]); });
-      return set;
-    }
-    // No bypass sheet loaded (copay-only mode) — fall back to the copay check-in users
-    // so the Coverage tab still has an employee filter to work with.
+    // The union of everyone on the Bypassed Warnings sheet AND the copay sheet, so Coverage counts
+    // encounters for any name that shows up on either — including copay check-in users who never
+    // appear on the bypass sheet. (Matches the "every employee" filter on the other tabs.)
+    if (rawRecords.length && empKey) bypassDisplayRecords().forEach(function (r) { add(r[empKey]); });
     if (copayRecords.length && window.RMSCopays) { var ccm = RMSCopays.detectCopayCols(copayHeaders);
       if (ccm.checkinUser) copayRecords.forEach(function (r) { add(r[ccm.checkinUser]); }); }
     return set;
@@ -1778,7 +1771,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var selLabel = interactive ? ((covState.dept ? " • " + covState.dept : "") + (covState.emp ? " • " + covState.emp : "")) : "";
     var wrap = ce("div", "rms-wrap"), head = ce("div", "rms-head2"), tbox = ce("div", "rms-titlebox");
     tbox.appendChild(ce("h1", null, "Coverage Accuracy" + (agg.month ? " — " + agg.month : "")));
-    tbox.appendChild(ce("div", "rms-subtitle", "Count of CSN by verification status" + (agg.haveFilter ? (rawRecords.length ? " • employees on the Bypassed Warnings tab" : " • check-in users on the copay sheet") : "")));
+    tbox.appendChild(ce("div", "rms-subtitle", "Count of CSN by verification status" + (agg.haveFilter ? (rawRecords.length && copayRecords.length ? " • employees on the bypass + copay sheets" : rawRecords.length ? " • employees on the Bypassed Warnings tab" : " • check-in users on the copay sheet") : "")));
     head.appendChild(tbox);
     if (interactive && !hidePickers) {
       var right = ce("div", "rms-headright");
@@ -1815,7 +1808,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     body.appendChild(ce("div", "rms-section", "Coverage errors by verification status" + selLabel));
     body.appendChild(coverageStatusTable(agg.statusObj, agg.grand));
     body.appendChild(ce("div", "rms-subtitle", "Kept the spreadsheet's filters: " + COVERAGE_STATUSES.length + " selected VERIF_STATUS values" +
-      (agg.haveFilter ? "; users limited to " + (rawRecords.length ? "the employees on the Bypassed Warnings tab" : "the copay sheet's check-in users") + " (" + fmt(Object.keys(agg.excluded).length) + " other check-in users excluded)" : "; no copay/bypass loaded, so all users are shown") +
+      (agg.haveFilter ? "; users limited to " + (rawRecords.length && copayRecords.length ? "the employees on the bypass + copay sheets" : rawRecords.length ? "the employees on the Bypassed Warnings tab" : "the copay sheet's check-in users") + " (" + fmt(Object.keys(agg.excluded).length) + " other check-in users excluded)" : "; no copay/bypass loaded, so all users are shown") +
       (selLabel ? "; filtered to" + selLabel : "") + "."));
     wrap.appendChild(body); container.appendChild(wrap);
   }
