@@ -1719,19 +1719,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var empPool = empByDept[(applyState ? covState.dept : "") || ""] || {};
     // Keep covState.emp even if this employee has no coverage rows — the dropdown lists ALL employees and
     // filtering matches by normalized name, so a selected employee with no errors just shows zeros.
-    var counts = {}, deptCounts = {}, grand = 0, matched = {}, excluded = {};
+    var counts = {}, deptCounts = {}, grand = 0, matched = {}, excluded = {}, empCounts = {};
     coverageRecords.forEach(function (r) {
       var st = String(r[c.status] == null ? "" : r[c.status]).trim(); var canon = CANON[st.toLowerCase()]; if (!canon) return;
       if (c.user && haveFilter) { var uk = covNameKey(r[c.user]); if (!allowed[uk]) { if (uk && uk !== "|") excluded[uk] = 1; return; } }
       if (c.csn && String(r[c.csn] == null ? "" : r[c.csn]).trim() === "") return;
       if (applyState && covState.dept && dpOf(r) !== covState.dept) return;
+      if (c.user) { var _un = unOf(r); empCounts[_un] = (empCounts[_un] || 0) + 1; }   // per-employee count for the dropdown (before the employee filter)
       if (applyState && covState.emp && c.user && covNameKey(unOf(r)) !== covNameKey(covState.emp)) return;
       counts[canon] = (counts[canon] || 0) + 1; grand++;
       var dpv = dpOf(r); deptCounts[dpv] = (deptCounts[dpv] || 0) + 1;
       if (c.user) matched[covNameKey(r[c.user])] = 1;
     });
     var statusObj = {}; COVERAGE_STATUSES.forEach(function (s) { if (counts[s]) statusObj[s] = counts[s]; });
-    return { cols: c, haveFilter: haveFilter, statusObj: statusObj, deptCounts: deptCounts, grand: grand, matched: matched, excluded: excluded,
+    return { cols: c, haveFilter: haveFilter, statusObj: statusObj, deptCounts: deptCounts, grand: grand, matched: matched, excluded: excluded, empCounts: empCounts,
       depts: Object.keys(deptSet).sort(), emps: Object.keys(empPool).sort(), month: coverageMonthLabel(c.date) };
   }
   function coverageDeptTable(deptCounts, grand, onPick) {
@@ -1923,9 +1924,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return target;
   }
 
+  function countMap(records, keyFn) { var m = {}; records.forEach(function (r) { var k = keyFn(r); if (k != null && k !== "") m[k] = (m[k] || 0) + 1; }); return m; }
   function renderGlobalFilters() {
     if (!globalfilters) return;
-    var depts = [], emps = [];
+    var depts = [], emps = [], deptCounts = {}, empCounts = {};
     if (activeModule === "coverage") {
       // clinics + users come from the coverage aggregation (respects the current covState = gState)
       var agg = coverageAggregate(null, true);
@@ -1934,6 +1936,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       // List EVERY employee (bypass + copay), not just those with coverage errors, so a person with
       // zero coverage rows can still be selected and simply shows zeros.
       emps = agg.cols.user ? allEmployeeDisplayNames() : [];
+      deptCounts = agg.deptCounts || {}; empCounts = agg.empCounts || {};
     } else if (activeModule === "copays") {
       // Department filter mirrors the Bypassed Warnings tab (the one clinic) — use the BYPASS departments,
       // not the copay sheet's own. Employees come from the copay sheet, narrowed to the picked bypass dept.
@@ -1946,6 +1949,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       var poolC = copayRecords.filter(function (r) { return !gState.dept || edm[covNameKey(r[ccm.checkinUser])] === gState.dept; });
       emps = distinctSorted(poolC.map(function (r) { return copayEmpOf(r, ccm); }));
       gState.emp = reconcileEmp(emps, gState.emp);
+      deptCounts = countMap(copayRecords, function (r) { return edm[covNameKey(r[ccm.checkinUser])]; });
+      empCounts = countMap(poolC, function (r) { return copayEmpOf(r, ccm); });
     } else { // bypass
       var dH = bypassDeptHeader();
       var recs0 = bypassDisplayRecords();
@@ -1954,24 +1959,30 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       var poolB = recs0.filter(function (r) { if (!gState.dept || !dH) return true; var v = trimVal(r[dH]); if (v === "") v = "(blank)"; return v === gState.dept; });
       emps = distinctSorted(poolB.map(bypassEmpOf));
       gState.emp = reconcileEmp(emps, gState.emp);
+      if (dH) deptCounts = countMap(recs0, function (r) { var v = trimVal(r[dH]); return v === "" ? "(blank)" : v; });
+      empCounts = countMap(poolB, bypassEmpOf);
     }
-    buildFilterBar(depts, emps);
+    buildFilterBar(depts, emps, deptCounts, empCounts);
   }
-  function buildFilterBar(depts, emps) {
+  function buildFilterBar(depts, emps, deptCounts, empCounts) {
     globalfilters.innerHTML = "";
     var inner = document.createElement("div"); inner.className = "gf-inner";
     var title = document.createElement("div"); title.className = "gf-title"; title.textContent = "Filters"; inner.appendChild(title);
-    function field(labelText, options, current, allText, onChange) {
+    function field(labelText, options, current, allText, onChange, counts) {
       var f = document.createElement("div"); f.className = "gf-field";
       var lab = document.createElement("label"); lab.textContent = labelText; f.appendChild(lab);
       var sel = document.createElement("select");
       var o0 = document.createElement("option"); o0.value = ""; o0.textContent = allText; sel.appendChild(o0);
-      options.forEach(function (v) { var o = document.createElement("option"); o.value = v; o.textContent = v.length > 48 ? v.slice(0, 47) + "…" : v; if (v === current) o.selected = true; sel.appendChild(o); });
+      options.forEach(function (v) {
+        var nm = v.length > 44 ? v.slice(0, 43) + "…" : v;
+        var label = counts ? nm + " (" + (counts[v] || 0).toLocaleString("en-US") + ")" : nm;
+        var o = document.createElement("option"); o.value = v; o.textContent = label; if (v === current) o.selected = true; sel.appendChild(o);
+      });
       sel.addEventListener("change", function () { onChange(sel.value); });
       f.appendChild(sel); return f;
     }
-    inner.appendChild(field("Department", depts, gState.dept, "All Departments", function (v) { gState.dept = v; gState.emp = ""; render(); }));
-    inner.appendChild(field("Employee", emps, gState.emp, "All Employees", function (v) { gState.emp = v; render(); }));
+    inner.appendChild(field("Department", depts, gState.dept, "All Departments", function (v) { gState.dept = v; gState.emp = ""; render(); }, deptCounts));
+    inner.appendChild(field("Employee", emps, gState.emp, "All Employees", function (v) { gState.emp = v; render(); }, empCounts));
     var spacer = document.createElement("div"); spacer.className = "gf-spacer";
     if (gState.dept || gState.emp) {
       var cb = document.createElement("button"); cb.className = "gf-clear"; cb.type = "button"; cb.textContent = "✕ Clear filters";
