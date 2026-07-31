@@ -192,6 +192,7 @@ body { background: var(--bg); }
 /* Card / chart grid */
 .rms-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
 .rms-grid.one { grid-template-columns: 1fr; }
+.rms-grid + .rms-grid { margin-top: 18px; }   /* breathing room between the timeline graph and the cards below it */
 .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 16px 17px 14px; box-shadow: var(--shadow); min-width: 0; }
 .card h3 { font-size: 14px; font-weight: 650; margin: 0 0 2px; letter-spacing: -.005em; }
@@ -799,6 +800,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (S.hourKnown) k.appendChild(kpi("Peak hour", S.peakHour >= 0 ? hourLabel(S.peakHour) : "—", S.peakHourN + " warnings", null, "clock"));
     container.appendChild(k);
 
+    /* Bypassed warnings per registration — directly under the KPI tiles, above the patterns/graphs.
+       Needs an imported Detailed-View registrations file. */
+    if ((kind === "department" || kind === "employee") && ctx.regData && ctx.regData.entries && ctx.regData.entries.length) {
+      var regPeriod = regPeriodLabel(ctx.regData, S);
+      container.appendChild(el("div", { class: "rms-section", text: "Bypassed warnings per registration" + (regPeriod ? " — " + regPeriod : "") }));
+      container.appendChild(registrationsTable(recs, cm, ctx.empKey, ctx.regData, kind === "employee"));
+    }
+
     /* Leaderboard + drill */
     if (kind === "overview" || kind === "department") {
       var groupKey = kind === "overview" ? ctx.deptKey : ctx.empKey;
@@ -840,12 +849,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     else if (kind === "department") { container.appendChild(el("div", { class: "rms-section", text: cap(ctx.empLabel) + " summary — click a row to see each warning type" }));
       container.appendChild(employeeDrillTable(recs, cm, ctx.empKey, cap(ctx.empLabel), ctx.onDrillEmp)); }
 
-    /* Bypassed warnings per registration — needs an imported Detailed-View registrations file */
-    if ((kind === "department" || kind === "employee") && ctx.regData && ctx.regData.entries && ctx.regData.entries.length) {
-      var regPeriod = regPeriodLabel(ctx.regData, S);
-      container.appendChild(el("div", { class: "rms-section", text: "Bypassed warnings per registration" + (regPeriod ? " — " + regPeriod : "") }));
-      container.appendChild(registrationsTable(recs, cm, ctx.empKey, ctx.regData, kind === "employee"));
-    }
     /* Records — employee level only */
     if (kind === "employee") {
       container.appendChild(el("div", { class: "rms-section", text: "All records (" + fmt(recs.length) + ")" }));
@@ -1464,7 +1467,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
       return { headers: [], rows: [], rules: { include: include, exclude: exclude, sheet: ruleSheetName } };
     }
-    var best = null, bestScore = -1, cov = null;
+    var best = null, bestScore = -1, cov = null, reg = null;
     wb.SheetNames.forEach(function (name) {
       var m = sheetToMatrix(wb.Sheets[name]);
       var hi = findHeaderRowIdx(m), hs = (m[hi] || []).map(function (v) { return String(v == null ? "" : v).trim(); });
@@ -1474,10 +1477,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (hn.some(function (n) { return n.indexOf("verifstatus") >= 0; }) && hn.some(function (n) { return n.indexOf("checkin") >= 0 && n.indexOf("user") >= 0; })) {
         if (!cov || m.length > cov.matrix.length) cov = { hi: hi, hs: hs, matrix: m };
       }
+      // Registrations sheet (Detailed View: a "Staff" column + a monthly total). A workbook can carry
+      // several tabs (e.g. a "Group Comparison Scorecard" dashboard) — find the row that actually starts
+      // the Staff table and prefer it, so the scorecard tab can't win on row-count alone.
+      var regHi = -1;
+      for (var _r = 0; _r < Math.min(m.length, 15); _r++) {
+        if ((m[_r] || []).map(norm).some(function (n) { return n.indexOf("staff") >= 0; })) { regHi = _r; break; }
+      }
+      if (regHi >= 0) {
+        var regHs = (m[regHi] || []).map(function (v) { return String(v == null ? "" : v).trim(); });
+        if (looksLikeRegistrations(regHs) && (!reg || (m.length - regHi) > (reg.matrix.length - reg.hi))) reg = { hi: regHi, hs: regHs, matrix: m };
+      }
       var score = (hn.some(function (n) { return n.indexOf("checkin") >= 0; }) ? 100000 : 0) + m.length;
       if (score > bestScore) { bestScore = score; best = { hi: hi, hs: hs, matrix: m }; }
     });
     if (cov) best = cov;
+    else if (reg) best = reg;
     if (!best) return { headers: [], rows: [] };
     // de-duplicate/clean headers
     var hs = best.hs.map(function (h, i) { return h || ("Column " + (i + 1)); });
