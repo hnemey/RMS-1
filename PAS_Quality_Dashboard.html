@@ -1126,6 +1126,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   /* ---------- core (mirrors scratchpad copay_core.js; unit-tested) ---------- */
   function norm(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, ""); }
   function cleanName(s) { s = String(s == null ? "" : s).trim(); return s.replace(/\s*\[[^\]]*\]\s*$/, "").trim(); }
+  // Display names: keep letters, spaces and the Last, First comma — drop IDs, brackets, digits, other punctuation.
+  function cleanDisplayName(s) { s = String(s == null ? "" : s); if (s === "(blank)") return s;
+    var c = s.replace(/[^A-Za-z, ]+/g, " ").replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").replace(/^[,\s]+|[,\s]+$/g, "").trim();
+    return c === "" ? "(blank)" : c; }
   function money(v) {
     if (v == null || v === "") return 0;
     if (typeof v === "number") return v;
@@ -1156,7 +1160,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     records.forEach(function (r) {
       // exclude MyChart auto-collections (identical to the Bypass page's exclusion)
       if (cm.historyUser && cleanName(r[cm.historyUser]).toUpperCase() === "MYCHART, GENERIC") return;
-      var name = cleanName(r[keyCol]); if (name === "") name = "(blank)";
+      var name = cleanDisplayName(cleanName(r[keyCol])); if (name === "") name = "(blank)";
       var row = g(name);
       if (hasVal(r[cm.copayDue]))  { row.countDue++;  row.sumDue  += money(r[cm.copayDue]); }
       if (hasVal(r[cm.copayPaid])) { row.countPaid++; row.sumPaid += money(r[cm.copayPaid]); }
@@ -1277,7 +1281,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     function recsFor(p) { return p === "all" ? recs : (months.get(p) || []); }
     function deptVal(r) { return String(r[cm.dept] == null ? "" : r[cm.dept]).replace(/\s+/g, " ").trim(); }
-    function empVal(r) { var n = cleanName(r[cm.checkinUser]); return n === "" ? "(blank)" : n; }
+    function empVal(r) { return cleanDisplayName(cleanName(r[cm.checkinUser])); }
     function uniqDepts() { var s = {}; recs.forEach(function (r) { var dp = deptVal(r); if (dp) s[dp] = 1; }); return Object.keys(s).sort(); }
     function uniqEmps(dp) { var s = {}; recs.forEach(function (r) { if (dp && deptVal(r) !== dp) return; s[empVal(r)] = 1; }); return Object.keys(s).sort(); }
     function filteredRecs() { return recsFor(state.period).filter(function (r) { if (state.dept && deptVal(r) !== state.dept) return false; if (state.emp && empVal(r) !== state.emp) return false; return true; }); }
@@ -1700,7 +1704,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var CANON = {}; COVERAGE_STATUSES.forEach(function (s) { CANON[s.toLowerCase()] = s; });
     var empDeptMap = coverageEmpDeptMap();
     function dpOf(r) { var d = c.user ? empDeptMap[covNameKey(r[c.user])] : null; return d || "(no clinic)"; }
-    function unOf(r) { return c.user ? (String(r[c.user] == null ? "" : r[c.user]).trim() || "(blank)") : ""; }
+    function unOf(r) { return c.user ? cleanDisplayName(r[c.user]) : ""; }
     function baseEligible(r) {
       var st = String(r[c.status] == null ? "" : r[c.status]).trim(); if (!CANON[st.toLowerCase()]) return false;
       if (c.user && haveFilter && !allowed[covNameKey(r[c.user])]) return false;
@@ -1713,7 +1717,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (c.user) { var un = unOf(r); empByDept[""][un] = 1; if (!empByDept[dp]) empByDept[dp] = {}; empByDept[dp][un] = 1; } });
     if (applyState && covState.dept && !deptSet[covState.dept]) { covState.dept = ""; covState.emp = ""; }
     var empPool = empByDept[(applyState ? covState.dept : "") || ""] || {};
-    if (applyState && covState.emp && !empPool[covState.emp]) covState.emp = "";
+    if (applyState && covState.emp && !empPool[covState.emp]) {
+      // employee spelled differently on this sheet — match by normalized name so the filter carries over
+      var _tk = covNameKey(covState.emp), _found = "";
+      for (var _pk in empPool) { if (covNameKey(_pk) === _tk) { _found = _pk; break; } }
+      covState.emp = _found || covState.emp;
+    }
     var counts = {}, deptCounts = {}, grand = 0, matched = {}, excluded = {};
     coverageRecords.forEach(function (r) {
       var st = String(r[c.status] == null ? "" : r[c.status]).trim(); var canon = CANON[st.toLowerCase()]; if (!canon) return;
@@ -1881,10 +1890,25 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function trimVal(v) { var s = String(v == null ? "" : v).replace(/\s+/g, " ").trim(); return s; }
   function distinctSorted(arr) { var s = {}; arr.forEach(function (v) { if (v !== "" && v != null) s[v] = 1; }); return Object.keys(s).sort(function (a, b) { return String(a).localeCompare(String(b)); }); }
   function bypassDeptHeader() { return (deptSel && deptSel.value) || deptKey || (colMap && (colMap.department || colMap.loginDept)) || null; }
-  function bypassEmpOf(r) { if (!empKey) return ""; var v = trimVal(r[empKey]); return v === "" ? "(blank)" : v; }
+  // Names shown to users: keep letters, spaces and the Last, First comma — drop IDs, brackets, digits, other punctuation.
+  function cleanDisplayName(s) { s = String(s == null ? "" : s); if (s === "(blank)") return s;
+    var c = s.replace(/[^A-Za-z, ]+/g, " ").replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").replace(/^[,\s]+|[,\s]+$/g, "").trim();
+    return c === "" ? "(blank)" : c; }
+  var PAS_EMP = "__PAS_EMP__";   // injected cleaned employee-name column used for grouping + display
+  function bypassEmpOf(r) { if (!empKey) return "(blank)"; return cleanDisplayName(r[empKey]); }
   function copayColsNow() { return (window.RMSCopays && copayHeaders.length) ? RMSCopays.detectCopayCols(copayHeaders) : {}; }
   function copayDeptOf(r, ccm) { return ccm.dept ? trimVal(r[ccm.dept]) : ""; }
-  function copayEmpOf(r, ccm) { var n = RMSCopays.cleanName(r[ccm.checkinUser]); return n === "" ? "(blank)" : n; }
+  function copayEmpOf(r, ccm) { return cleanDisplayName(RMSCopays.cleanName(r[ccm.checkinUser])); }
+  // Employee display strings differ between tabs (Bypass keeps the raw "LAST, FIRST [id]"; Copays/Coverage
+  // clean it to "LAST, FIRST"). Match the selected employee by a normalized name key so the filter carries
+  // across tabs; remap it to THIS tab's spelling when found, and keep it as-is if the tab has no such person.
+  function reconcileEmp(emps, target) {
+    if (!target) return "";
+    if (emps.indexOf(target) >= 0) return target;
+    var tk = covNameKey(target);
+    for (var i = 0; i < emps.length; i++) { if (covNameKey(emps[i]) === tk) return emps[i]; }
+    return target;
+  }
 
   function renderGlobalFilters() {
     if (!globalfilters) return;
@@ -1901,7 +1925,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       depts = [];
       gState.dept = "";   // ignore any department carried over from another tab
       emps = distinctSorted(copayRecords.map(function (r) { return copayEmpOf(r, ccm); }));
-      if (gState.emp && emps.indexOf(gState.emp) < 0) gState.emp = "";
+      gState.emp = reconcileEmp(emps, gState.emp);
     } else { // bypass
       var dH = bypassDeptHeader();
       var recs0 = bypassDisplayRecords();
@@ -1909,7 +1933,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (gState.dept && depts.indexOf(gState.dept) < 0) { gState.dept = ""; gState.emp = ""; }
       var poolB = recs0.filter(function (r) { if (!gState.dept || !dH) return true; var v = trimVal(r[dH]); if (v === "") v = "(blank)"; return v === gState.dept; });
       emps = distinctSorted(poolB.map(bypassEmpOf));
-      if (gState.emp && emps.indexOf(gState.emp) < 0) gState.emp = "";
+      gState.emp = reconcileEmp(emps, gState.emp);
     }
     buildFilterBar(depts, emps);
   }
@@ -1979,10 +2003,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var dH = bypassDeptHeader(), recs0 = bypassDisplayRecords();
     var recs1 = (gState.dept && dH) ? recs0.filter(function (r) { var v = trimVal(r[dH]); if (v === "") v = "(blank)"; return v === gState.dept; }) : recs0;
     var deptDisplay = gState.dept || "All Departments";
-    recs1.forEach(function (r) { r[PAS_SYN] = deptDisplay; });
+    recs1.forEach(function (r) { r[PAS_SYN] = deptDisplay; r[PAS_EMP] = cleanDisplayName(r[empKey]); });
     return { recs: recs1, deptDisplay: deptDisplay };
   }
-  function uniqEmpNames(subset) { var s = {}; subset.forEach(function (r) { var v = trimVal(r[empKey]); if (v === "") v = "(blank)"; s[v] = 1; }); return Object.keys(s); }
+  function uniqEmpNames(subset) { var s = {}; subset.forEach(function (r) { s[cleanDisplayName(r[empKey])] = 1; }); return Object.keys(s); }
   function copayForNames(names) {
     if (!copayRecords.length) return null;
     var ccm = copayColsNow(), recsC = copayRecords;
@@ -1994,7 +2018,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   function bypassPayload(level, dept, emp, subset, ro, cpay) {
     return { level: level, dept: dept, emp: emp, records: subset, headers: headers, colMap: colMap,
-      deptKey: PAS_SYN, empKey: empKey, deptLabel: "department", empLabel: labelFromHeader(empKey, "employee"),
+      deptKey: PAS_SYN, empKey: PAS_EMP, deptLabel: "department", empLabel: labelFromHeader(empKey, "employee"),
       title: "PAS Quality — Bypassed Warnings", generatedAt: nowLabel(),
       regData: regEntries.length ? { entries: regEntries, month: regMonth } : null, readOnly: !!ro, copayData: cpay || null };
   }
@@ -2011,7 +2035,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   function exportEmployee() {
     var sc = bypassExportScope(), emp = gState.emp;
-    var subset = sc.recs.filter(function (r) { var v = trimVal(r[empKey]); if (v === "") v = "(blank)"; return v === emp; });
+    var subset = sc.recs.filter(function (r) { return cleanDisplayName(r[empKey]) === emp; });
     var cp = copayForNames([emp]);
     shellDownload(RMSViewer.buildHTML(bypassPayload("employee", sc.deptDisplay, emp, subset, true, cp), emp, cp, covSnap([emp])), exportFileName(emp));
     setHeaderXStatus("Downloaded " + emp + ".");
@@ -2068,12 +2092,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var recs1 = (gState.dept && dH) ? recs0.filter(function (r) { var v = trimVal(r[dH]); if (v === "") v = "(blank)"; return v === gState.dept; }) : recs0;
     var deptDisplay = gState.dept || "All Departments";
     var SYN = "__PAS_DEPT__";
-    recs1.forEach(function (r) { r[SYN] = deptDisplay; });
+    recs1.forEach(function (r) { r[SYN] = deptDisplay; r[PAS_EMP] = cleanDisplayName(r[empKey]); });
     var level = gState.emp ? "employee" : "department";
     RMSViewer.mount(dashboard, {
       level: level, dept: deptDisplay, emp: gState.emp || null,
       records: recs1, headers: headers, colMap: colMap,
-      deptKey: SYN, empKey: empKey, deptLabel: "department", empLabel: empLabel,
+      deptKey: SYN, empKey: PAS_EMP, deptLabel: "department", empLabel: empLabel,
       title: "PAS Quality — Bypassed Warnings" + (filterActive ? " (Include-only)" : ""), generatedAt: nowLabel(), onReset: showImport, externalFilters: true,
       copayData: copayRecords.length ? { records: copayRecords, headers: copayHeaders, title: "PAS Quality — Copays", generatedAt: nowLabel() } : null,
       regData: regEntries.length ? { entries: regEntries, month: regMonth } : null,
