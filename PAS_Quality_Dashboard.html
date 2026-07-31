@@ -311,7 +311,14 @@ table.rms-table.drill tr.drill-detail > td { padding: 0; background: var(--surfa
 .app-title-text { min-width: 0; }
 .app-title-text h1 { font-size: 21px; font-weight: 720; color: var(--ink); margin: 0; letter-spacing: -.015em; }
 .app-sub { font-size: 12.5px; color: var(--ink3); margin-top: 2px; }
-.app-header-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.app-header-right { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.app-header-exports { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.app-header-exports:empty { display: none; }
+.hx-btn { font: inherit; font-size: 12.5px; font-weight: 640; cursor: pointer; border-radius: 9px; padding: 8px 13px;
+  border: 1px solid transparent; background: var(--brand); color: #fff; box-shadow: var(--sh); white-space: nowrap; }
+.hx-btn:hover { filter: brightness(1.06); }
+.hx-status { font-size: 12px; color: var(--ink3); max-width: 260px; }
+.app-header-actions { display: flex; align-items: center; gap: 10px; }
 .app-header-actions:empty { display: none; }
 
 /* ===== global filter bar (above the module tabs) ===== */
@@ -344,7 +351,10 @@ table.rms-table.drill tr.drill-detail > td { padding: 0; background: var(--surfa
           <div class="app-sub">Bypassed Warnings · Copays · Coverage Accuracy — everything runs locally in your browser</div>
         </div>
       </div>
-      <div class="app-header-actions" id="appheaderactions"></div>
+      <div class="app-header-right">
+        <div class="app-header-exports" id="appheaderexports"></div>
+        <div class="app-header-actions" id="appheaderactions"></div>
+      </div>
     </div>
   </header>
 
@@ -884,19 +894,29 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     for (var i = 0; i < ss.length; i++) { var t = ss[i].textContent || ""; if (t.indexOf(needle) >= 0) return t; }
     return "";
   }
+  // Grab THIS viewer's own source from the page so every exported file (and re-exports made from
+  // inside an exported file) runs the current logic instead of a pre-baked snapshot. Matched by the
+  // viewer's unique opening comment so the __RMS_ASSETS__ bundle / payload scripts can't be picked.
+  function getViewerJS() {
+    var SIG = "/* ================= RMS Bypassed Warnings — dashboard viewer";
+    var ss = document.getElementsByTagName("script");
+    for (var i = 0; i < ss.length; i++) { var t = ss[i].textContent || ""; if (t.replace(/^\s+/, "").indexOf(SIG) === 0) return t; }
+    return (window.__RMS_ASSETS__ && window.__RMS_ASSETS__.js) || "";
+  }
   function buildHTML(payload, docTitle, copay, coverageSnapshot) {
     var A = window.__RMS_ASSETS__ || { css: "", js: "" };
+    var VJS = getViewerJS() || A.js;   // embed the current viewer code (falls back to the pre-baked bundle)
     var TABCSS = "<style>html,body{margin:0}body{background:#f4f4f2}html[data-theme=dark] body{background:#131316}@media(prefers-color-scheme:dark){html:not([data-theme=light]) body{background:#131316}}.xtabs{display:flex;gap:8px;max-width:1180px;margin:0 auto;padding:14px 22px 0}.xtab{font:600 13.5px -apple-system,system-ui,sans-serif;padding:8px 16px;border-radius:10px 10px 0 0;border:1px solid #d3d2cc;border-bottom:none;background:#fff;color:#55544f;cursor:pointer}.xtab.active{color:#1c5cab;border-color:#2a78d6}html[data-theme=dark] .xtab{background:#1c1c20;color:#b7b6b0;border-color:#3a3a42}html[data-theme=dark] .xtab.active{color:#8fbef2;border-color:#3987e5}@media(prefers-color-scheme:dark){html:not([data-theme=light]) .xtab{background:#1c1c20;color:#b7b6b0;border-color:#3a3a42}html:not([data-theme=light]) .xtab.active{color:#8fbef2;border-color:#3987e5}}</style>";
     var HEAD = "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>" + escHtml(docTitle) + "</title>\n" + TABCSS + "\n</head>\n<body>\n";
     if (!copay && !coverageSnapshot) {
       return HEAD + "<div id=\"rms-app\"></div>\n" +
-        "<script>window.__RMS_PAYLOAD__=" + safeJSON(payload) + ";window.__RMS_ASSETS__={css:" + safeJSON(A.css) + ",js:" + safeJSON(A.js) + "};<\/script>\n" +
+        "<script>window.__RMS_PAYLOAD__=" + safeJSON(payload) + ";window.__RMS_ASSETS__={css:" + safeJSON(A.css) + ",js:" + safeJSON(VJS) + "};<\/script>\n" +
         "<script>(function(){var s=document.createElement('style');s.textContent=window.__RMS_ASSETS__.css;document.head.appendChild(s);var j=document.createElement('script');j.textContent=window.__RMS_ASSETS__.js;document.head.appendChild(j);RMSViewer.mount(document.getElementById('rms-app'),window.__RMS_PAYLOAD__);})();<\/script>\n</body>\n</html>\n";
     }
     var divs = "<div id=\"xtabs\" class=\"xtabs\"></div>\n<div id=\"rms-bypass\"></div>\n";
     if (copay) divs += "<div id=\"rms-copays\" style=\"display:none\"></div>\n";
     if (coverageSnapshot) divs += "<div id=\"rms-coverage\" class=\"rms\" style=\"display:none\">" + coverageSnapshot + "</div>\n";
-    var data = "<script>window.__RMS_PAYLOAD__=" + safeJSON(payload) + ";window.__RMS_ASSETS__={css:" + safeJSON(A.css) + ",js:" + safeJSON(A.js) + "};";
+    var data = "<script>window.__RMS_PAYLOAD__=" + safeJSON(payload) + ";window.__RMS_ASSETS__={css:" + safeJSON(A.css) + ",js:" + safeJSON(VJS) + "};";
     if (copay) data += "window.__RMS_COPAY_PAYLOAD__=" + safeJSON(copay) + ";window.__RMS_COPAY_JS__=" + safeJSON(getCopayJS()) + ";";
     data += "<\/script>\n";
     var run = "<script>(function(){var s=document.createElement('style');s.textContent=window.__RMS_ASSETS__.css;document.head.appendChild(s);var j=document.createElement('script');j.textContent=window.__RMS_ASSETS__.js;document.head.appendChild(j);";
@@ -996,49 +1016,74 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (right.childNodes.length) head.appendChild(right);
 
       // export toolbar (contextual)
-      var xbar = el("div", { class: "rms-exports" });
       if (externalFilters) {
-        xbar.appendChild(xbtn("⬇ Export for leadership", "primary", function () { exportLeadership(); }));
-        if (kind === "employee") xbar.appendChild(xbtn("⬇ Export this " + empLabel, "primary", function () { exportCurrent(); }));
-        else xbar.appendChild(xbtn("⬇ Export by " + empLabel, "primary", function () { exportEachEmp(state.dept); }));
-      } else if (kind === "overview") {
-        xbar.appendChild(xbtn("⬇ Export for leadership", "primary", function () { exportLeadership(); }));
-        xbar.appendChild(xbtn("⬇ Export by " + deptLabel, "primary", function () { exportEachDept(); }));
-      } else if (kind === "department") {
-        xbar.appendChild(xbtn("⬇ Export by " + empLabel, "primary", function () { exportEachEmp(state.dept); }));
+        // Exports live in the frozen page header; hand them up to the shell.
+        var specs = [{ label: "⬇ Export for leadership", on: exportLeadership },
+                     { label: "⬇ Clinic export", on: exportClinic }];
+        if (kind === "employee") specs.push({ label: "⬇ Export this " + empLabel, on: exportCurrent });
+        if (payload.onExports) payload.onExports(specs);
       } else {
-        xbar.appendChild(xbtn("⬇ Export this " + empLabel, "primary", function () { exportCurrent(); }));
+        var xbar = el("div", { class: "rms-exports" });
+        if (kind === "overview") {
+          xbar.appendChild(xbtn("⬇ Export for leadership", "primary", function () { exportLeadership(); }));
+          xbar.appendChild(xbtn("⬇ Export by " + deptLabel, "primary", function () { exportEachDept(); }));
+        } else if (kind === "department") {
+          xbar.appendChild(xbtn("⬇ Export by " + empLabel, "primary", function () { exportEachEmp(state.dept); }));
+        } else {
+          xbar.appendChild(xbtn("⬇ Export this " + empLabel, "primary", function () { exportCurrent(); }));
+        }
+        xbar.appendChild(el("span", { class: "rms-xstatus", id: "rms-xstatus" }));
+        head.appendChild(xbar);
       }
-      xbar.appendChild(el("span", { class: "rms-xstatus", id: "rms-xstatus" }));
-      head.appendChild(xbar);
     }
     function xbtn(label, kind, on) { return el("button", { class: "rms-xbtn " + kind, text: label, onclick: on }); }
     function setXStatus(msg) { var e = document.getElementById("rms-xstatus"); if (e) e.textContent = msg || ""; }
 
     /* export builders */
-    function payloadFor(level, dept, emp, subset, ro) { return { level: level, dept: dept, emp: emp, records: subset, headers: headers, colMap: cm,
-      deptKey: deptKey, empKey: empKey, deptLabel: deptLabel, empLabel: empLabel, title: title, generatedAt: gen, regData: regData, readOnly: !!ro }; }
-    function copayPayload() { return (copayData && copayData.records && copayData.records.length) ? { records: copayData.records, headers: copayData.headers, title: copayData.title || "Copays", generatedAt: copayData.generatedAt || gen, groupKey: "checkin" } : null; }
+    function payloadFor(level, dept, emp, subset, ro, cpay) { return { level: level, dept: dept, emp: emp, records: subset, headers: headers, colMap: cm,
+      deptKey: deptKey, empKey: empKey, deptLabel: deptLabel, empLabel: empLabel, title: title, generatedAt: gen, regData: regData, readOnly: !!ro,
+      copayData: cpay || null }; }
+    // Copay payload for an exported file. When `names` is given, the copay rows are filtered to just
+    // those employees (matched by check-in user name) so a per-employee export's Copays tab only shows
+    // that person. `names` null/omitted → all copay rows.
+    function copayFor(names) {
+      if (!(copayData && copayData.records && copayData.records.length)) return null;
+      var recsC = copayData.records;
+      if (names && names.length && window.RMSCopays) {
+        var ccm = RMSCopays.detectCopayCols(copayData.headers || (recsC[0] ? Object.keys(recsC[0]) : []));
+        var want = {}; names.forEach(function (nm) { var k = empNameKey(nm); if (k && k !== "|") want[k] = 1; });
+        if (ccm.checkinUser && Object.keys(want).length) recsC = recsC.filter(function (r) { return want[empNameKey(r[ccm.checkinUser])]; });
+      }
+      return { records: recsC, headers: copayData.headers, title: copayData.title || "Copays", generatedAt: copayData.generatedAt || gen, groupKey: "checkin" };
+    }
+    function copayPayload() { return copayFor(null); }
     function coverageSnap(names) { try { return getCoverageSnapshot ? getCoverageSnapshot(names) : null; } catch (e) { return null; } }
     function exportLeadership() {
       // read-only snapshot of the current overview — controls stripped; coverage = all employees on this data
-      var subset = recs, name = "Leadership — All " + cap(deptLabelPlural);
-      download(buildHTML(payloadFor("overview", null, null, subset, true), name, copayPayload(), coverageSnap(null)), fileName("Leadership - All " + cap(deptLabelPlural), subset, cm));
+      var subset = recs, name = "Leadership — All " + cap(deptLabelPlural), cp = copayFor(null);
+      download(buildHTML(payloadFor("overview", null, null, subset, true, cp), name, cp, coverageSnap(null)), fileName("Leadership - All " + cap(deptLabelPlural), subset, cm));
       setXStatus("Downloaded leadership summary.");
     }
-    function exportCurrent() { var subset = curRecs();
-      download(buildHTML(payloadFor("employee", state.dept, state.emp, subset, true), state.emp, copayPayload(), coverageSnap(state.emp ? [state.emp] : uniqSorted(subset, empKey))), fileName(state.emp, subset, cm));
+    // Single interactive file for the whole clinic (this sheet). Opening it, you can export by employee,
+    // and each of those employee files is scoped to that person — copay included.
+    function exportClinic() {
+      var subset = recs, name = state.dept || ("All " + cap(deptLabelPlural)), cp = copayFor(uniqSorted(subset, empKey));
+      download(buildHTML(payloadFor("department", state.dept || "All Departments", null, subset, false, cp), name, cp, coverageSnap(uniqSorted(subset, empKey))), fileName(name, subset, cm));
+      setXStatus("Downloaded clinic export — open it to export by " + empLabel + ".");
+    }
+    function exportCurrent() { var subset = curRecs(), cp = copayFor(state.emp ? [state.emp] : uniqSorted(subset, empKey));
+      download(buildHTML(payloadFor("employee", state.dept, state.emp, subset, true, cp), state.emp, cp, coverageSnap(state.emp ? [state.emp] : uniqSorted(subset, empKey))), fileName(state.emp, subset, cm));
       setXStatus("Downloaded " + fileName(state.emp, subset, cm));
     }
     function exportEachDept() {
-      var depts = uniqSorted(recs, deptKey), files = depts.map(function (d) { var subset = deptRecs(d);
-        return { name: fileName(d, subset, cm), html: buildHTML(payloadFor("department", d, null, subset, false), d, copayPayload(), coverageSnap(uniqSorted(subset, empKey))) }; });
+      var depts = uniqSorted(recs, deptKey), files = depts.map(function (d) { var subset = deptRecs(d), cp = copayFor(uniqSorted(subset, empKey));
+        return { name: fileName(d, subset, cm), html: buildHTML(payloadFor("department", d, null, subset, false, cp), d, cp, coverageSnap(uniqSorted(subset, empKey))) }; });
       setXStatus("Downloading " + files.length + " " + deptLabelPlural + " … approve the browser prompt if asked.");
       downloadMany(files, function () { setXStatus("Exported " + files.length + " " + deptLabel + " files."); });
     }
     function exportEachEmp(dept) {
-      var emps = uniqSorted(deptRecs(dept), empKey), files = emps.map(function (e2) { var subset = empRecs(dept, e2);
-        return { name: fileName(e2, subset, cm), html: buildHTML(payloadFor("employee", dept, e2, subset, true), e2, copayPayload(), coverageSnap([e2])) }; });
+      var emps = uniqSorted(deptRecs(dept), empKey), files = emps.map(function (e2) { var subset = empRecs(dept, e2), cp = copayFor([e2]);
+        return { name: fileName(e2, subset, cm), html: buildHTML(payloadFor("employee", dept, e2, subset, true, cp), e2, cp, coverageSnap([e2])) }; });
       setXStatus("Downloading " + files.length + " " + empLabelPlural + " … approve the browser prompt if asked.");
       downloadMany(files, function () { setXStatus("Exported " + files.length + " " + empLabel + " files."); });
     }
@@ -1513,7 +1558,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       dashboard = $("dashboard"), empty = $("empty"), clearBtn = $("btn-clear"), config = $("config"),
       deptSel = $("deptcol"), empSel = $("empcol"), fileList = $("filelist"), importwrap = $("importwrap"),
       moduletabs = $("moduletabs"), rulebar = $("rulebar"), globalfilters = $("globalfilters"),
-      appheaderactions = $("appheaderactions");
+      appheaderactions = $("appheaderactions"), appheaderexports = $("appheaderexports");
   function showImport() { importwrap.style.display = ""; try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) { window.scrollTo(0, 0); } }
   function setStatus(msg, kind) { status.textContent = msg || ""; status.className = "status" + (kind ? " " + kind : ""); }
   function fmt(n) { return n.toLocaleString("en-US"); }
@@ -1887,6 +1932,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     globalfilters.appendChild(inner);
     globalfilters.style.display = "";
   }
+  function clearHeaderExports() { if (appheaderexports) appheaderexports.innerHTML = ""; }
+  function renderHeaderExports(specs) {
+    if (!appheaderexports) return;
+    appheaderexports.innerHTML = "";
+    (specs || []).forEach(function (s) {
+      var btn = document.createElement("button"); btn.className = "hx-btn"; btn.type = "button"; btn.textContent = s.label;
+      btn.addEventListener("click", function () { try { s.on(); } catch (e) {} });
+      appheaderexports.appendChild(btn);
+    });
+    appheaderexports.appendChild(el2("span", "hx-status", "", "rms-xstatus"));
+  }
+  function el2(tag, cls, txt, id) { var e = document.createElement(tag); if (cls) e.className = cls; if (id) e.id = id; if (txt != null) e.textContent = txt; return e; }
   function renderHeaderActions() {
     if (!appheaderactions) return;
     appheaderactions.innerHTML = "";
@@ -1909,6 +1966,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       importwrap.style.display = ""; empty.style.display = ""; dashboard.style.display = "none";
       if (moduletabs) moduletabs.style.display = "none";
       if (globalfilters) { globalfilters.style.display = "none"; globalfilters.innerHTML = ""; }
+      clearHeaderExports();
       return;
     }
     importwrap.style.display = "none"; empty.style.display = "none"; dashboard.style.display = "";
@@ -1918,6 +1976,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderRuleBar();
     if (activeModule === "coverage") { covState.dept = gState.dept; covState.emp = gState.emp; }
     renderGlobalFilters();
+    clearHeaderExports();   // only the Bypassed Warnings tab has exports; it repopulates via onExports below
 
     if (activeModule === "coverage") { renderCoverage(); return; }
 
@@ -1951,6 +2010,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       records: recs1, headers: headers, colMap: colMap,
       deptKey: SYN, empKey: empKey, deptLabel: "department", empLabel: empLabel,
       title: "PAS Quality — Bypassed Warnings" + (filterActive ? " (Include-only)" : ""), generatedAt: nowLabel(), onReset: showImport, externalFilters: true,
+      onExports: renderHeaderExports,
       copayData: copayRecords.length ? { records: copayRecords, headers: copayHeaders, title: "PAS Quality — Copays", generatedAt: nowLabel() } : null,
       regData: regEntries.length ? { entries: regEntries, month: regMonth } : null,
       getCoverageSnapshot: coverageRecords.length ? function (names) { return coverageSnapshotHTML(coverageKeysFor(names)); } : null
