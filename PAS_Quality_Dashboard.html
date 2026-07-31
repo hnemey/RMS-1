@@ -801,7 +801,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   /* ---------- scope renderer ---------- */
   function renderScope(container, recs, cm, headers, ctx) {
     container.innerHTML = "";
-    if (!recs.length) { container.appendChild(el("div", { class: "empty-note", text: "No records for this selection." })); return; }
+    if (!recs.length) {
+      // e.g. an employee who has copays/coverage but no bypassed warnings — show zeros, not a blank page.
+      var kz = el("div", { class: "rms-kpis" });
+      kz.appendChild(kpi("Bypassed warnings", "0", ctx.kind === "employee" ? "for this " + ctx.empLabel : "", "accent", "alert"));
+      kz.appendChild(kpi("Patients affected", "0", "", null, "user"));
+      kz.appendChild(kpi("Warning types", "0", ""));
+      kz.appendChild(kpi("Active days", "0", ""));
+      container.appendChild(kz);
+      container.appendChild(el("div", { class: "empty-note", text: "No bypassed warnings for this selection." }));
+      return;
+    }
     var kind = ctx.kind, S = summarize(recs, cm);
     var range = S.first ? (S.first.label + (S.last && S.last.key !== S.first.key ? " – " + S.last.label : "")) : "—";
     var avg = S.daysActive ? (S.total / S.daysActive) : 0;
@@ -1961,7 +1971,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       depts = dH ? distinctSorted(recs0.map(function (r) { var v = trimVal(r[dH]); return v === "" ? "(blank)" : v; })) : [];
       if (gState.dept && depts.indexOf(gState.dept) < 0) { gState.dept = ""; gState.emp = ""; }
       var poolB = recs0.filter(function (r) { if (!gState.dept || !dH) return true; var v = trimVal(r[dH]); if (v === "") v = "(blank)"; return v === gState.dept; });
-      emps = distinctSorted(poolB.map(bypassEmpOf));
+      // Employees: EVERYONE on the bypass + copay sheets (so a copay-only employee still shows, as (0),
+      // and selecting them shows zeros), narrowed to the picked department.
+      var edmB = bypassEmpDeptMap();
+      var allEB = allEmployeeDisplayNames();
+      emps = gState.dept ? allEB.filter(function (nm) { return edmB[covNameKey(nm)] === gState.dept; }) : allEB;
       gState.emp = reconcileEmp(emps, gState.emp);
       if (dH) deptCounts = countMap(recs0, function (r) { var v = trimVal(r[dH]); return v === "" ? "(blank)" : v; });
       empCounts = countMap(poolB, bypassEmpOf);
