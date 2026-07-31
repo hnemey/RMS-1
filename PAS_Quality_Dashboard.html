@@ -1288,15 +1288,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       head.appendChild(el("div", { class: "rms-titlebox" }, [ el("h1", { text: "Copays — " + periodLabel(state.period) }),
         el("div", { class: "rms-subtitle", text: title }) ]));
       var right = el("div", { class: "rms-headright" });
-      var depts = uniqDepts();
-      if (!externalFilters && cm.dept && depts.length > 1) {
-        var dsel = el("select", { class: "rms-select" });
-        dsel.appendChild(el("option", { value: "", text: "▸ All departments" }));
-        depts.forEach(function (dp) { dsel.appendChild(el("option", { value: dp, text: dp.length > 40 ? dp.slice(0, 39) + "…" : dp })); });
-        dsel.value = state.dept;
-        dsel.addEventListener("change", function () { state.dept = dsel.value; state.emp = ""; rerender(); });
-        right.appendChild(el("div", { class: "rms-picker" }, [ el("label", { text: "Department" }), dsel ]));
-      }
+      // Copays are treated as ONE clinic (the bypass clinic) — the copay sheet's own department
+      // column is not split out, since a single upload is all the same clinic.
       if (!externalFilters && state.dept) {
         var esel = el("select", { class: "rms-select" });
         esel.appendChild(el("option", { value: "", text: "▸ All employees" }));
@@ -1903,12 +1896,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       depts = agg.depts || [];
       emps = (agg.cols.user && agg.haveFilter) ? (agg.emps || []) : [];
     } else if (activeModule === "copays") {
+      // Copays are one clinic (the bypass clinic) — do NOT list the copay sheet's own departments.
       var ccm = copayColsNow();
-      var dOf = ccm.dept ? function (r) { return copayDeptOf(r, ccm); } : null;
-      depts = dOf ? distinctSorted(copayRecords.map(dOf)) : [];
-      if (gState.dept && depts.indexOf(gState.dept) < 0) { gState.dept = ""; gState.emp = ""; }
-      var pool = copayRecords.filter(function (r) { return !gState.dept || (dOf && dOf(r) === gState.dept); });
-      emps = distinctSorted(pool.map(function (r) { return copayEmpOf(r, ccm); }));
+      depts = [];
+      gState.dept = "";   // ignore any department carried over from another tab
+      emps = distinctSorted(copayRecords.map(function (r) { return copayEmpOf(r, ccm); }));
       if (gState.emp && emps.indexOf(gState.emp) < 0) gState.emp = "";
     } else { // bypass
       var dH = bypassDeptHeader();
