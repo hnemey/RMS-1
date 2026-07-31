@@ -1156,10 +1156,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     });
     var rows = Array.from(groups.values()).filter(function (r) { return r.countDue || r.countPaid; }).map(function (r) {
       return { employee: r.employee, countDue: r.countDue, countPaid: r.countPaid, sumDue: r.sumDue, sumPaid: r.sumPaid,
-               pctAmount: r.sumDue ? r.sumPaid / r.sumDue : 0 }; });
+               pctCount: r.countDue ? r.countPaid / r.countDue : 0, pctAmount: r.sumDue ? r.sumPaid / r.sumDue : 0 }; });
     rows.sort(function (a, b) { return String(a.employee).localeCompare(String(b.employee)); });
     var tot = rows.reduce(function (t, r) { t.countDue += r.countDue; t.countPaid += r.countPaid; t.sumDue += r.sumDue; t.sumPaid += r.sumPaid; return t; },
                           { countDue: 0, countPaid: 0, sumDue: 0, sumPaid: 0 });
+    tot.pctCount = tot.countDue ? tot.countPaid / tot.countDue : 0;
     tot.pctAmount = tot.sumDue ? tot.sumPaid / tot.sumDue : 0;
     return { rows: rows, total: tot };
   }
@@ -1224,22 +1225,28 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     var wrap = el("div", { class: "rms-tablewrap" }), scroll = el("div", { class: "rms-scroll" }), t = el("table", { class: "rms-table" });
     t.appendChild(el("thead", {}, el("tr", {}, [
       th("Check-in User"), th("Count of Copay Due", "num"), th("Count of Copay Paid", "num"),
-      th("Sum of Copay Due", "num"), th("Sum of Copay Paid", "num") ])));
+      th("% Collected (Opportunities)", "num"),
+      th("Sum of Copay Due", "num"), th("Sum of Copay Paid", "num"),
+      th("% Collected (Amount)", "num") ])));
     var tb = el("tbody");
     rows.forEach(function (r) {
       tb.appendChild(el("tr", {}, [
         el("td", { text: r.employee }),
         el("td", { class: "num" }, el("span", { class: "pill", text: num(r.countDue) })),
         el("td", { class: "num", text: num(r.countPaid) }),
+        el("td", { class: "num", text: pct(r.pctCount) }),
         el("td", { class: "num", text: usd(r.sumDue) }),
-        el("td", { class: "num", text: usd(r.sumPaid) }) ]));
+        el("td", { class: "num", text: usd(r.sumPaid) }),
+        el("td", { class: "num", text: pct(r.pctAmount) }) ]));
     });
     tb.appendChild(el("tr", { class: "rms-totalrow" }, [
       el("td", {}, el("b", { text: "Grand Total" })),
       el("td", { class: "num" }, el("b", { text: num(total.countDue) })),
       el("td", { class: "num" }, el("b", { text: num(total.countPaid) })),
+      el("td", { class: "num" }, el("b", { text: pct(total.pctCount) })),
       el("td", { class: "num" }, el("b", { text: usd(total.sumDue) })),
-      el("td", { class: "num" }, el("b", { text: usd(total.sumPaid) })) ]));
+      el("td", { class: "num" }, el("b", { text: usd(total.sumPaid) })),
+      el("td", { class: "num" }, el("b", { text: pct(total.pctAmount) })) ]));
     t.appendChild(tb); scroll.appendChild(t); wrap.appendChild(scroll); return wrap;
   }
 
