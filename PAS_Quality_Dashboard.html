@@ -1717,19 +1717,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (c.user) { var un = unOf(r); empByDept[""][un] = 1; if (!empByDept[dp]) empByDept[dp] = {}; empByDept[dp][un] = 1; } });
     if (applyState && covState.dept && !deptSet[covState.dept]) { covState.dept = ""; covState.emp = ""; }
     var empPool = empByDept[(applyState ? covState.dept : "") || ""] || {};
-    if (applyState && covState.emp && !empPool[covState.emp]) {
-      // employee spelled differently on this sheet — match by normalized name so the filter carries over
-      var _tk = covNameKey(covState.emp), _found = "";
-      for (var _pk in empPool) { if (covNameKey(_pk) === _tk) { _found = _pk; break; } }
-      covState.emp = _found || covState.emp;
-    }
+    // Keep covState.emp even if this employee has no coverage rows — the dropdown lists ALL employees and
+    // filtering matches by normalized name, so a selected employee with no errors just shows zeros.
     var counts = {}, deptCounts = {}, grand = 0, matched = {}, excluded = {};
     coverageRecords.forEach(function (r) {
       var st = String(r[c.status] == null ? "" : r[c.status]).trim(); var canon = CANON[st.toLowerCase()]; if (!canon) return;
       if (c.user && haveFilter) { var uk = covNameKey(r[c.user]); if (!allowed[uk]) { if (uk && uk !== "|") excluded[uk] = 1; return; } }
       if (c.csn && String(r[c.csn] == null ? "" : r[c.csn]).trim() === "") return;
       if (applyState && covState.dept && dpOf(r) !== covState.dept) return;
-      if (applyState && covState.emp && c.user && unOf(r) !== covState.emp) return;
+      if (applyState && covState.emp && c.user && covNameKey(unOf(r)) !== covNameKey(covState.emp)) return;
       counts[canon] = (counts[canon] || 0) + 1; grand++;
       var dpv = dpOf(r); deptCounts[dpv] = (deptCounts[dpv] || 0) + 1;
       if (c.user) matched[covNameKey(r[c.user])] = 1;
@@ -1899,6 +1895,23 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function copayColsNow() { return (window.RMSCopays && copayHeaders.length) ? RMSCopays.detectCopayCols(copayHeaders) : {}; }
   function copayDeptOf(r, ccm) { return ccm.dept ? trimVal(r[ccm.dept]) : ""; }
   function copayEmpOf(r, ccm) { return cleanDisplayName(RMSCopays.cleanName(r[ccm.checkinUser])); }
+  // Every employee across the bypass + copay sheets (display names). Used so the Coverage tab lists
+  // everyone — even people with zero coverage errors — instead of only those who have errors.
+  function allEmployeeDisplayNames() {
+    var s = {};
+    if (rawRecords.length && empKey) bypassDisplayRecords().forEach(function (r) { s[cleanDisplayName(r[empKey])] = 1; });
+    if (copayRecords.length && window.RMSCopays) { var ccm = copayColsNow();
+      if (ccm.checkinUser) copayRecords.forEach(function (r) { s[copayEmpOf(r, ccm)] = 1; }); }
+    return distinctSorted(Object.keys(s));
+  }
+  // Map each employee (normalized name) to the department they sit in on the Bypassed Warnings sheet, so
+  // the Copays tab can share the SAME department filter as Bypass (one clinic) and narrow copay by it.
+  function bypassEmpDeptMap() {
+    var m = {}, dH = bypassDeptHeader();
+    if (!dH || !empKey) return m;
+    bypassDisplayRecords().forEach(function (r) { var k = covNameKey(r[empKey]); if (k && !(k in m)) m[k] = trimVal(r[dH]) || "(blank)"; });
+    return m;
+  }
   // Employee display strings differ between tabs (Bypass keeps the raw "LAST, FIRST [id]"; Copays/Coverage
   // clean it to "LAST, FIRST"). Match the selected employee by a normalized name key so the filter carries
   // across tabs; remap it to THIS tab's spelling when found, and keep it as-is if the tab has no such person.
@@ -1918,13 +1931,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       var agg = coverageAggregate(null, true);
       gState.dept = covState.dept; gState.emp = covState.emp;   // coverageAggregate may have sanitized invalid picks
       depts = agg.depts || [];
-      emps = (agg.cols.user && agg.haveFilter) ? (agg.emps || []) : [];
+      // List EVERY employee (bypass + copay), not just those with coverage errors, so a person with
+      // zero coverage rows can still be selected and simply shows zeros.
+      emps = agg.cols.user ? allEmployeeDisplayNames() : [];
     } else if (activeModule === "copays") {
-      // Copays are one clinic (the bypass clinic) — do NOT list the copay sheet's own departments.
+      // Department filter mirrors the Bypassed Warnings tab (the one clinic) — use the BYPASS departments,
+      // not the copay sheet's own. Employees come from the copay sheet, narrowed to the picked bypass dept.
       var ccm = copayColsNow();
-      depts = [];
-      gState.dept = "";   // ignore any department carried over from another tab
-      emps = distinctSorted(copayRecords.map(function (r) { return copayEmpOf(r, ccm); }));
+      var dHc = bypassDeptHeader();
+      var recsC = bypassDisplayRecords();
+      depts = dHc ? distinctSorted(recsC.map(function (r) { var v = trimVal(r[dHc]); return v === "" ? "(blank)" : v; })) : [];
+      if (gState.dept && depts.indexOf(gState.dept) < 0) gState.dept = "";
+      var edm = bypassEmpDeptMap();
+      var poolC = copayRecords.filter(function (r) { return !gState.dept || edm[covNameKey(r[ccm.checkinUser])] === gState.dept; });
+      emps = distinctSorted(poolC.map(function (r) { return copayEmpOf(r, ccm); }));
       gState.emp = reconcileEmp(emps, gState.emp);
     } else { // bypass
       var dH = bypassDeptHeader();
@@ -2071,9 +2091,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     if (activeModule === "copays") {
       var ccm = copayColsNow();
-      var dOf = ccm.dept ? function (r) { return copayDeptOf(r, ccm); } : null;
+      var edmC = bypassEmpDeptMap();   // narrow copay by the BYPASS department (same filter as the Bypass tab)
       var subset = copayRecords.filter(function (r) {
-        if (gState.dept && dOf && dOf(r) !== gState.dept) return false;
+        if (gState.dept && edmC[covNameKey(r[ccm.checkinUser])] !== gState.dept) return false;
         if (gState.emp && copayEmpOf(r, ccm) !== gState.emp) return false;
         return true;
       });
