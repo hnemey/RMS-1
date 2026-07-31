@@ -1315,7 +1315,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     function renderBody() {
       body.innerHTML = "";
       var subset = filteredRecs();
-      if (!subset.length) { body.appendChild(el("div", { class: "empty-note", text: "No copay rows for this selection." })); return; }
       var A = aggregate(subset, cm, { groupKey: groupKey });
       var t = A.total;
 
@@ -1326,6 +1325,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       k.appendChild(kpi("Sum of Copay Paid", usd(t.sumPaid), ""));
       k.appendChild(kpi("% Collected", pct(t.pctAmount), usd(t.sumPaid) + " of " + usd(t.sumDue)));
       body.appendChild(k);
+      // A filtered employee with no copay rows still shows zeros (KPIs above) instead of an empty page.
+      if (!subset.length) { body.appendChild(el("div", { class: "empty-note", text: "No copay rows for this selection." })); return; }
 
       body.appendChild(el("div", { class: "rms-section", text: "Collections by employee" }));
       body.appendChild(el("div", { class: "rms-grid" }, [
@@ -1946,9 +1947,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       depts = dHc ? distinctSorted(recsC.map(function (r) { var v = trimVal(r[dHc]); return v === "" ? "(blank)" : v; })) : [];
       if (gState.dept && depts.indexOf(gState.dept) < 0) gState.dept = "";
       var edm = bypassEmpDeptMap();
-      var poolC = copayRecords.filter(function (r) { return !gState.dept || edm[covNameKey(r[ccm.checkinUser])] === gState.dept; });
-      emps = distinctSorted(poolC.map(function (r) { return copayEmpOf(r, ccm); }));
+      // Employees: EVERYONE on the bypass + copay sheets (so a bypass employee with no copays still shows,
+      // as (0), and selecting them shows zeros), narrowed to the picked bypass department.
+      var allE = allEmployeeDisplayNames();
+      emps = gState.dept ? allE.filter(function (nm) { return edm[covNameKey(nm)] === gState.dept; }) : allE;
       gState.emp = reconcileEmp(emps, gState.emp);
+      var poolC = copayRecords.filter(function (r) { return !gState.dept || edm[covNameKey(r[ccm.checkinUser])] === gState.dept; });
       deptCounts = countMap(copayRecords, function (r) { return edm[covNameKey(r[ccm.checkinUser])]; });
       empCounts = countMap(poolC, function (r) { return copayEmpOf(r, ccm); });
     } else { // bypass
