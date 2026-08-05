@@ -237,9 +237,9 @@ td.nowrap{white-space:nowrap}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"></path></svg>
         Add data
       </button>
-      <button class="btn ghost" id="linkBtn" title="Link the folder that holds your spreadsheets so Sync can re-read them">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-        Link folder
+      <button class="btn ghost" id="linkBtn" title="Link each shared spreadsheet so Sync can re-read them">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a3 3 0 013-3h3a3 3 0 010 6h-1.5M15 12a3 3 0 01-3 3H9a3 3 0 010-6h1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        Link files
       </button>
       <button class="btn ghost" id="syncBtn" title="Link a folder first" disabled="">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11A8 8 0 006.34 5.34L3 8m0 0V3m0 5h5m-4.99 5a8 8 0 0013.66 2.66L21 16m0 0v5m0-5h-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -1489,64 +1489,75 @@ function initDnD(){
 }
 
 /* =========================================================================
-   LINKED FOLDER + SYNC
-   File System Access API picks a folder once; the handle is stored in
-   IndexedDB so the link survives page reloads. "Sync" re-reads every
-   spreadsheet in that folder and refreshes the dashboard with the latest data.
-   (Chrome/Edge only — other browsers fall back to the file picker.)
+   LINKED FILES + SYNC
+   File System Access API links each shared spreadsheet individually; every
+   file handle is stored in IndexedDB so the links survive page reloads.
+   "Sync" re-reads each linked file and refreshes the dashboard with the
+   latest data. (Chrome/Edge only — other browsers fall back to the file
+   picker, which cannot remember paths.)
    ========================================================================= */
-let DIR_HANDLE=null, LINK_NAME='';
-const IDB_DB='rmsDashDB', IDB_STORE='kv', IDB_KEY='dirHandle';
+let FILE_HANDLES=[];   // Array<FileSystemFileHandle>, one per shared file
+const IDB_DB='rmsDashDB', IDB_STORE='kv', IDB_KEY='fileHandles';
 function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_DB,1); r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
 function idbPut(k,v){ return idbOpen().then(db=>new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
 function idbGet(k){ return idbOpen().then(db=>new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const rq=tx.objectStore(IDB_STORE).get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); })); }
-function readDir(dirHandle){
-  const files=[], iter=dirHandle.values();
-  function step(){ return iter.next().then(res=>{
-    if(res.done) return files;
-    const e=res.value;
-    if(e.kind==='file' && /\.(xlsx|xls|csv)$/i.test(e.name) && !/^~\$/.test(e.name)) return e.getFile().then(f=>{ files.push(f); return step(); });
-    return step();
-  }); }
-  return step();
-}
-async function ensurePermission(handle){
+function persistHandles(){ return idbPut(IDB_KEY, FILE_HANDLES.slice()).catch(()=>{}); }
+async function ensurePermission(handle,isAuto){
   if(!handle.queryPermission) return true;
   if(await handle.queryPermission({mode:'read'})==='granted') return true;
-  return handle.requestPermission ? (await handle.requestPermission({mode:'read'}))==='granted' : false;
+  if(isAuto || !handle.requestPermission) return false;   // don't prompt on auto-restore
+  return (await handle.requestPermission({mode:'read'}))==='granted';
 }
-function linkFolder(){
-  if(!window.showDirectoryPicker){ toast('Folder linking needs Chrome or Edge — opening the file picker instead'); $('#fileInput').click(); return; }
-  window.showDirectoryPicker({mode:'read'}).then(async h=>{
-    DIR_HANDLE=h; LINK_NAME=h.name; try{ await idbPut(IDB_KEY,h); }catch(e){}
+/* pick one or more files and remember each one (merge by name, newest wins) */
+function linkFiles(){
+  if(!window.showOpenFilePicker){ toast('Remembering file paths needs Chrome or Edge — opening the file picker instead'); $('#fileInput').click(); return Promise.resolve(); }
+  return window.showOpenFilePicker({ multiple:true, types:[{ description:'Spreadsheets', accept:{
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx'],
+    'application/vnd.ms-excel':['.xls'], 'text/csv':['.csv'] } }] })
+  .then(async handles=>{
+    let added=0;
+    for(const h of handles){ const i=FILE_HANDLES.findIndex(x=>x.name===h.name); if(i>=0) FILE_HANDLES[i]=h; else { FILE_HANDLES.push(h); } added++; }
+    await persistHandles();
     reflectLink();
-    await syncData(false);
-  }).catch(e=>{ if(e && e.name==='AbortError') return; console.warn('linkFolder failed',e); toast('Could not open that folder'); });
+    if(added) await syncData(false);
+  })
+  .catch(e=>{ if(e && e.name==='AbortError') return; console.warn('linkFiles failed',e); toast('Could not link that file'); });
 }
 async function syncData(isAuto){
-  if(!DIR_HANDLE){ toast('Link a folder first'); return; }
-  const ok=await ensurePermission(DIR_HANDLE).catch(()=>false);
-  if(!ok){ if(!isAuto) toast('Permission needed to read the linked folder'); reflectLink(); return; }
-  let files; try{ files=await readDir(DIR_HANDLE); }catch(e){ console.warn('readDir failed',e); if(!isAuto) toast('Could not read the linked folder'); return; }
-  if(!files.length){ if(!isAuto) toast(`No spreadsheets found in “${LINK_NAME}”`); return; }
-  const loaded=await handleFiles(files,{quiet:true});
+  if(!FILE_HANDLES.length){ if(!isAuto) toast('Link your files first'); return; }
+  const files=[], denied=[], missing=[];
+  for(const h of FILE_HANDLES){
+    const ok=await ensurePermission(h,isAuto).catch(()=>false);
+    if(!ok){ denied.push(h.name); continue; }
+    try{ files.push(await h.getFile()); }catch(e){ console.warn('getFile failed',h.name,e); missing.push(h.name); }
+  }
+  if(files.length){ await handleFiles(files,{quiet:true}); }
   reflectLink();
-  toast(loaded ? `Synced — refreshed from “${LINK_NAME}”` : `No recognizable data in “${LINK_NAME}”`);
+  if(files.length){
+    let msg=`Synced — refreshed ${files.length} file${files.length>1?'s':''}`;
+    if(missing.length) msg+=` · ${missing.length} not found`;
+    toast(msg);
+  } else if(!isAuto){
+    toast(denied.length?'Permission needed to read the linked files':'Could not read the linked files');
+  }
 }
 function reflectLink(){
-  const linked=!!DIR_HANDLE;
-  const sb=$('#syncBtn'); if(sb){ sb.disabled=!linked; sb.title=linked?`Re-read “${LINK_NAME}” and refresh`:'Link a folder first'; }
-  const st=$('#linkStatus'); if(st){ st.textContent=linked?`🔗 ${LINK_NAME}`:''; st.title=linked?`Linked folder: ${LINK_NAME}`:''; }
-  const lb=$('#linkBtn'); if(lb) lb.title=linked?`Linked to “${LINK_NAME}” — click to link a different folder`:'Link the folder that holds your spreadsheets so Sync can re-read them';
+  const n=FILE_HANDLES.length, linked=n>0;
+  const names=FILE_HANDLES.map(h=>h.name);
+  const sb=$('#syncBtn'); if(sb){ sb.disabled=!linked; sb.title=linked?`Re-read ${n} linked file${n>1?'s':''} and refresh`:'Link your files first'; }
+  const st=$('#linkStatus'); if(st){ st.textContent=linked?`🔗 ${n} file${n>1?'s':''}`:''; st.title=linked?'Linked files:\n'+names.join('\n'):''; }
+  const lb=$('#linkBtn'); if(lb) lb.title=linked?`Linked: ${names.join(', ')} — click to link or update a file`:'Link each shared spreadsheet so Sync can re-read them';
 }
-async function restoreLinkedFolder(){
-  let h; try{ h=await idbGet(IDB_KEY); }catch(e){ return; }
-  if(!h) return;
-  DIR_HANDLE=h; LINK_NAME=h.name||'linked folder'; reflectLink();
-  // Auto-refresh on load only if permission is still granted (no prompt) and nothing is loaded yet.
+async function restoreLinkedFiles(){
+  let arr; try{ arr=await idbGet(IDB_KEY); }catch(e){ return; }
+  if(!Array.isArray(arr) || !arr.length) return;
+  FILE_HANDLES=arr.filter(Boolean);
+  reflectLink();
+  // Auto-refresh on load only if every link still has permission (no prompt) and nothing is loaded yet.
   try{
-    if(h.queryPermission && await h.queryPermission({mode:'read'})==='granted' && !state.requests.length && !state.interviews.length){
-      await syncData(true);
+    if(!state.requests.length && !state.interviews.length){
+      const allGranted=(await Promise.all(FILE_HANDLES.map(h=>h.queryPermission?h.queryPermission({mode:'read'}):'granted'))).every(p=>p==='granted');
+      if(allGranted) await syncData(true);
     }
   }catch(e){}
 }
@@ -1559,7 +1570,7 @@ function init(){
   $('#fileInput').addEventListener('change',e=>{ handleFiles(e.target.files); e.target.value=''; });
   const pick=()=>$('#fileInput').click();
   $('#browseBtn').onclick=pick; $('#addBtn').onclick=pick;
-  $('#linkBtn').onclick=linkFolder;
+  $('#linkBtn').onclick=linkFiles;
   $('#syncBtn').onclick=()=>syncData(false);
   // export = download an exact interactive copy of this dashboard with data baked in
   $('#exportBtn').onclick=exportDuplicate;
@@ -1567,10 +1578,10 @@ function init(){
   let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>{ if(state.requests.length||state.interviews.length) selectTab(state.tab); },200); });
   // if this file was exported as a data-loaded copy, boot straight into it
   hydratePreload();
-  // restore any previously linked folder so Sync works across reloads. If data
+  // restore any previously linked files so Sync works across reloads. If data
   // is already present (e.g. an exported copy), this only re-enables the Sync
   // button — it won't auto-refresh over the loaded snapshot.
-  restoreLinkedFolder();
+  restoreLinkedFiles();
 }
 init();
 </script>
