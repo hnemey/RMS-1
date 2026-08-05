@@ -237,6 +237,15 @@ td.nowrap{white-space:nowrap}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"></path></svg>
         Add data
       </button>
+      <button class="btn ghost" id="linkBtn" title="Link the folder that holds your spreadsheets so Sync can re-read them">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        Link folder
+      </button>
+      <button class="btn ghost" id="syncBtn" title="Link a folder first" disabled="">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11A8 8 0 006.34 5.34L3 8m0 0V3m0 5h5m-4.99 5a8 8 0 0013.66 2.66L21 16m0 0v5m0-5h-5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        Sync
+      </button>
+      <span id="linkStatus" style="font-size:12px;font-weight:600;color:var(--ink-3);align-self:center;white-space:nowrap"></span>
       <button class="btn primary" id="exportBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
         Export
@@ -578,9 +587,10 @@ function finalizeInterview(o){
 /* =========================================================================
    LOAD / FILE HANDLING
    ========================================================================= */
-async function handleFiles(fileList){
+async function handleFiles(fileList, opts){
+  opts=opts||{};
   const arr=[...fileList].filter(f=>/\.(xlsx|xls|csv)$/i.test(f.name));
-  if(!arr.length){ toast('No spreadsheet files found'); return; }
+  if(!arr.length){ if(!opts.quiet) toast('No spreadsheet files found'); return 0; }
   const ov=$('#loading'), msg=$('#load-msg');
   ov.classList.add('show');
   let loaded=0;
@@ -590,13 +600,14 @@ async function handleFiles(fileList){
     try{
       const ab=await f.arrayBuffer();
       const parsed=parseWorkbook(f.name, ab);
-      if(!parsed.requests.length && !parsed.interviews.length){ toast(`No recognizable data in ${f.name}`); continue; }
+      if(!parsed.requests.length && !parsed.interviews.length){ if(!opts.quiet) toast(`No recognizable data in ${f.name}`); continue; }
       state.files[f.name]=parsed; loaded++;
     }catch(e){ console.error(e); toast(`Couldn't read ${f.name}`); }
   }
   ov.classList.remove('show');
   rebuild();
-  if(loaded) toast(`Loaded ${loaded} file${loaded>1?'s':''}`);
+  if(loaded && !opts.quiet) toast(`Loaded ${loaded} file${loaded>1?'s':''}`);
+  return loaded;
 }
 function rebuild(){
   state.requests=[]; state.interviews=[];
@@ -1477,6 +1488,69 @@ function initDnD(){
   document.addEventListener('drop',e=>{ e.preventDefault(); dz&&dz.classList.remove('over'); if(e.dataTransfer&&e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
 }
 
+/* =========================================================================
+   LINKED FOLDER + SYNC
+   File System Access API picks a folder once; the handle is stored in
+   IndexedDB so the link survives page reloads. "Sync" re-reads every
+   spreadsheet in that folder and refreshes the dashboard with the latest data.
+   (Chrome/Edge only — other browsers fall back to the file picker.)
+   ========================================================================= */
+let DIR_HANDLE=null, LINK_NAME='';
+const IDB_DB='rmsDashDB', IDB_STORE='kv', IDB_KEY='dirHandle';
+function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_DB,1); r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function idbPut(k,v){ return idbOpen().then(db=>new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); })); }
+function idbGet(k){ return idbOpen().then(db=>new Promise((res,rej)=>{ const tx=db.transaction(IDB_STORE,'readonly'); const rq=tx.objectStore(IDB_STORE).get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); })); }
+function readDir(dirHandle){
+  const files=[], iter=dirHandle.values();
+  function step(){ return iter.next().then(res=>{
+    if(res.done) return files;
+    const e=res.value;
+    if(e.kind==='file' && /\.(xlsx|xls|csv)$/i.test(e.name) && !/^~\$/.test(e.name)) return e.getFile().then(f=>{ files.push(f); return step(); });
+    return step();
+  }); }
+  return step();
+}
+async function ensurePermission(handle){
+  if(!handle.queryPermission) return true;
+  if(await handle.queryPermission({mode:'read'})==='granted') return true;
+  return handle.requestPermission ? (await handle.requestPermission({mode:'read'}))==='granted' : false;
+}
+function linkFolder(){
+  if(!window.showDirectoryPicker){ toast('Folder linking needs Chrome or Edge — opening the file picker instead'); $('#fileInput').click(); return; }
+  window.showDirectoryPicker({mode:'read'}).then(async h=>{
+    DIR_HANDLE=h; LINK_NAME=h.name; try{ await idbPut(IDB_KEY,h); }catch(e){}
+    reflectLink();
+    await syncData(false);
+  }).catch(e=>{ if(e && e.name==='AbortError') return; console.warn('linkFolder failed',e); toast('Could not open that folder'); });
+}
+async function syncData(isAuto){
+  if(!DIR_HANDLE){ toast('Link a folder first'); return; }
+  const ok=await ensurePermission(DIR_HANDLE).catch(()=>false);
+  if(!ok){ if(!isAuto) toast('Permission needed to read the linked folder'); reflectLink(); return; }
+  let files; try{ files=await readDir(DIR_HANDLE); }catch(e){ console.warn('readDir failed',e); if(!isAuto) toast('Could not read the linked folder'); return; }
+  if(!files.length){ if(!isAuto) toast(`No spreadsheets found in “${LINK_NAME}”`); return; }
+  const loaded=await handleFiles(files,{quiet:true});
+  reflectLink();
+  toast(loaded ? `Synced — refreshed from “${LINK_NAME}”` : `No recognizable data in “${LINK_NAME}”`);
+}
+function reflectLink(){
+  const linked=!!DIR_HANDLE;
+  const sb=$('#syncBtn'); if(sb){ sb.disabled=!linked; sb.title=linked?`Re-read “${LINK_NAME}” and refresh`:'Link a folder first'; }
+  const st=$('#linkStatus'); if(st){ st.textContent=linked?`🔗 ${LINK_NAME}`:''; st.title=linked?`Linked folder: ${LINK_NAME}`:''; }
+  const lb=$('#linkBtn'); if(lb) lb.title=linked?`Linked to “${LINK_NAME}” — click to link a different folder`:'Link the folder that holds your spreadsheets so Sync can re-read them';
+}
+async function restoreLinkedFolder(){
+  let h; try{ h=await idbGet(IDB_KEY); }catch(e){ return; }
+  if(!h) return;
+  DIR_HANDLE=h; LINK_NAME=h.name||'linked folder'; reflectLink();
+  // Auto-refresh on load only if permission is still granted (no prompt) and nothing is loaded yet.
+  try{
+    if(h.queryPermission && await h.queryPermission({mode:'read'})==='granted' && !state.requests.length && !state.interviews.length){
+      await syncData(true);
+    }
+  }catch(e){}
+}
+
 function init(){
   initTheme();
   initDnD();
@@ -1485,12 +1559,18 @@ function init(){
   $('#fileInput').addEventListener('change',e=>{ handleFiles(e.target.files); e.target.value=''; });
   const pick=()=>$('#fileInput').click();
   $('#browseBtn').onclick=pick; $('#addBtn').onclick=pick;
+  $('#linkBtn').onclick=linkFolder;
+  $('#syncBtn').onclick=()=>syncData(false);
   // export = download an exact interactive copy of this dashboard with data baked in
   $('#exportBtn').onclick=exportDuplicate;
   // re-render on resize (debounced) for responsive SVGs
   let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>{ if(state.requests.length||state.interviews.length) selectTab(state.tab); },200); });
   // if this file was exported as a data-loaded copy, boot straight into it
   hydratePreload();
+  // restore any previously linked folder so Sync works across reloads. If data
+  // is already present (e.g. an exported copy), this only re-enables the Sync
+  // button — it won't auto-refresh over the loaded snapshot.
+  restoreLinkedFolder();
 }
 init();
 </script>
