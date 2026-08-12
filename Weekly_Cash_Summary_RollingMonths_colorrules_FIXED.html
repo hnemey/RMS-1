@@ -3404,15 +3404,20 @@ function wcrPivotParts(rows) {
 }
 
 function writeWeeklyCashRepXlsx() {
-  const sheets = [
-    { name: 'Pivot', xml: wcrPivotSheetXml(state.rows) },
-    { name: 'Sheet', xml: wcrDataSheetXml(state.meta || '', state.rows.map(r => rowCells(r))) },
-  ];
+  // the export mirrors the tool: only INCLUDED rows feed the Sheet and pivots
+  // (so the pivot grand total equals the tool's total), and the payments the
+  // payer list excludes are written to the Removed sheet
+  const inc = includedRows();
+  const exc = excludedRows();
   const rem = state.removed;
-  sheets.push({ name: (rem && rem.name) || 'Removed',
-    xml: wcrDataSheetXml((rem && rem.banner) || '', (rem && rem.rows) || []) });
+  const removedRows = exc.map(r => rowCells(r)).concat((rem && rem.rows) || []);
+  const sheets = [
+    { name: 'Pivot', xml: wcrPivotSheetXml(inc) },
+    { name: 'Sheet', xml: wcrDataSheetXml(state.meta || '', inc.map(r => rowCells(r))) },
+    { name: 'Removed', xml: wcrDataSheetXml((rem && rem.banner) || '', removedRows) },
+  ];
   const names = sheets.map(s => s.name);
-  const piv = wcrPivotParts(state.rows);   // null if no dated rows → plain workbook
+  const piv = wcrPivotParts(inc);   // null if no dated rows → plain workbook
 
   const ctPivot = piv ? '<Override PartName="/xl/pivotCache/pivotCacheDefinition1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/><Override PartName="/xl/pivotCache/pivotCacheRecords1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"/><Override PartName="/xl/pivotTables/pivotTable1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/><Override PartName="/xl/pivotTables/pivotTable2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>' : '';
   const wbPivot = piv ? '<pivotCaches><pivotCache cacheId="9" r:id="rIdPC"/></pivotCaches>' : '';
