@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PPR Excel &rarr; PowerPoint Converter</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --panel:#ffffff; --ink:#1a2233; --muted:#5b6579;
+    --navy:#1F3864; --navy2:#2E4A7D; --accent:#2E75B6; --line:#dfe4ee;
+    --drop:#eef3fb; --drop-hover:#e2ecfa; --ok:#548235; --err:#c0392b; --shadow:0 10px 34px rgba(20,32,64,.10);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e1420; --panel:#161d2b; --ink:#e8edf6; --muted:#9aa6bd;
+    --navy:#5a86c9; --navy2:#3f5f95; --accent:#6ba7e0; --line:#26303f;
+    --drop:#1a2333; --drop-hover:#20304a; --ok:#8bc46a; --err:#e57368; --shadow:0 10px 34px rgba(0,0,0,.42);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0e1420; --panel:#161d2b; --ink:#e8edf6; --muted:#9aa6bd;
+    --navy:#5a86c9; --navy2:#3f5f95; --accent:#6ba7e0; --line:#26303f;
+    --drop:#1a2333; --drop-hover:#20304a; --ok:#8bc46a; --err:#e57368; --shadow:0 10px 34px rgba(0,0,0,.42);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;line-height:1.5;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 18px 48px}
+  .wrap{width:100%;max-width:720px}
+  header.hero{text-align:center;margin-bottom:26px}
+  .badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--accent);background:var(--drop);border:1px solid var(--line);
+    padding:5px 12px;border-radius:999px}
+  h1{font-size:26px;margin:14px 0 6px;font-weight:700}
+  .sub{color:var(--muted);font-size:15px;margin:0 auto;max-width:520px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    padding:26px;margin-top:22px}
+  #drop{border:2px dashed color-mix(in srgb,var(--accent) 55%,var(--line));border-radius:14px;
+    background:var(--drop);padding:44px 22px;text-align:center;cursor:pointer;transition:.18s;outline:none}
+  #drop:hover,#drop:focus-visible{background:var(--drop-hover);border-color:var(--accent)}
+  #drop.drag{background:var(--drop-hover);border-color:var(--accent);transform:translateY(-1px)}
+  #drop.busy{opacity:.7;pointer-events:none}
+  .ic{font-size:40px;line-height:1;margin-bottom:12px}
+  .dz-title{font-size:17px;font-weight:600;margin-bottom:4px}
+  .dz-hint{color:var(--muted);font-size:13.5px}
+  .btn{display:inline-block;margin-top:16px;background:var(--navy);color:#fff;border:none;border-radius:10px;
+    padding:11px 20px;font-size:14.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .btn:hover{background:var(--navy2)}
+  input[type=file]{display:none}
+  #status{margin-top:18px;font-size:14px;min-height:22px}
+  #status .row{display:flex;align-items:center;gap:9px;justify-content:center}
+  .spin{width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--accent);
+    border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .ok{color:var(--ok);font-weight:600}
+  .err{color:var(--err);font-weight:600}
+  #sheets{margin-top:18px;display:none}
+  #sheets h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px}
+  .sheet{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:8px;background:var(--drop)}
+  .sheet .tag{font-size:11px;font-weight:700;color:#fff;background:var(--navy);border-radius:6px;
+    padding:3px 8px;white-space:nowrap}
+  .sheet .nm{font-weight:600;font-size:14px}
+  .sheet .dt{color:var(--muted);font-size:12.5px;margin-left:auto}
+  .steps{margin-top:26px;color:var(--muted);font-size:13.5px}
+  .steps ol{margin:8px 0 0;padding-left:20px}
+  .steps li{margin:4px 0}
+  footer{margin-top:26px;text-align:center;color:var(--muted);font-size:12px}
+  code{background:var(--drop);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <span class="badge">&#128202; PPR Converter</span>
+    <h1>Excel &rarr; PowerPoint</h1>
+    <p class="sub">Drop your Project Progress Report spreadsheet below and download a formatted <code>.pptx</code> deck &mdash; one slide per report, with color-coded status. Everything runs in your browser; nothing is uploaded.</p>
+  </header>
+
+  <div class="card">
+    <div id="drop" tabindex="0" role="button" aria-label="Upload Excel file">
+      <div class="ic">&#128228;</div>
+      <div class="dz-title">Drop your <b>.xlsx</b> here</div>
+      <div class="dz-hint">or click to browse &middot; .xlsx, .xlsm, .xls, .csv</div>
+      <button class="btn" type="button" id="pick">Choose file</button>
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xlsm,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    <div id="status"></div>
+    <div id="sheets"><h3>Detected sheets</h3><div id="sheetlist"></div></div>
+  </div>
+
+  <div class="steps">
+    <b>How it works</b>
+    <ol>
+      <li>Each sheet with a <b>Milestones</b> table and an <b>Overall Status</b> becomes a Progress Report slide.</li>
+      <li>Milestone <b>Status</b> codes (C, G, Y, R, NS) are color-coded automatically &mdash; edit them in Excel and re-drop to update.</li>
+      <li>A <b>Status Report Key</b> sheet and an <b>Email</b> instructions sheet each become their own slide.</li>
+    </ol>
+  </div>
+
+  <footer>Runs entirely offline in your browser &middot; your file never leaves this device.</footer>
+</div>
+
+<!--XLSX_LIB-->
+<!--PPTX_LIB-->
+<!--CORE_LIB-->
+<script>
+(function(){
+  var drop=document.getElementById('drop'),
+      fileInput=document.getElementById('file'),
+      pick=document.getElementById('pick'),
+      statusEl=document.getElementById('status'),
+      sheetsBox=document.getElementById('sheets'),
+      sheetList=document.getElementById('sheetlist');
+
+  function setStatus(html){ statusEl.innerHTML='<div class="row">'+html+'</div>'; }
+  function busy(v){ drop.classList.toggle('busy',v); }
+
+  function showSheets(items){
+    sheetList.innerHTML='';
+    items.forEach(function(s){
+      var d=document.createElement('div'); d.className='sheet';
+      d.innerHTML='<span class="tag">'+esc(s.typeLabel)+'</span>'
+        +'<span class="nm">'+esc(s.name)+'</span>'
+        +'<span class="dt">'+esc(s.detail)+'</span>';
+      sheetList.appendChild(d);
+    });
+    sheetsBox.style.display= items.length?'block':'none';
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function handle(file){
+    if(!file) return;
+    if(!/\.(xlsx|xlsm|xls|csv)$/i.test(file.name)){
+      setStatus('<span class="err">Please choose an .xlsx, .xlsm, .xls, or .csv file.</span>'); return;
+    }
+    busy(true);
+    setStatus('<span class="spin"></span> Reading <b>'+esc(file.name)+'</b>&hellip;');
+    var reader=new FileReader();
+    reader.onerror=function(){ busy(false); setStatus('<span class="err">Could not read that file.</span>'); };
+    reader.onload=function(e){
+      try{
+        var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        var summary=PPRCore.summarize(XLSX,wb);
+        showSheets(summary);
+        setStatus('<span class="spin"></span> Building PowerPoint&hellip;');
+        var pptx=PPRCore.generate(XLSX,PptxGenJS,wb);
+        var outName=file.name.replace(/\.(xlsx|xlsm|xls|csv)$/i,'')+'.pptx';
+        pptx.writeFile({fileName:outName}).then(function(){
+          busy(false);
+          setStatus('<span class="ok">&#10003; Done &mdash; downloaded <b>'+esc(outName)+'</b></span>');
+        }).catch(function(err){
+          busy(false); setStatus('<span class="err">Error building deck: '+esc(err.message||err)+'</span>');
+        });
+      }catch(err){
+        busy(false); setStatus('<span class="err">Error: '+esc(err.message||err)+'</span>');
+        console.error(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  pick.addEventListener('click',function(ev){ ev.stopPropagation(); fileInput.click(); });
+  drop.addEventListener('click',function(){ fileInput.click(); });
+  drop.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); fileInput.click(); } });
+  fileInput.addEventListener('change',function(){ handle(fileInput.files[0]); fileInput.value=''; });
+
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev,function(e){ e.preventDefault(); e.stopPropagation(); drop.classList.add('drag'); });
+  });
+  ['dragleave','dragend','drop'].forEach(function(ev){
+    drop.addEventListener(ev,function(e){ e.preventDefault(); e.stopPropagation(); drop.classList.remove('drag'); });
+  });
+  drop.addEventListener('drop',function(e){
+    var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; handle(f);
+  });
+  window.addEventListener('dragover',function(e){ e.preventDefault(); });
+  window.addEventListener('drop',function(e){ e.preventDefault(); });
+})();
+</script>
+</body>
+</html>

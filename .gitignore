@@ -1,0 +1,9 @@
+# build/test environment and scratch artifacts
+node_modules/
+orig_unpack/
+*.pptx
+uploaded.xlsx
+tiny.csv
+ap_test.js
+pw_test.js
+test_core.js
