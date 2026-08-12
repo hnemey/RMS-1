@@ -4226,24 +4226,18 @@ function buildLeaderReport() {
   const adjT = wcs ? (wcs.adjTotal || 0) : 0;
   const rollM = rollingMonthsData();
   const tabs = [], sections = [];
-  // tab 1 — the current week (unchanged look)
-  tabs.push('This Week');
-  sections.push(
-    '<div class="kpis">' +
-    tile('Total cash', fmtMoney(total - adjT), 'Lockbox ' + esc(range), 'hero') +
-    tile('Total payments', inc.length.toLocaleString(), 'excluded payors removed', 'hero') +
-    '</div>' + wcsHtml);
-  // order: This Week, Rolling Months (last 12 months, by month), then months newest → oldest
+  // the current-week "This Week" tab is intentionally omitted from the export
+  // order: Fiscal YTD (last 12 months, by month), then months newest → oldest
   if (rollM) {
     const nMo = rollM.nMonths;
     const spanNote = rollM.span ? esc(rollM.span) : (nMo + ' months');
-    tabs.push('Rolling Months');
+    tabs.push('Fiscal YTD');
     sections.push(
       '<div class="kpis">' +
       tile('Total cash', fmtMoney(rollM.grand), 'last ' + nMo + ' months · ' + spanNote, 'hero') +
       tile('Average / month', fmtMoney(rollM.avgMonth), nMo + ' months', 'hero') +
       '</div>' +
-      '<div class="card"><h3>Rolling months <span class="s">last ' + nMo + ' months · by month</span></h3>' + rollingMonthsSummaryTableHtml(rollM.months, rollM.prior) + '</div>' +
+      '<div class="card"><h3>Fiscal YTD <span class="s">last ' + nMo + ' months · by month</span></h3>' + rollingMonthsSummaryTableHtml(rollM.months, rollM.prior) + '</div>' +
       '<div class="card wcschart"><h3>Cash by month <span class="s">last ' + nMo + ' months</span></h3>' + ytdBarsSvg(rollM.months) + '</div>');
     for (const m of [...rollM.months].reverse()) {
       const mw = monthAsW(m);
@@ -4258,6 +4252,15 @@ function buildLeaderReport() {
         '<div class="card wcschart"><h3>Weekly Cash Summary <span class="s">cash by payor and week</span></h3>' +
         wcsLegendHtml(mw) + wcsChartSvg(mw) + '</div>');
     }
+  }
+  // no rolling workbook linked → show the current week so the export is never blank
+  if (!tabs.length) {
+    tabs.push('Weekly Cash Summary');
+    sections.push(
+      '<div class="kpis">' +
+      tile('Total cash', fmtMoney(total - adjT), 'Lockbox ' + esc(range), 'hero') +
+      tile('Total payments', inc.length.toLocaleString(), 'excluded payors removed', 'hero') +
+      '</div>' + wcsHtml);
   }
   return '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
   '<title>St Luke’s Weekly Cash Summary · ' + esc(range) + '</title><style>' + reportCss() +
