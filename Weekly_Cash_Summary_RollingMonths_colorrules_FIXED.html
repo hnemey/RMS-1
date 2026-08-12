@@ -319,7 +319,7 @@ table.ckdetail thead th.num { text-align: right; }
         <div class="card wcscard"><h3>Weekly Cash Summary <span class="sub">included payments · weeks run Friday – Thursday</span></h3><div id="wcsTable"></div>
           <div id="adjEditor" class="hidden">
             <table class="data" id="adjRows" style="margin-top:14px">
-              <thead><tr><th>Description</th><th>Payer</th><th style="text-align:right">Amount</th><th>Month</th><th>Week</th><th></th></tr></thead>
+              <thead><tr><th>Description</th><th>Payor</th><th style="text-align:right">Amount</th><th>Month</th><th>Week</th><th></th></tr></thead>
               <tbody></tbody>
             </table>
             <div style="margin-top:10px"><button id="btnAddRow">+ Add row</button>
@@ -432,11 +432,11 @@ table.ckdetail thead th.num { text-align: right; }
   <!-- ============ PAYER LIST ============ -->
   <section id="tab-payers" class="hidden">
     <div class="checktabs">
-      <button id="exPayers" class="active">Payers <span class="cnt" id="exPayersN"></span></button>
+      <button id="exPayers" class="active">Payors <span class="cnt" id="exPayersN"></span></button>
       <button id="exBanks">Bank Account #’s <span class="cnt" id="exBanksN"></span></button>
     </div>
     <div class="listadd">
-      <input id="newEntry" placeholder="Add a payer to exclude (paste the Payer text or a distinctive prefix)…">
+      <input id="newEntry" placeholder="Add a payor to exclude (paste the Payor text or a distinctive prefix)…">
       <button id="btnAddEntry">Add</button>
     </div>
     <div class="card">
@@ -451,7 +451,7 @@ table.ckdetail thead th.num { text-align: right; }
   <!-- ============ RULES ============ -->
   <section id="tab-rules" class="hidden">
     <div class="card" style="max-width:760px">
-      <h3>Cell color rules <span class="sub">green / red shading in the Weekly Cash Summary (week-over-week) and the Rolling Months view (month-over-month)</span></h3>
+      <h3>Cell color rules <span class="sub">green / yellow / red shading in the Weekly Cash Summary and the Fiscal YTD view</span></h3>
       <div class="rulesrow">
         <label>Shade each payor’s cell by comparing it to</label>
         <span class="seg segfilter" id="ruleBasis" role="group" aria-label="Comparison basis">
@@ -879,9 +879,14 @@ function fmtDate(v) {
   }
   return out;
 }
+// when MONEY_ROUND is on (set while the leader export is built), money is shown
+// to the nearest whole dollar instead of with cents
+let MONEY_ROUND = false;
 function fmtMoney(n) {
   if (n == null || Number.isNaN(Number(n))) return '';
-  return Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  return Number(n).toLocaleString('en-US', MONEY_ROUND
+    ? { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }
+    : { style: 'currency', currency: 'USD' });
 }
 function fmtMoneyShort(n) {
   const a = Math.abs(n);
@@ -891,6 +896,9 @@ function fmtMoneyShort(n) {
 }
 function cellText(v) { return v == null ? '' : (v instanceof Date ? fmtDate(v) : String(v)); }
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+// display label for a data column — the raw "Payer" column is shown as "Payor"
+// (the underlying key stays "Payer" so xlsx parsing/export are unaffected)
+function colLabel(c) { return c === 'Payer' ? 'Payor' : c; }
 
 
 /* ================================================================
@@ -1606,7 +1614,7 @@ function wcsTableHtml(w) {
       (p == null ? '' : ' (' + (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(1) + '%)') + '"';
   };
   const threshLabel = rules.metric === '$' ? fmtMoney(rules.threshold) : (+rules.threshold + '%');
-  let h = '<table class="data wcs"><thead><tr><th>Payers</th>';
+  let h = '<table class="data wcs"><thead><tr><th>Payors</th>';
   for (const wk of w.weeks) h += '<th class="num">' + wk.label + '</th><th class="num mix">Mix</th>';
   h += '<th class="num">Total</th><th class="num mix">' + (roll ? 'Var' : 'Mix') + '</th>' +
     (roll ? '<th class="num">12-Mo Rolling Ave</th><th class="num mix">Mix</th>' : '') +
@@ -1620,7 +1628,7 @@ function wcsTableHtml(w) {
     w.cells[c].forEach((v, i) => {
       let shade = '', title = '';
       if (rules.basis === 'avg') {
-        shade = devStyle(v, avg);
+        shade = v ? ruleShade(v, avg) : '';   // green/yellow/red past the threshold vs the 12-mo average
         title = (avg && v) ? ' title="12-mo ave ' + fmtMoney(avg) + ' · ' + ((v - avg) / avg * 100).toFixed(1) + '% vs ave"' : '';
       } else {
         const prev = prevOf(c, i);
@@ -1673,8 +1681,9 @@ function wcsTableHtml(w) {
   }
   h += '</tbody></table>';
   if (rules.basis === 'avg') {
-    if (roll) h += '<div class="note">Shading: <b style="color:var(--good-text)">green</b> = above the payor’s 12-month rolling average, ' +
-      '<b style="color:var(--bad)">red</b> = below — deeper means further from average. Hover a cell for the exact comparison. <i>(Rules tab)</i></div>';
+    if (roll) h += '<div class="note">Shading vs each payor’s 12-month rolling average: <b style="color:var(--good-text)">green</b> when up ' + threshLabel +
+      ' or more, <b style="color:#8a6d00">yellow</b> when within ' + threshLabel +
+      ', <b style="color:var(--bad)">red</b> when down ' + threshLabel + ' or more — green/red deepen the farther it moves. Hover a cell for the comparison. <i>(Rules tab)</i></div>';
   } else {
     h += '<div class="note">Shading vs last week: <b style="color:var(--good-text)">green</b> when up ' + threshLabel +
       ' or more, <b style="color:#8a6d00">yellow</b> when the change is within ' + threshLabel +
@@ -2083,7 +2092,7 @@ function renderTable() {
     (state.rows.length - inc.length) + '</b> excluded · showing ' + filtered.length.toLocaleString() +
     (recon.nBatches ? ' · <span class="recon-note">⚠ ' + recon.nBatches + ' batch' + (recon.nBatches === 1 ? '' : 'es') + ' don’t reconcile</span>' : '');
   const thead = $('grid').querySelector('thead');
-  thead.innerHTML = '<tr><th>Status</th><th></th>' + GRID_COLS.map(c => '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + c + '</th>').join('') + '</tr>';
+  thead.innerHTML = '<tr><th>Status</th><th></th>' + GRID_COLS.map(c => '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + colLabel(c) + '</th>').join('') + '</tr>';
   const maxPage = Math.max(0, Math.ceil(filtered.length / state.perPage) - 1);
   if (state.page > maxPage) state.page = maxPage;
   const start = state.page * state.perPage;
@@ -2628,7 +2637,7 @@ function ckPaymentRows(rows, cat) {
       const btn = cat != null
         ? '<button class="thfilter' + on + '" data-cat="' + esc(cat) + '" data-col="' + c +
           '" title="Filter ' + c + '" aria-label="Filter ' + c + '">▼</button>' : '';
-      return '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + c + btn + '</th>';
+      return '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + colLabel(c) + btn + '</th>';
     }).join('') + '</tr></thead><tbody>';
   for (const r of shown) {
     h += '<tr>' + CK_COLS.map(c => {
@@ -2759,7 +2768,7 @@ function renderCheck() {
     ? excF.length.toLocaleString() + ' of ' + exc.length.toLocaleString() + ' payments · ' + fmtMoney(sum(excF))
     : exc.length.toLocaleString() + ' payments · ' + fmtMoney(sum(exc));
   $('ckRemoved').querySelector('thead').innerHTML =
-    '<tr>' + OUT_COLS.map(c => '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + c + '</th>').join('') + '</tr>';
+    '<tr>' + OUT_COLS.map(c => '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + colLabel(c) + '</th>').join('') + '</tr>';
   $('ckRemoved').querySelector('tbody').innerHTML = excF.map(r =>
     '<tr>' + OUT_COLS.map(c => {
       const v = c === 'PayorName' ? payorOf(r) : r[c];
@@ -2810,10 +2819,10 @@ function renderPlist() {
   $('exBanksN').textContent = state.bankEntries.length || '';
   $('newEntry').placeholder = onBanks
     ? 'Add a bank account # to exclude (digits only — spaces and leading zeros are ignored)…'
-    : 'Add a payer to exclude (paste the Payer text or a distinctive prefix)…';
+    : 'Add a payor to exclude (paste the Payor text or a distinctive prefix)…';
   $('exNote').textContent = onBanks
     ? 'Every payment whose Bank Account No matches one of these numbers is excluded. Matching ignores spaces, dashes and leading zeros. Changes are written straight into the shared payers file (Bank Accounts sheet) so everyone gets them on Sync.'
-    : 'A payment is excluded when its Payer or Pmt Details text contains one of these entries — extra words around the name still match. Changes are written straight into the shared payers file so everyone gets them on Sync.';
+    : 'A payment is excluded when its Payor or Pmt Details text contains one of these entries — extra words around the name still match. Changes are written straight into the shared payors file so everyone gets them on Sync.';
   const thead = $('plistTable').querySelector('thead');
   const tbody = $('plistTable').querySelector('tbody');
   if (onBanks) {
@@ -2837,7 +2846,7 @@ function renderPlist() {
       return html;
     }).join('') : '<tr><td colspan="4" style="color:var(--muted);padding:20px">No excluded bank accounts yet — add one above.</td></tr>';
   } else {
-    thead.innerHTML = '<tr><th>Payer entry</th><th>Source</th><th>Matching rows</th><th class="num">Amount</th><th></th></tr>';
+    thead.innerHTML = '<tr><th>Payor entry</th><th>Source</th><th>Matching rows</th><th class="num">Amount</th><th></th></tr>';
     const entries = allEntries();
     const rowsByEntry = new Map();
     if (state.rows.length) for (const r of state.rows) {
@@ -2857,7 +2866,7 @@ function renderPlist() {
         '<td style="text-align:right"><button class="iconbtn" data-del="' + i + '">Remove</button></td></tr>';
       if (open) html += exclDrillRow(rows, 5);
       return html;
-    }).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:20px">No payer list yet — link your Payers_to_remove.xlsx or add entries above.</td></tr>';
+    }).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:20px">No payor list yet — link your Payers_to_remove.xlsx or add entries above.</td></tr>';
   }
 }
 $('exPayers').addEventListener('click', () => { exclState.tab = 'payers'; renderPlist(); });
@@ -2870,11 +2879,14 @@ function renderRules() {
   document.querySelectorAll('#ruleMetric button').forEach(b => b.classList.toggle('on', b.dataset.v === r.metric));
   const ti = $('ruleThresh');
   if (ti && document.activeElement !== ti) ti.value = r.threshold;
-  $('ruleThreshRow').classList.toggle('hidden', r.basis !== 'week');
+  $('ruleThreshRow').classList.remove('hidden');   // threshold + %/$ now apply to both bases
   const thL = r.metric === '$' ? fmtMoney(r.threshold) : (+r.threshold + '%');
-  $('ruleSummary').innerHTML = r.basis === 'avg'
-    ? 'Cells are shaded by how far above (<b style="color:var(--good-text)">green</b>) or below (<b style="color:var(--bad)">red</b>) an average each value lands — deeper means further from average. In the Weekly Cash Summary that baseline is each payor’s 12-month rolling average; in the Rolling Months view it is the payor’s average month. The threshold above does not apply.'
-    : 'Each payor’s cell turns <b style="color:var(--good-text)">green</b> when it is at least <b>' + thL + '</b> above the prior period, <b style="color:var(--bad)">red</b> when at least <b>' + thL + '</b> below, and <b style="color:#8a6d00">yellow</b> when the change stays within <b>' + thL + '</b>. Green and red deepen the farther it moves. In the Weekly Cash Summary the prior period is <b>last week</b> — for WEEK 1 that is the last week of the previous month, pulled from the linked 12-month workbook — and in the Rolling Months view it is the <b>prior month</b>.';
+  const baseWord = r.basis === 'avg' ? 'its <b>12-month average</b>' : 'the <b>prior period</b>';
+  const baseNote = r.basis === 'avg'
+    ? 'The baseline is each payor’s 12-month rolling average — its average month in the Fiscal YTD view.'
+    : 'The prior period is <b>last week</b> — for WEEK 1 the last week of the previous month, pulled from the linked 12-month workbook — and the <b>prior month</b> in the Fiscal YTD view.';
+  $('ruleSummary').innerHTML = 'Each payor’s cell turns <b style="color:var(--good-text)">green</b> when it is at least <b>' + thL + '</b> above ' + baseWord +
+    ', <b style="color:var(--bad)">red</b> when at least <b>' + thL + '</b> below, and <b style="color:#8a6d00">yellow</b> when the change stays within <b>' + thL + '</b>. Green and red deepen the farther it moves. ' + baseNote;
 }
 let _ruleTimer = null;
 function applyRuleChange() {
@@ -3769,7 +3781,7 @@ function buildDataReport() {
   const incJson = JSON.stringify(inc.map(toRow)).replace(/</g, '\\u003c');
   const excJson = JSON.stringify(exc.map(toRow)).replace(/</g, '\\u003c');
   const moneyIdx = OUT_COLS.map((c, i) => MONEY_COLS.has(c) ? i : -1).filter(i => i >= 0);
-  const head = '<tr>' + OUT_COLS.map(c => '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + c + '</th>').join('') + '</tr>';
+  const head = '<tr>' + OUT_COLS.map(c => '<th' + (MONEY_COLS.has(c) ? ' class="num"' : '') + '>' + colLabel(c) + '</th>').join('') + '</tr>';
   return '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
   '<title>St Luke’s Weekly Cash Summary · ' + esc(range) + '</title><style>' + reportCss() +
   '.tabs{display:flex;gap:2px;margin:16px 0 0;border-bottom:1px solid var(--grid)}' +
@@ -4181,7 +4193,7 @@ function rollingMonthsSummaryTableHtml(months, prior) {
   const prevOf = (c, i) => (i > 0 ? mt[i - 1].t[c] : (prior ? priorT[c] : null));   // prior month, incl. the month before the window
   const cellShade = (c, i) => {
     const v = mt[i].t[c];
-    if (rules.basis === 'avg') return devShadeStyle(v, totC[c] / nMo);
+    if (rules.basis === 'avg') return v ? ruleShadeStyle(v, totC[c] / nMo, rules) : '';
     return v ? ruleShadeStyle(v, prevOf(c, i), rules) : '';
   };
   const cellTitle = (c, i) => {
@@ -4196,7 +4208,7 @@ function rollingMonthsSummaryTableHtml(months, prior) {
     return ' title="prior mo ' + fmtMoney(prev) + ' · ' + (chg >= 0 ? '+' : '−') + fmtMoney(Math.abs(chg)) +
       (p == null ? '' : ' (' + (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(1) + '%)') + '"';
   };
-  let h = '<table class="data wcs"><thead><tr><th>Payers</th>' +
+  let h = '<table class="data wcs"><thead><tr><th>Payors</th>' +
     mt.map(x => '<th class="num">' + MONTH_ABBR[x.m.mo - 1] + '-' + x.m.yr + '</th>').join('') +
     '<th class="num">Total</th><th class="num mix">Mix</th></tr></thead><tbody>';
   for (const c of WCS_CATEGORIES) {
@@ -4209,11 +4221,30 @@ function rollingMonthsSummaryTableHtml(months, prior) {
     '<td class="num">' + fmtMoney(totG) + '</td><td></td></tr></tbody></table>';
   const thL = rules.metric === '$' ? fmtMoney(rules.threshold) : (+rules.threshold + '%');
   h += rules.basis === 'avg'
-    ? '<div class="note">Shading vs each payor’s average month: <b style="color:var(--good-text)">green</b> above, <b style="color:var(--bad)">red</b> below — deeper means further from average. <i>(Rules tab)</i></div>'
+    ? '<div class="note">Shading vs each payor’s average month: <b style="color:var(--good-text)">green</b> up ' + thL + ' or more, <b style="color:#8a6d00">yellow</b> within ' + thL + ', <b style="color:var(--bad)">red</b> down ' + thL + ' or more. <i>(Rules tab)</i></div>'
     : '<div class="note">Shading month-over-month: <b style="color:var(--good-text)">green</b> up ' + thL + ' or more, <b style="color:#8a6d00">yellow</b> within ' + thL + ', <b style="color:var(--bad)">red</b> down ' + thL + ' or more vs the prior month. <i>(Rules tab)</i></div>';
   return h;
 }
+// the color-shading legend + threshold explanation, so leaders reading the
+// export understand how the green / yellow / red cells work
+function rulesLegendHtml() {
+  const r = state.rules || DEFAULT_RULES;
+  const thL = r.metric === '$' ? fmtMoney(r.threshold) : (+r.threshold + '%');
+  const baseWord = r.basis === 'avg' ? 'its 12-month average' : 'the prior period (last week / last month)';
+  const chip = (bg) => '<i style="display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:7px;vertical-align:-1px;background:' + bg + '"></i>';
+  return '<div class="card" style="margin-bottom:12px">' +
+    '<h3 style="margin:0 0 8px">How the cell colors work</h3>' +
+    '<div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)">' +
+    '<span>' + chip('rgba(12,163,12,0.30)') + 'Up past threshold → <b style="color:var(--good-text)">green</b> <span style="color:var(--muted)">(darker = bigger jump)</span></span>' +
+    '<span>' + chip('rgba(234,179,8,0.28)') + 'Within threshold → <b style="color:#8a6d00">yellow</b></span>' +
+    '<span>' + chip('rgba(208,59,59,0.30)') + 'Down past threshold → <b style="color:var(--bad)">red</b> <span style="color:var(--muted)">(darker = bigger drop)</span></span>' +
+    '</div>' +
+    '<div style="margin-top:8px;font-size:12.5px;color:var(--ink-2)">Each payor’s value is compared to <b>' + baseWord + '</b>; a cell is colored only when the change is at least <b>' + thL + '</b>.</div>' +
+    '</div>';
+}
 function buildLeaderReport() {
+  MONEY_ROUND = true;   // leader export shows whole-dollar figures
+  try {
   const inc = includedRows();
   const total = inc.reduce((a, r) => a + (rowAmount(r)), 0);
   const range = weekRange();
@@ -4272,6 +4303,7 @@ function buildLeaderReport() {
   '</style></head><body><div class="wrap">' +
   '<h1><span class="logo"><span class="st">St</span><span class="lukes">Luke’s</span></span> Weekly Cash Summary</h1>' +
   '<div class="sub">Lockbox ' + esc(range) + ' · generated ' + esc(genOn) + ' · excluded payors removed</div>' +
+  rulesLegendHtml() +
   '<nav class="rtabs">' + tabs.map((t, i) => '<button data-i="' + i + '"' + (i === 0 ? ' class="on"' : '') + '>' + esc(t) + '</button>').join('') + '</nav>' +
   sections.map((s, i) => '<section class="rsec' + (i === 0 ? ' on' : '') + '" data-i="' + i + '">' + s + '</section>').join('') +
   '</div><script>\n' +
@@ -4279,6 +4311,7 @@ function buildLeaderReport() {
   'document.querySelectorAll(".rtabs button").forEach(function(x){x.classList.toggle("on",x===b)});\n' +
   'document.querySelectorAll(".rsec").forEach(function(s){s.classList.toggle("on",s.dataset.i===b.dataset.i)});\n' +
   '});});\n<\/script></body></html>';
+  } finally { MONEY_ROUND = false; }
 }
 
 /* ================================================================ */
