@@ -3158,8 +3158,9 @@ function wcrPivotSheetXml(rows) {
   if (data.length) {
     const times = data.map(r => r.LockBoxDate.getTime());
     const minT = Math.min.apply(null, times), maxT = Math.max.apply(null, times);
-    const dowFromFri = (new Date(minT).getUTCDay() - 5 + 7) % 7;   // Friday = 0
-    const startD = new Date(minT - dowFromFri * DAY);
+    // week range starts at the earliest lockbox date — same basis Excel's
+    // 7-day date grouping uses, so the pivot header and the group agree
+    const startD = new Date(minT);
     let endD = new Date(startD.getTime() + 6 * DAY);
     if (endD.getTime() < maxT) endD = new Date(maxT);
     const rangeLabel = fmtDate(startD) + ' - ' + fmtDate(endD);
@@ -3256,6 +3257,152 @@ function wcrPivotSheetXml(rows) {
   return xml + '</sheetData></worksheet>';
 }
 
+// ---- real PivotTables: builds the cache + two pivot table parts from the data,
+// mirroring how Excel itself lays out this report (PayorName x day on the left,
+// Payer x week on the right, one shared cache with a 7-day date group) ----
+function wcrIsoDate(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) +
+    'T' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+}
+function wcrPivotParts(rows) {
+  const DAY = 86400000;
+  const list = rows.map(r => rowCells(r)).filter(c => c[1] instanceof Date);
+  const N = list.length;
+  if (!N) return null;
+  const dayKey = d => Math.round(d.getTime() / DAY);
+  // shared-item orders (first appearance), case-insensitive for text like Excel
+  const dateOrder = [], dateIdx = new Map();
+  const payerLabel = [], payerIdx = new Map();
+  const payorLabel = [], payorIdx = new Map();
+  for (const c of list) {
+    const dk = dayKey(c[1]);
+    if (!dateIdx.has(dk)) { dateIdx.set(dk, dateOrder.length); dateOrder.push(c[1]); }
+    const p = c[4], pk = (p == null ? '' : String(p)).toUpperCase();
+    if (!payerIdx.has(pk)) { payerIdx.set(pk, payerLabel.length); payerLabel.push(p == null ? '' : String(p)); }
+    const q = c[19], blank = (q == null || q === ''), qk = blank ? ' ' : String(q).toUpperCase();
+    if (!payorIdx.has(qk)) { payorIdx.set(qk, payorLabel.length); payorLabel.push(blank ? null : String(q)); }
+  }
+  const nDate = dateOrder.length, nPayer = payerLabel.length, nPayor = payorLabel.length;
+  const times = list.map(c => c[1].getTime());
+  const minDate = new Date(Math.min.apply(null, times));
+  const endDate = new Date(minDate.getTime() + 7 * DAY);
+  const rangeLabel = fmtDate(minDate) + ' - ' + fmtDate(new Date(minDate.getTime() + 6 * DAY));
+  const numstr = v => String(Number(v));
+  const rng = ci => {
+    let lo = Infinity, hi = -Infinity, any = false;
+    for (const c of list) { const v = c[ci]; if (typeof v === 'number' && Number.isFinite(v)) { any = true; if (v < lo) lo = v; if (v > hi) hi = v; } }
+    return any ? [lo, hi] : [0, 0];
+  };
+  const [bsMin, bsMax] = rng(0), [baMin, baMax] = rng(2), [bdMin, bdMax] = rng(10), [dlMin, dlMax] = rng(12);
+  let pdMin = null, pdMax = null, hasClosed = false;
+  for (const c of list) {
+    if (c[9] instanceof Date) { if (!pdMin || c[9] < pdMin) pdMin = c[9]; if (!pdMax || c[9] > pdMax) pdMax = c[9]; }
+    if (c[6] instanceof Date) hasClosed = true;
+  }
+  if (!pdMin) { pdMin = minDate; pdMax = minDate; }
+
+  // ---------------- records ----------------
+  const DATEI = { 1: 1, 6: 1, 9: 1 }, MONI = { 2: 1, 12: 1 }, NUMI = { 0: 1, 10: 1 };
+  const rec = new Array(N);
+  for (let i = 0; i < N; i++) {
+    const c = list[i], cells = new Array(20);
+    for (let f = 0; f < 20; f++) {
+      const v = c[f];
+      if (f === 1) cells[f] = '<x v="' + dateIdx.get(dayKey(v)) + '"/>';
+      else if (f === 4) cells[f] = '<x v="' + payerIdx.get((v == null ? '' : String(v)).toUpperCase()) + '"/>';
+      else if (f === 19) { const bl = (v == null || v === ''); cells[f] = '<x v="' + payorIdx.get(bl ? ' ' : String(v).toUpperCase()) + '"/>'; }
+      else if (DATEI[f]) cells[f] = (v instanceof Date) ? '<d v="' + wcrIsoDate(v) + '"/>' : '<m/>';
+      else if (MONI[f] || NUMI[f]) cells[f] = (typeof v === 'number' && Number.isFinite(v)) ? '<n v="' + numstr(v) + '"/>' : '<m/>';
+      else cells[f] = (v != null && v !== '') ? '<s v="' + xmlEscape(String(v)) + '"/>' : '<m/>';
+    }
+    rec[i] = '<r>' + cells.join('') + '</r>';
+  }
+  const records = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<pivotCacheRecords xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" count="' + N + '">' + rec.join('') + '</pivotCacheRecords>';
+
+  // ---------------- cache definition ----------------
+  const sDates = '<sharedItems containsSemiMixedTypes="0" containsNonDate="0" containsDate="1" containsString="0" minDate="' + wcrIsoDate(minDate) + '" maxDate="' + wcrIsoDate(endDate) + '" count="' + nDate + '">' + dateOrder.map(d => '<d v="' + wcrIsoDate(d) + '"/>').join('') + '</sharedItems>';
+  const sPayer = '<sharedItems count="' + nPayer + '">' + payerLabel.map(l => '<s v="' + xmlEscape(l) + '"/>').join('') + '</sharedItems>';
+  const sPayor = '<sharedItems containsBlank="1" count="' + nPayor + '">' + payorLabel.map(l => l == null ? '<m/>' : '<s v="' + xmlEscape(l) + '"/>').join('') + '</sharedItems>';
+  const groupItems = '<groupItems count="3"><s v="' + xmlEscape('<' + fmtDate(minDate)) + '"/><s v="' + xmlEscape(rangeLabel) + '"/><s v="' + xmlEscape('>' + fmtDate(endDate)) + '"/></groupItems>';
+  const F = [];
+  F.push('<cacheField name="BankSID" numFmtId="0"><sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1" containsInteger="1" minValue="' + numstr(bsMin) + '" maxValue="' + numstr(bsMax) + '"/></cacheField>');
+  F.push('<cacheField name="LockBoxDate" numFmtId="164">' + sDates + '<fieldGroup par="20"/></cacheField>');
+  F.push('<cacheField name="BatchAmount" numFmtId="165"><sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1" minValue="' + numstr(baMin) + '" maxValue="' + numstr(baMax) + '"/></cacheField>');
+  F.push('<cacheField name="Comments" numFmtId="49"><sharedItems/></cacheField>');
+  F.push('<cacheField name="Payer" numFmtId="49">' + sPayer + '</cacheField>');
+  F.push('<cacheField name="PmtDetails" numFmtId="49"><sharedItems longText="1"/></cacheField>');
+  F.push('<cacheField name="ClosedDate" numFmtId="164"><sharedItems containsNonDate="0" ' + (hasClosed ? 'containsDate="1" ' : '') + 'containsString="0" containsBlank="1"/></cacheField>');
+  F.push('<cacheField name="BankBatchNo" numFmtId="0"><sharedItems/></cacheField>');
+  F.push('<cacheField name="BankAccountNo" numFmtId="0"><sharedItems/></cacheField>');
+  F.push('<cacheField name="ProcessedDate" numFmtId="164"><sharedItems containsSemiMixedTypes="0" containsNonDate="0" containsDate="1" containsString="0" minDate="' + wcrIsoDate(pdMin) + '" maxDate="' + wcrIsoDate(pdMax) + '"/></cacheField>');
+  F.push('<cacheField name="BankDetailSID" numFmtId="0"><sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1" containsInteger="1" minValue="' + numstr(bdMin) + '" maxValue="' + numstr(bdMax) + '"/></cacheField>');
+  F.push('<cacheField name="DetailCheckNo" numFmtId="0"><sharedItems containsBlank="1"/></cacheField>');
+  F.push('<cacheField name="DetailLineItemDepositAmount" numFmtId="165"><sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1" minValue="' + numstr(dlMin) + '" maxValue="' + numstr(dlMax) + '"/></cacheField>');
+  F.push('<cacheField name="DetailDepositTypeSID" numFmtId="0"><sharedItems containsNonDate="0" containsString="0" containsBlank="1"/></cacheField>');
+  F.push('<cacheField name="DetailSequenceNo" numFmtId="0"><sharedItems/></cacheField>');
+  F.push('<cacheField name="TransactionTypeCode" numFmtId="0"><sharedItems/></cacheField>');
+  F.push('<cacheField name="DepositTypeDescription" numFmtId="0"><sharedItems containsNonDate="0" containsString="0" containsBlank="1"/></cacheField>');
+  F.push('<cacheField name="ReconciledIndicator" numFmtId="0"><sharedItems/></cacheField>');
+  F.push('<cacheField name="CompanyID" numFmtId="0"><sharedItems containsBlank="1"/></cacheField>');
+  F.push('<cacheField name="PayorName" numFmtId="49">' + sPayor + '</cacheField>');
+  F.push('<cacheField name="Days (LockBoxDate)" numFmtId="0" databaseField="0"><fieldGroup base="1"><rangePr groupBy="days" startDate="' + wcrIsoDate(minDate) + '" endDate="' + wcrIsoDate(endDate) + '" groupInterval="7"/>' + groupItems + '</fieldGroup></cacheField>');
+  const cachedef = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1" refreshOnLoad="1" refreshedBy="RMS" refreshedDate="46213" createdVersion="8" refreshedVersion="8" minRefreshableVersion="3" recordCount="' + N + '"><cacheSource type="worksheet"><worksheetSource ref="A2:T' + (N + 2) + '" sheet="Sheet"/></cacheSource><cacheFields count="21">' + F.join('') + '</cacheFields></pivotCacheDefinition>';
+
+  // ---------------- shared item lists for the tables ----------------
+  const dsort = dateOrder.map((_, i) => i).sort((a, b) => dateOrder[a] - dateOrder[b]);   // ascending date -> shared idx
+  const dateItems = dsort.map(i => '<item x="' + i + '"/>').join('') + '<item t="default"/>';
+  const seqItems = Array.from({ length: nPayer }, (_, i) => '<item x="' + i + '"/>').join('') + '<item t="default"/>';
+  const palpha = payorLabel.map((_, i) => i).filter(i => payorLabel[i] != null).sort((a, b) => payorLabel[a].toUpperCase() < payorLabel[b].toUpperCase() ? -1 : payorLabel[a].toUpperCase() > payorLabel[b].toUpperCase() ? 1 : 0);
+  const blankIdx = payorLabel.findIndex(l => l == null);
+  if (blankIdx >= 0) palpha.push(blankIdx);
+  const payorItems = palpha.map(i => '<item sd="0" x="' + i + '"/>').join('') + '<item t="default" sd="0"/>';
+  const groupFieldItems = '<item x="0"/><item x="1"/><item x="2"/><item t="default"/>';
+  const colLetter = n => { let s = ''; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
+
+  // ---------------- PivotTable2 (right: Payer x week, descending) ----------------
+  const psum = new Array(nPayer).fill(0);
+  for (const c of list) psum[payerIdx.get((c[4] == null ? '' : String(c[4])).toUpperCase())] += Number(c[2]) || 0;
+  const porder = payerLabel.map((_, i) => i).sort((a, b) => {
+    const d = psum[b] - psum[a];
+    if (Math.abs(d) > 1e-6) return d;                                   // value descending
+    return payerLabel[a] > payerLabel[b] ? -1 : payerLabel[a] < payerLabel[b] ? 1 : 0;   // tie -> label descending
+  });
+  const rowItems2 = porder.map(i => i === 0 ? '<i><x/></i>' : '<i><x v="' + i + '"/></i>').join('') + '<i t="grand"><x/></i>';
+  const pf2 = [];
+  for (let f = 0; f < 21; f++) {
+    if (f === 1) pf2.push('<pivotField numFmtId="164" showAll="0"><items count="' + (nDate + 1) + '">' + dateItems + '</items></pivotField>');
+    else if (f === 2) pf2.push('<pivotField dataField="1" numFmtId="165" showAll="0"/>');
+    else if (f === 4) pf2.push('<pivotField axis="axisRow" showAll="0" sortType="descending"><items count="' + (nPayer + 1) + '">' + seqItems + '</items><autoSortScope><pivotArea dataOnly="0" outline="0" fieldPosition="0"><references count="1"><reference field="4294967294" count="1" selected="0"><x v="0"/></reference></references></pivotArea></autoSortScope></pivotField>');
+    else if (f === 9) pf2.push('<pivotField numFmtId="164" showAll="0"/>');
+    else if (f === 12) pf2.push('<pivotField numFmtId="165" showAll="0"/>');
+    else if (f === 20) pf2.push('<pivotField axis="axisCol" showAll="0"><items count="4">' + groupFieldItems + '</items></pivotField>');
+    else pf2.push('<pivotField showAll="0"/>');
+  }
+  const pt2 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="PivotTable2" cacheId="9" applyNumberFormats="0" applyBorderFormats="0" applyFontFormats="0" applyPatternFormats="0" applyAlignmentFormats="0" applyWidthHeightFormats="1" dataCaption="Values" updatedVersion="8" minRefreshableVersion="3" useAutoFormatting="1" itemPrintTitles="1" createdVersion="8" indent="0" outline="1" outlineData="1" multipleFieldFilters="0"><location ref="M3:O' + (5 + nPayer) + '" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/><pivotFields count="21">' + pf2.join('') + '</pivotFields><rowFields count="1"><field x="4"/></rowFields><rowItems count="' + (nPayer + 1) + '">' + rowItems2 + '</rowItems><colFields count="1"><field x="20"/></colFields><colItems count="2"><i><x v="1"/></i><i t="grand"><x/></i></colItems><dataFields count="1"><dataField name="Sum of BatchAmount" fld="2" baseField="0" baseItem="0" numFmtId="165"/></dataFields><pivotTableStyleInfo name="PivotStyleLight16" showRowHeaders="1" showColHeaders="1" showRowStripes="0" showColStripes="0" showLastColumn="1"/></pivotTableDefinition>';
+
+  // ---------------- PivotTable1 (left: PayorName x day, week-grouped) ----------------
+  const rowItems1 = payorLabel.map((_, k) => k === 0 ? '<i><x/></i>' : '<i><x v="' + k + '"/></i>').join('') + '<i t="grand"><x/></i>';
+  let ci1 = '<i><x v="1"/><x/></i>';
+  for (let k = 1; k < nDate; k++) ci1 += '<i r="1"><x v="' + k + '"/></i>';
+  ci1 += '<i t="default"><x v="1"/></i><i t="grand"><x/></i>';
+  const loc1 = 'A3:' + colLetter(1 + nDate + 2) + (6 + nPayor);
+  const pf1 = [];
+  for (let f = 0; f < 21; f++) {
+    if (f === 1) pf1.push('<pivotField axis="axisCol" numFmtId="164" showAll="0"><items count="' + (nDate + 1) + '">' + dateItems + '</items></pivotField>');
+    else if (f === 2) pf1.push('<pivotField dataField="1" numFmtId="165" showAll="0"/>');
+    else if (f === 4) pf1.push('<pivotField axis="axisRow" showAll="0"><items count="' + (nPayer + 1) + '">' + seqItems + '</items></pivotField>');
+    else if (f === 9) pf1.push('<pivotField numFmtId="164" showAll="0"/>');
+    else if (f === 12) pf1.push('<pivotField numFmtId="165" showAll="0"/>');
+    else if (f === 19) pf1.push('<pivotField axis="axisRow" showAll="0"><items count="' + (nPayor + 1) + '">' + payorItems + '</items></pivotField>');
+    else if (f === 20) pf1.push('<pivotField axis="axisCol" showAll="0"><items count="4">' + groupFieldItems + '</items></pivotField>');
+    else pf1.push('<pivotField showAll="0"/>');
+  }
+  const pt1 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="PivotTable1" cacheId="9" applyNumberFormats="0" applyBorderFormats="0" applyFontFormats="0" applyPatternFormats="0" applyAlignmentFormats="0" applyWidthHeightFormats="1" dataCaption="Values" updatedVersion="8" minRefreshableVersion="3" useAutoFormatting="1" itemPrintTitles="1" createdVersion="8" indent="0" outline="1" outlineData="1" multipleFieldFilters="0"><location ref="' + loc1 + '" firstHeaderRow="1" firstDataRow="3" firstDataCol="1"/><pivotFields count="21">' + pf1.join('') + '</pivotFields><rowFields count="2"><field x="19"/><field x="4"/></rowFields><rowItems count="' + (nPayor + 1) + '">' + rowItems1 + '</rowItems><colFields count="2"><field x="20"/><field x="1"/></colFields><colItems count="' + (nDate + 2) + '">' + ci1 + '</colItems><dataFields count="1"><dataField name="Sum of BatchAmount" fld="2" baseField="0" baseItem="0" numFmtId="165"/></dataFields><pivotTableStyleInfo name="PivotStyleLight16" showRowHeaders="1" showColHeaders="1" showRowStripes="0" showColStripes="0" showLastColumn="1"/></pivotTableDefinition>';
+
+  return { cachedef, records, pt1, pt2 };
+}
+
 function writeWeeklyCashRepXlsx() {
   const sheets = [
     { name: 'Pivot', xml: wcrPivotSheetXml(state.rows) },
@@ -3265,16 +3412,36 @@ function writeWeeklyCashRepXlsx() {
   sheets.push({ name: (rem && rem.name) || 'Removed',
     xml: wcrDataSheetXml((rem && rem.banner) || '', (rem && rem.rows) || []) });
   const names = sheets.map(s => s.name);
+  const piv = wcrPivotParts(state.rows);   // null if no dated rows → plain workbook
+
+  const ctPivot = piv ? '<Override PartName="/xl/pivotCache/pivotCacheDefinition1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/><Override PartName="/xl/pivotCache/pivotCacheRecords1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"/><Override PartName="/xl/pivotTables/pivotTable1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/><Override PartName="/xl/pivotTables/pivotTable2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>' : '';
+  const wbPivot = piv ? '<pivotCaches><pivotCache cacheId="9" r:id="rIdPC"/></pivotCaches>' : '';
+  const wbRelPivot = piv ? '<Relationship Id="rIdPC" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="pivotCache/pivotCacheDefinition1.xml"/>' : '';
+
   const files = [
-    { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + names.map((_, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') + '</Types>' },
+    { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + names.map((_, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') + ctPivot + '</Types>' },
     { name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + names.map((n, i) => '<sheet name="' + xmlEscape(n) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets><calcPr calcId="0"/></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + names.map((_, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') + '<Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + names.map((n, i) => '<sheet name="' + xmlEscape(n) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets>' + wbPivot + '<calcPr calcId="0"/></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + names.map((_, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') + '<Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' + wbRelPivot + '</Relationships>' },
     { name: 'xl/styles.xml', text: WCR_STYLES },
   ];
   sheets.forEach((s, i) => files.push({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', text: s.xml }));
+
+  if (piv) {
+    // the Pivot sheet is sheet1 — point it at both pivot tables
+    files.push({ name: 'xl/worksheets/_rels/sheet1.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable2.xml"/></Relationships>' });
+    files.push({ name: 'xl/pivotTables/pivotTable1.xml', text: piv.pt1 });
+    files.push({ name: 'xl/pivotTables/pivotTable2.xml', text: piv.pt2 });
+    const ptRel = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="../pivotCache/pivotCacheDefinition1.xml"/></Relationships>';
+    files.push({ name: 'xl/pivotTables/_rels/pivotTable1.xml.rels', text: ptRel });
+    files.push({ name: 'xl/pivotTables/_rels/pivotTable2.xml.rels', text: ptRel });
+    files.push({ name: 'xl/pivotCache/pivotCacheDefinition1.xml', text: piv.cachedef });
+    files.push({ name: 'xl/pivotCache/pivotCacheRecords1.xml', text: piv.records });
+    files.push({ name: 'xl/pivotCache/_rels/pivotCacheDefinition1.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheRecords" Target="pivotCacheRecords1.xml"/></Relationships>' });
+  }
   return zipStoreFiles(files);
 }
+
 
 // pull the raw "Removed" sheet out of the parsed workbook, normalised to
 // OUT_COLS order, so it is written back verbatim on export
@@ -3308,7 +3475,7 @@ function exportWeeklyCashRep() {
     const bytes = writeWeeklyCashRepXlsx();
     download('Weekly_Cash_Rep_' + stamp() + '.xlsx',
       new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    toast('Exported Weekly Cash Rep workbook (Pivot · Sheet · Removed)');
+    toast('Exported Weekly Cash Rep workbook — live pivot tables on the Pivot sheet');
   } catch (err) {
     toast('Export failed: ' + err.message);
   }
