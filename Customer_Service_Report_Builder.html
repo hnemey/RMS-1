@@ -2907,6 +2907,7 @@ function revealBooks(list){
    matches the raw file gets the new month written into it; the rest are
    read-only history feeding the year-over-year comparisons. */
 var MASTERS=[];          // [{year, bytes, name, light}] — `light` is a Data-Tables-only parse
+var YEAR_CLASH=null;     // two different files claiming the same year
 var BASE_BYTES=null, BASE_NAME="", RAW_WB=null, RAW_NAME="", WORKING_WB=null, PIPE_MONTH="";
 var PIPE_CHANGES=null;   // {sheetName:{addr:value}} — what to write back into the original file
 function loadWorkbookBytes(buf, name){ classifyAndStore(buf, name); }
@@ -2921,16 +2922,26 @@ function classifyAndStore(buf, name){
     var dt=XLSX.utils.sheet_to_json(light.Sheets["Data Tables"],{header:1,raw:true,defval:null});
     var yr=bookYear(dt);
     if(yr==null){ setStatus("Could not tell which year “"+name+"” covers — check its “Month” header row."); return; }
+    /* A year workbook is identified by the dates in its Month row, not by its
+       filename. Copying last year's file and typing new numbers over it without
+       moving those dates forward is an easy mistake, and it would quietly drop
+       one of the two files here — so say so rather than replacing in silence. */
+    var prior=null;
+    MASTERS.forEach(function(m){ if(m.year===yr) prior=m; });
     MASTERS=MASTERS.filter(function(m){ return m.year!==yr; });   // reloading a year replaces it
     MASTERS.push({year:yr, bytes:buf, name:name, light:light});
     MASTERS.sort(function(a,b){ return a.year-b.year; });
+    YEAR_CLASH = (prior && prior.name!==name)
+      ? {year:yr, kept:name, dropped:prior.name}
+      : (prior ? null : YEAR_CLASH);
   } else {
     var raw;
     try{ raw=XLSX.read(buf,{type:"array",cellDates:true}); }
     catch(err2){ setStatus("Could not read "+name+": "+err2.message); return; }
     RAW_WB=raw; RAW_NAME=name;
   }
-  processPipeline();
+  if(PENDING_READS<=0) processPipeline();
+  else setStatus("Reading files … ("+PENDING_READS+" to go)");
 }
 var MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
 function detectReportMonth(rawWb){
@@ -3083,6 +3094,12 @@ function renderPipeReport(repA,repB,tgt){
     rows.push('<div>⬜ Year workbook: <b>not loaded yet</b></div>');
   }
   rows.push('<div>'+(RAW_WB?'✅':'⬜')+' Raw-data file: <b>'+esc(RAW_NAME||'not loaded yet')+'</b></div>');
+  if(YEAR_CLASH){
+    rows.push('<div style="margin-top:8px;padding:8px 10px;border-left:4px solid #c0392b;background:#fdf0ee;border-radius:4px">'
+      +'<b>Two files both say they are '+YEAR_CLASH.year+'.</b> “'+esc(YEAR_CLASH.dropped)+'” was replaced by “'+esc(YEAR_CLASH.kept)+'”, '
+      +'so only one of them is in the report. A workbook’s year comes from the dates in its <b>Month</b> header row — if this was meant to be a '
+      +'different year, change those dates in Excel and drop it again.</div>');
+  }
   if(PERIODS.length){
     var ys=timelineYears();
     rows.push('<div style="margin-top:6px;color:#5c6785">Timeline: <b>'+PERIODS[0].full+'</b> → <b>'+
@@ -3109,12 +3126,21 @@ function renderPipeReport(repA,repB,tgt){
   }
   el.innerHTML=rows.join("");
 }
+/* Files dropped together arrive one FileReader at a time. Hold the pipeline
+   until the last one has landed: running per file would rebuild the report
+   several times over and, worse, flash conclusions drawn from a half-loaded
+   set — "no 2026 workbook is loaded" while the 2026 file is still being read. */
+var PENDING_READS=0;
 function handleFile(file){
+  PENDING_READS++;
   setStatus("Reading "+file.name+" …");
   var r=new FileReader();
-  r.onload=function(e){ try{ loadWorkbookBytes(e.target.result,file.name); }
-    catch(err){ setStatus("Error: "+err.message); console.error(err); alert("Could not read this workbook:\n"+err.message); } };
-  r.onerror=function(){ setStatus("Could not read file."); };
+  r.onload=function(e){
+    PENDING_READS--;
+    try{ loadWorkbookBytes(e.target.result,file.name); }
+    catch(err){ setStatus("Error: "+err.message); console.error(err); alert("Could not read this workbook:\n"+err.message); }
+  };
+  r.onerror=function(){ PENDING_READS--; setStatus("Could not read "+file.name+"."); if(!PENDING_READS) processPipeline(); };
   r.readAsArrayBuffer(file);
 }
 function loadFromHandle(handle){
