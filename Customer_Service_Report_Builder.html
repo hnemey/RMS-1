@@ -83,6 +83,8 @@ button.act.ghost:hover:not(:disabled){background:rgba(255,255,255,.12)}
 .mtable-wrap{margin-bottom:10px}
 .mtable{border-collapse:collapse;width:100%;table-layout:fixed;font-size:11px;font-variant-numeric:tabular-nums;margin-bottom:10px}
 .mtable th,.mtable td{border:1px solid #e3e8f0;padding:4px 5px;text-align:center;vertical-align:top;overflow-wrap:anywhere}
+.mtable td.mt-ly{color:#5c6785}
+.mtable td.mt-calc{color:#005BBB}
 .mtable th:nth-child(1),.mtable td:nth-child(1){width:21%}
 .mtable th:nth-child(2),.mtable td:nth-child(2){width:12%}
 .mtable th:nth-child(3),.mtable td:nth-child(3){width:11%}
@@ -136,6 +138,16 @@ button.act.ghost:hover:not(:disabled){background:rgba(255,255,255,.12)}
 .ref-table th.rt-dir,.ref-table td.rt-dir{width:150px}
 .ref-table select{width:100%;border:1px solid #cfd6e4;border-radius:6px;padding:5px 6px;font-size:12.5px;color:#33384a;background:#fff}
 .ref-table select:focus{outline:none;border-color:#005BBB;box-shadow:0 0 0 2px #dbe6fb}
+.yoy-draft{background:#f6f4fb;border:1px solid #e2dcf1;border-radius:8px;padding:9px 11px;margin:0 0 12px}
+.yoy-draft-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;color:#5B3E86;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.yoy-copy-all{background:#fff;border:1px solid #d3c9ea;border-radius:5px;color:#5B3E86;cursor:pointer;font-size:11px;font-weight:700;padding:3px 9px;text-transform:none;letter-spacing:0}
+.yoy-copy-all:hover{background:#efeaf9}
+.yoy-draft-hint{font-size:11px;color:#6b6480;margin-bottom:7px;line-height:1.45}
+.yoy-line{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+.yoy-ins{flex:0 0 auto;background:#5B3E86;border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:11px;font-weight:700;padding:3px 9px}
+.yoy-ins:hover{background:#4a3170}
+.yoy-ins:disabled{background:#b7add0;cursor:default}
+.yoy-text{font-size:11.5px;line-height:1.5;color:#3b4256}
 .wu-data{background:#f3f6fb;border:1px solid #dfe7f3;border-radius:7px;padding:8px 10px;margin-bottom:8px;font-size:11px;line-height:1.5;color:#3b4256;font-variant-numeric:tabular-nums}
 .wu-data-empty{color:#8a92a6;font-style:italic}
 .wu-data-metric{margin-bottom:7px}
@@ -162,7 +174,7 @@ button.act.ghost:hover:not(:disabled){background:rgba(255,255,255,.12)}
   <div id="drop">
     <svg viewBox="0 0 24 24"><path d="M19 13v6H5v-6H3v8h18v-8h-2zM11 3v10.17l-3.59-3.58L6 11l6 6 6-6-1.41-1.41L13 13.17V3h-2z"/></svg>
     <div class="big">Drop your files here, or click to choose</div>
-    <div class="small">Drop <b>two files</b>: the <b>12-month master workbook</b> (.xlsm / .xlsx) <u>and</u> this month’s <b>raw-data file</b> (.xlsx). The new month is calculated automatically — the dashboard rebuilds and you can download the updated 12-month workbook.<br>You can still drop just the master on its own to view the existing dashboard.</div>
+    <div class="small">Drop your <b>year workbooks</b> (.xlsm / .xlsx — one per year, drop as many as you want) <u>and</u> this month’s <b>raw-data file</b> (.xlsx). Each workbook is recognised by the year inside it; the new month is added to the year the raw data belongs to, and the extra years power the year-over-year comparisons.<br>You can drop the workbooks on their own to view the existing dashboard.</div>
   </div>
   <input type="file" id="file" accept=".xlsm,.xlsx,.xls" multiple>
   <div id="pipeStatus" style="display:none;margin:8px 2px 4px;border:1px solid #dfe3ea;border-radius:10px;background:#fff;padding:12px 14px;box-shadow:0 1px 6px rgba(20,30,60,.06);font-size:13px;color:#31424f"></div>
@@ -1683,10 +1695,12 @@ var STRUCTURE = [
 /* ============================================================================
    WORKBOOK PARSING
    ========================================================================== */
-var DT = null;          // Data Tables as array-of-arrays
-var MONTH_LABELS = [];  // e.g. ["Jan-26",...] for active months
-var MONTH_FULL = [];    // e.g. ["January '26",...]
-var ACTIVE = [];        // active column indices (into row array, 1-based)
+var DT = null;          // newest year's Data Tables as array-of-arrays (report structure)
+var BOOKS = [];         // [{year, DT, name}] one per loaded year, oldest first
+var PERIODS = [];       // [{key:"2026-07", yr, mi, bi, col, label, full}] chronological, data only
+var MONTH_LABELS = [];  // e.g. ["Jan-26",...] one per period
+var MONTH_FULL = [];    // e.g. ["January '26",...] one per period
+var ACTIVE = [];        // 1-based indices into a merged row — one per period
 var REPORT_MONTH = "";  // e.g. "June '26"
 var REFERENCE = {};     // metric(lowercased) -> {lastYear, target} from the Reference sheet
 var ROWNOTES = {};      // page n -> { metricKey -> notes text }
@@ -1713,68 +1727,148 @@ function toSeconds(v){
   var f=parseFloat(s); return isNaN(f)?null:Math.round(f<1?f*86400:f);
 }
 
-function findSection(name,from){
+/* ----------------------------------------------------------------------------
+   Row lookup across years.
+
+   Each year's workbook is parsed into its own Data Tables grid, and PERIODS
+   stitches them into one chronological timeline. getRow/collectRows return a
+   MERGED row — [label, v(period0), v(period1), ...] — so every chart, table
+   and export downstream reads a multi-year series without knowing that more
+   than one file is open. The newest year defines the report's structure (which
+   sections and row labels exist); older years contribute values only.
+   -------------------------------------------------------------------------- */
+function findSectionIn(dt,name,from){
   from=from||0; name=norm(name);
-  for(var i=from;i<DT.length;i++){ if(norm(DT[i][0])===name) return i; }
+  for(var i=from;i<dt.length;i++){ if(norm(dt[i][0])===name) return i; }
   return -1;
 }
-function getRow(sec,row,occ){
-  occ=occ||0; var si=findSection(sec); if(si<0) return null;
+function getRowIn(dt,sec,row,occ){
+  occ=occ||0; var si=findSectionIn(dt,sec); if(si<0) return null;
   var rw=norm(row), seen=0;
-  for(var i=si+1;i<DT.length;i++){
-    // stop if we've clearly left into another top-level (all-caps section) — allow; simple scan is fine
-    if(norm(DT[i][0])===rw){ if(seen===occ) return DT[i]; seen++; }
+  for(var i=si+1;i<dt.length;i++){
+    if(norm(dt[i][0])===rw){ if(seen===occ) return dt[i]; seen++; }
   }
   return null;
+}
+/* stitch one row from every book into a single timeline-wide row */
+function mergeRows(perBook,label){
+  var out=[label];
+  for(var i=0;i<PERIODS.length;i++){
+    var p=PERIODS[i], r=perBook[p.bi];
+    out[i+1] = r ? r[p.col] : null;
+  }
+  return out;
+}
+function findSection(name,from){ return findSectionIn(DT,name,from); }
+function getRow(sec,row,occ){
+  var per=BOOKS.map(function(b){ return getRowIn(b.DT,sec,row,occ); });
+  var label=null;
+  for(var i=per.length-1;i>=0;i--){ if(per[i]){ label=per[i][0]; break; } }
+  if(label==null) return null;
+  return mergeRows(per,label);
 }
 // collect (label,row) pairs between section and stopSec, excluding "Month"/blank/skip
 function collectRows(sec,stopSec,skip){
   skip=skip||[]; var si=findSection(sec); if(si<0) return [];
   var stop = stopSec?findSection(stopSec,si+1):-1;
   var end = stop<0?DT.length:stop;
-  var out=[];
+  var out=[], seenLabel={};
   for(var i=si+1;i<end;i++){
     var lab=norm(DT[i][0]);
     if(!lab||lab==="Month"||skip.indexOf(lab)>=0) continue;
-    out.push(DT[i]);
+    // a label can repeat within a section; keep them apart by occurrence
+    var occ=seenLabel[lab]||0; seenLabel[lab]=occ+1;
+    var merged=getRow(sec,lab,occ);
+    out.push(merged||DT[i]);
   }
   return out;
 }
 
-function parseWorkbook(wb){
+/* the month header row of a single book, and the year/month each column holds */
+function headerMonths(dt){
+  var hdr=null;
+  for(var i=0;i<dt.length;i++){ if(norm(dt[i][0])==="Month"){ hdr=dt[i]; break; } }
+  if(!hdr) return null;
+  var out=[];
+  for(var c=1;c<=12;c++){
+    var cell=hdr[c], mi=null, yr=null;
+    if(cell instanceof Date){ mi=cell.getMonth(); yr=cell.getFullYear(); }
+    else if(typeof cell==="number"){ var d=XLSX.SSF?XLSX.SSF.parse_date_code(cell):null; if(d){ mi=d.m-1; yr=d.y; } }
+    if(mi!=null&&yr!=null) out.push({col:c, mi:mi, yr:yr});
+  }
+  return out.length?out:null;
+}
+/* which of a book's month columns actually carry data */
+function activeColumnsOf(dt){
+  var drivers=[ getRowIn(dt,"Total Collections","Actual"),
+                getRowIn(dt,"Monthly Team CMS Data","Total Calls Coming In"),
+                getRowIn(dt,"Total Payment Collected","Total Amount"),
+                getRowIn(dt,"Workqueue Month End Account Count","Total"),
+                getRowIn(dt,"Total In Person Visits","Totals") ].filter(Boolean);
+  var cols={};
+  for(var c=1;c<=12;c++){
+    for(var d=0;d<drivers.length;d++){
+      var n=toNum(drivers[d][c]);
+      if(n!=null&&n!==0){ cols[c]=true; break; }
+    }
+  }
+  return cols;
+}
+/* The year a workbook covers — the year of most of its dated columns. */
+function bookYear(dt){
+  var hm=headerMonths(dt); if(!hm) return null;
+  var counts={}, best=null, bn=-1;
+  hm.forEach(function(h){ counts[h.yr]=(counts[h.yr]||0)+1; });
+  for(var y in counts){ if(counts[y]>bn){ bn=counts[y]; best=+y; } }
+  return best;
+}
+
+/* Rebuild the merged timeline from every loaded book. Books arrive in any
+   order and are sorted oldest-first; the newest one supplies DT (the report's
+   structure) and the report month. */
+function rebuildTimeline(){
+  BOOKS.sort(function(a,b){ return a.year-b.year; });
+  DT = BOOKS.length ? BOOKS[BOOKS.length-1].DT : null;
+  PERIODS=[]; ACTIVE=[]; MONTH_LABELS=[]; MONTH_FULL=[];
+  BOOKS.forEach(function(b,bi){
+    var hm=headerMonths(b.DT); if(!hm) return;
+    var live=activeColumnsOf(b.DT);
+    hm.forEach(function(h){
+      if(!live[h.col]) return;
+      PERIODS.push({ key:h.yr+"-"+String(h.mi+1).padStart(2,"0"), yr:h.yr, mi:h.mi,
+                     bi:bi, col:h.col,
+                     label:MON[h.mi]+"-"+String(h.yr).slice(2),
+                     full:MONFULL[h.mi]+" '"+String(h.yr).slice(2) });
+    });
+  });
+  PERIODS.sort(function(a,b){ return a.key<b.key?-1:(a.key>b.key?1:0); });
+  PERIODS.forEach(function(p,i){ ACTIVE.push(i+1); MONTH_LABELS.push(p.label); MONTH_FULL.push(p.full); });
+  if(!PERIODS.length) throw new Error("No months with data were found in the workbook(s).");
+  REPORT_MONTH = MONTH_FULL[MONTH_FULL.length-1];
+}
+/* the years on the timeline, oldest first */
+function timelineYears(){
+  var seen={}, out=[];
+  PERIODS.forEach(function(p){ if(!seen[p.yr]){ seen[p.yr]=1; out.push(p.yr); } });
+  return out;
+}
+function reportPeriod(){ return PERIODS.length?PERIODS[PERIODS.length-1]:null; }
+
+function parseWorkbook(wb, name){
   var ws = wb.Sheets["Data Tables"];
   if(!ws) throw new Error('Sheet "Data Tables" not found in this workbook.');
-  DT = XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  var dt = XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+  if(!headerMonths(dt)) throw new Error('Could not find a "Month" header row.');
+  var yr = bookYear(dt);
+  if(yr==null) throw new Error("Could not tell which year this workbook covers.");
 
-  // month header: first row whose col0 == "Month"
-  var hdr=null;
-  for(var i=0;i<DT.length;i++){ if(norm(DT[i][0])==="Month"){ hdr=DT[i]; break; } }
-  if(!hdr) throw new Error('Could not find a "Month" header row.');
-
-  // driver rows to decide which month columns actually contain data
-  var drivers=[ getRow("Total Collections","Actual"),
-                getRow("Monthly Team CMS Data","Total Calls Coming In"),
-                getRow("Total Payment Collected","Total Amount"),
-                getRow("Workqueue Month End Account Count","Total"),
-                getRow("Total In Person Visits","Totals") ].filter(Boolean);
-
-  ACTIVE=[]; MONTH_LABELS=[]; MONTH_FULL=[];
-  for(var c=1;c<=12;c++){
-    var any=false;
-    for(var d=0;d<drivers.length;d++){ var n=toNum(drivers[d][c]); if(n!=null&&n!==0){ any=true; break; } }
-    if(!any) continue;
-    ACTIVE.push(c);
-    var mi=c-1, yr=2026;
-    var cell=hdr[c];
-    if(cell instanceof Date){ mi=cell.getMonth(); yr=cell.getFullYear(); }
-    else if(typeof cell==="number"){ var dt=XLSX.SSF?XLSX.SSF.parse_date_code(cell):null; if(dt){ mi=dt.m-1; yr=dt.y; } }
-    MONTH_LABELS.push(MON[mi]+"-"+String(yr).slice(2));
-    MONTH_FULL.push(MONFULL[mi]+" '"+String(yr).slice(2));
-  }
-  if(!ACTIVE.length) throw new Error("No months with data were found in the workbook.");
-  REPORT_MONTH = MONTH_FULL[MONTH_FULL.length-1];
+  // one book per year — reloading a year replaces it
+  BOOKS = BOOKS.filter(function(b){ return b.year!==yr; });
+  BOOKS.push({year:yr, DT:dt, name:name||("Year "+yr)});
+  rebuildTimeline();
 
   // optional "Reference" sheet: Metric | Last Year Average | Target
+  // (read from the newest workbook — that's the one the user edits)
   REFERENCE={};
   var rs = wb.Sheets["Reference"];
   if(rs){
@@ -1859,14 +1953,16 @@ function buildChartData(id){
     var li=ACTIVE.length-1; // latest month index within ACTIVE
     var pi=li-1;            // previous month
     var labels=[],vals=[],prev=[];
-    rows.forEach(function(r){ var v=toNum(r[ACTIVE[li]]); if(v!=null&&v>0){ labels.push(norm(r[0])); vals.push(v); prev.push(pi>=0?toNum(r[ACTIVE[pi]]):null);} });
-    res.labels=labels; res.pieValues=vals; res.piePrev=prev; return res;
+    var src=[];
+    rows.forEach(function(r){ var v=toNum(r[ACTIVE[li]]); if(v!=null&&v>0){ labels.push(norm(r[0])); vals.push(v); prev.push(pi>=0?toNum(r[ACTIVE[pi]]):null); src.push(r);} });
+    res.labels=labels; res.pieValues=vals; res.piePrev=prev; res.srcRows=src; return res;
   }
 
   if(cf.type==="stackedColByRows"){
     // categories = row labels ; one dataset per active month
     var rows2=collectRows(cf.sec,cf.stopSec,cf.skip);
     res.labels=rows2.map(function(r){return norm(r[0]);});
+    res.srcRows=rows2;
     var pal=[C.blue,C.orange,C.gray,C.gold,C.lblue,C.green,C.dblue,C.red,C.navy,"9E480E","636363","997300"];
     res.datasets=ACTIVE.map(function(c,mi){
       return {label:MONTH_LABELS[mi],
@@ -1880,6 +1976,7 @@ function buildChartData(id){
   var arrs=cf.series.map(function(s){return seriesValues(s,cf.fmt);});
   var idx=activeSubset(arrs);
   res.labels=idx.map(function(i){return MONTH_LABELS[i];});
+  res.periods=idx.map(function(i){return PERIODS[i];});   // which month each point is
   res.datasets=cf.series.map(function(s,si){
     var data=idx.map(function(i){return arrs[si][i];});
     return {label:s.label,color:s.color,data:data};
@@ -1888,6 +1985,43 @@ function buildChartData(id){
   res.stacked = (cf.type==="stackedCol"||cf.type==="hbarStacked");
   res.bar = (cf.type!=="line");
   return res;
+}
+
+/* ============================================================================
+   YEAR-OVER-YEAR VIEW
+
+   A single-metric time series is far easier to compare year to year when the
+   x-axis is Jan-Dec and each year is its own line — "July vs July" becomes a
+   vertical read instead of counting twelve points across.
+
+   Charts that already carry several metrics keep the continuous timeline;
+   splitting those by year as well would multiply the lines past legibility.
+   ========================================================================== */
+/* Assigned by recency — the current year always takes the brand cobalt so it
+   reads as the subject of the chart, with prior years stepping back through
+   hues that stay distinguishable under colour-vision deficiency (validated:
+   lightness band, chroma floor, CVD separation, contrast vs the panel). */
+var YEAR_COLORS=["005BBB","C2570A","8A4E9E","4B7A1E"];
+
+function yoyView(cd){
+  if(!cd||!cd.periods||!cd.periods.length) return cd;
+  if(cd.datasets.length!==1) return cd;                  // multi-metric: leave as one timeline
+  var years=timelineYears();
+  if(years.length<2) return cd;                          // nothing to compare against yet
+
+  // Colours are never cycled, so chart the most recent years we have hues for;
+  // the Year-over-Year section still tables every year that is loaded.
+  var recent=years.slice(-YEAR_COLORS.length);
+  var src=cd.datasets[0];
+  var ds=recent.map(function(y,i){
+    var data=[]; for(var m=0;m<12;m++) data.push(null);
+    cd.periods.forEach(function(p,pi){ if(p.yr===y) data[p.mi]=src.data[pi]; });
+    return { label:String(y), color:YEAR_COLORS[recent.length-1-i], data:data };
+  });
+  return { id:cd.id, title:cd.title, type:cd.type, fmt:cd.fmt, refs:cd.refs, marker:cd.marker,
+           labels:MON.slice(0), datasets:ds,
+           bar:cd.bar, stacked:false, horizontal:false, yoy:true,
+           dropped: years.length>recent.length ? years.slice(0,years.length-recent.length) : null };
 }
 
 /* ============================================================================
@@ -2022,31 +2156,121 @@ function fmtDelta(d,good){
   if(sign!==0 && good && good!=="neutral"){ cls = ((sign>0)===(good==="up")) ? "good" : "bad"; }
   return {text:(sign>0?"▲ ":sign<0?"▼ ":"")+Math.abs(pct).toFixed(1)+"%", cls:cls};
 }
+/* ============================================================================
+   YEAR-OVER-YEAR STATISTICS
+
+   Everything downstream reads a metric as {periodKey -> value}. From that one
+   shape we can answer all three questions the report asks: what a year
+   averaged, what a given month held in each year, and how this month compares
+   with the same month a year earlier.
+   ========================================================================== */
+function periodKeyOf(yr,mi){ return yr+"-"+String(mi+1).padStart(2,"0"); }
+
+/* {periodKey -> value} from a merged Data Tables row */
+function mapFromRow(row,fmt){
+  var m={};
+  if(!row) return m;
+  PERIODS.forEach(function(p,i){
+    var v = fmt==="time" ? toSeconds(row[i+1]) : toNum(row[i+1]);
+    if(v!=null) m[p.key]=v;
+  });
+  return m;
+}
+/* {periodKey -> value} from a chart series (data is indexed by cd.periods) */
+function mapFromSeries(data,periods){
+  var m={};
+  if(!data||!periods) return m;
+  periods.forEach(function(p,i){ if(data[i]!=null) m[p.key]=data[i]; });
+  return m;
+}
+/* Averages are over the months a year actually has data for, so a part-year
+   (the current one) is not dragged down by months that haven't happened. */
+function yearAverage(valueByKey,yr){
+  var sum=0,n=0;
+  PERIODS.forEach(function(p){
+    if(p.yr!==yr) return;
+    var v=valueByKey[p.key];
+    if(v!=null){ sum+=v; n++; }
+  });
+  return n?{avg:sum/n, months:n}:null;
+}
+function yoyStats(valueByKey){
+  var rp=reportPeriod(); if(!rp) return null;
+  var years=timelineYears(), byYear={};
+  years.forEach(function(y){ byYear[y]=yearAverage(valueByKey,y); });
+  var lyk=periodKeyOf(rp.yr-1,rp.mi);
+  var prior=byYear[rp.yr-1];
+  return {
+    years:years, byYear:byYear, month:rp.mi, year:rp.yr,
+    priorYear: rp.yr-1,
+    priorAvg: prior?prior.avg:null,
+    priorAvgMonths: prior?prior.months:0,
+    curAvg: byYear[rp.yr]?byYear[rp.yr].avg:null,
+    sameMonthLY: (valueByKey[lyk]!=null)?valueByKey[lyk]:null,
+    values: valueByKey
+  };
+}
+function hasMultipleYears(){ return timelineYears().length>1; }
+
+/* the report month and the calendar month before it, as period keys */
+var REPORT_KEYS=null;
+function refreshReportKeys(){
+  var rp=reportPeriod();
+  if(!rp){ REPORT_KEYS=null; return; }
+  var pmi=(rp.mi===0)?11:rp.mi-1, pyr=(rp.mi===0)?rp.yr-1:rp.yr;
+  REPORT_KEYS={ cur:periodKeyOf(rp.yr,rp.mi), prev:periodKeyOf(pyr,pmi) };
+}
+
 /* one row per metric on a page */
 function buildPageRows(sl){
+  refreshReportKeys();
   var rows=[];
   (sl.charts||[]).forEach(function(cid){
     var cd=buildChartData(cid); if(!cd) return;
     var title=cd.title, fmt=cd.fmt;
     function nt(v){ return (fmt==="time"&&v!=null&&v<1)?Math.round(v*86400):v; }  // time refs stored as day-fraction -> seconds
-    function push(cat,single,last,cur,lyRef,tgtRef){
+    function push(cat,single,last,cur,lyRef,tgtRef,vbk){
       var key=metricKey(title,cat,single);
       var ref=REFERENCE[key.toLowerCase()]||{};
-      var ly=(ref.lastYear!=null)?nt(ref.lastYear):(lyRef!=null?lyRef:null);
+      var st=vbk?yoyStats(vbk):null;
+      /* Pin "This Month" to the report month itself rather than to whatever the
+         series happens to end on. A metric that stopped reporting last year
+         would otherwise present an old month under this month's heading — and
+         the drafted sentences would repeat that as fact. Blank is correct when
+         the month genuinely has no value. */
+      if(vbk&&REPORT_KEYS){
+        cur = (vbk[REPORT_KEYS.cur]!=null)?vbk[REPORT_KEYS.cur]:null;
+        last = (vbk[REPORT_KEYS.prev]!=null)?vbk[REPORT_KEYS.prev]:null;
+      }
+      /* Last Yr Avg: a value typed on the Reference tab always wins; otherwise
+         use the prior year's real monthly average once that year is loaded;
+         otherwise fall back to the chart's own reference line. */
+      var ly=(ref.lastYear!=null) ? nt(ref.lastYear)
+           : (st&&st.priorAvg!=null) ? st.priorAvg
+           : (lyRef!=null?lyRef:null);
       var tgt=(ref.target!=null)?nt(ref.target):(tgtRef!=null?tgtRef:null);
-      rows.push({key:key,category:cat,fmt:fmt,lastYear:ly,target:tgt,dir:(ref.dir||"up"),lastMonth:last,thisMonth:cur,delta:deltaRel(last,cur)});
+      rows.push({key:key,category:cat,fmt:fmt,lastYear:ly,target:tgt,dir:(ref.dir||"up"),
+                 lastMonth:last,thisMonth:cur,delta:deltaRel(last,cur),
+                 lastYearComputed:(ref.lastYear==null&&st&&st.priorAvg!=null),
+                 sameMonthLY: st?st.sameMonthLY:null,
+                 deltaYoY: st?deltaRel(st.sameMonthLY,cur):null,
+                 yoy: st});
     }
     if(cd.type==="pie"){
-      cd.labels.forEach(function(cat,i){ push(cat,false,cd.piePrev?cd.piePrev[i]:null,cd.pieValues[i],null,null); });
+      cd.labels.forEach(function(cat,i){
+        push(cat,false,cd.piePrev?cd.piePrev[i]:null,cd.pieValues[i],null,null,
+             mapFromRow(cd.srcRows?cd.srcRows[i]:null,fmt));
+      });
     } else if(cd.type==="stackedColByRows"){
       var L=cd.datasets.length;
-      cd.labels.forEach(function(cat,ci){ var cur=cd.datasets[L-1].data[ci]; var last=L>=2?cd.datasets[L-2].data[ci]:null; push(cat,false,last,cur,null,null); });
+      cd.labels.forEach(function(cat,ci){ var cur=cd.datasets[L-1].data[ci]; var last=L>=2?cd.datasets[L-2].data[ci]:null;
+        push(cat,false,last,cur,null,null,mapFromRow(cd.srcRows?cd.srcRows[ci]:null,fmt)); });
     } else {
       var single=cd.datasets.length===1;
       cd.datasets.forEach(function(ds,si){
         var d=ds.data, cur=d[d.length-1], last=d.length>=2?d[d.length-2]:null, lyRef=null, tgtRef=null;
         if(si===0&&cd.refs){ cd.refs.forEach(function(r){ if(r.dash)lyRef=r.y; else tgtRef=r.y; }); }
-        push(ds.label,single,last,cur,lyRef,tgtRef);
+        push(ds.label,single,last,cur,lyRef,tgtRef,mapFromSeries(d,cd.periods));
       });
     }
   });
@@ -2065,7 +2289,13 @@ function buildPageRows(sl){
 }
 function metricsTableHTML(rows,pageN,editable){
   var notes=ROWNOTES[pageN]||{};
-  var head='<tr><th>Category</th><th>Last Yr Avg</th><th>Target</th><th>Last Month</th><th>This Month</th><th>Δ MoM</th><th>Notes</th></tr>';
+  /* The year-over-year pair only appears once a prior year is loaded, so a
+     single-year report keeps the table it has always had. */
+  var rp=reportPeriod();
+  var yoy=hasMultipleYears()&&rp;
+  var lyLabel=yoy?(MON[rp.mi]+" '"+String(rp.yr-1).slice(2)):"";
+  var head='<tr><th>Category</th><th>Last Yr Avg</th><th>Target</th><th>Last Month</th><th>This Month</th><th>Δ MoM</th>'
+    +(yoy?('<th>'+esc(lyLabel)+'</th><th>Δ YoY</th>'):'')+'<th>Notes</th></tr>';
   var body=rows.map(function(r){
     var d=fmtDelta(r.delta,r.dir);
     var nv=notes[r.key]||"";
@@ -2084,10 +2314,17 @@ function metricsTableHTML(rows,pageN,editable){
     var noteCell=editable
       ? '<td class="mt-note" contenteditable="true" data-key="'+keyA+'" data-ph="add note…">'+esc(nv)+'</td>'
       : '<td class="mt-note">'+esc(nv)+'</td>';
+    var yoyCells="";
+    if(yoy){
+      var dy=fmtDelta(r.deltaYoY,r.dir);
+      yoyCells='<td class="mt-ly">'+f(r.sameMonthLY)+'</td>'
+        +'<td class="mt-delta '+dy.cls+'" data-dir="'+esc(r.dir||"up")+'">'+esc(dy.text)+'</td>';
+    }
     return '<tr>'+catCell
-      +cell("lastYear",r.lastYear,"")+cell("target",r.target,"")
+      +cell("lastYear",r.lastYear,r.lastYearComputed?"mt-calc":"")+cell("target",r.target,"")
       +cell("lastMonth",r.lastMonth,"")+cell("thisMonth",r.thisMonth,"mt-this")
-      +'<td class="mt-delta '+d.cls+'" data-dir="'+esc(r.dir||"up")+'">'+esc(d.text)+'</td>'+noteCell+'</tr>';
+      +'<td class="mt-delta '+d.cls+'" data-dir="'+esc(r.dir||"up")+'">'+esc(d.text)+'</td>'
+      +yoyCells+noteCell+'</tr>';
   }).join("");
   return '<table class="mtable"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
 }
@@ -2128,8 +2365,66 @@ function panelFor(sl){
   var rows = sl.type==="appendix"?[]:buildPageRows(sl);
   var body = (rows.length?metricsTableHTML(rows,sl.n,false):"")+genNotesHTML(sl.n,false);
   return {n:sl.n, title: sl.type==="appendix"?"":(nrec.title||sl.title), body:body,
-          charts:(sl.charts||[]).map(buildChartData).filter(Boolean)};
+          charts:(sl.charts||[]).map(function(cid){ return yoyView(buildChartData(cid)); }).filter(Boolean)};
 }
+/* ============================================================================
+   YEAR-OVER-YEAR SECTION
+
+   One row per metric per year, twelve months across, with that year's average
+   at the end — the whole history in the shape people actually compare it in.
+   ========================================================================== */
+function yoyTableHTML(rows){
+  var years=timelineYears();
+  if(years.length<2) return "";
+  var body="", any=false;
+  rows.forEach(function(r){
+    if(!r.yoy) return;
+    var live=years.filter(function(y){ return r.yoy.byYear[y]; });
+    if(!live.length) return;
+    any=true;
+    var prevAvg=null;
+    years.forEach(function(y,yi){
+      var ya=r.yoy.byYear[y];
+      var cells="";
+      for(var mi=0;mi<12;mi++){
+        var v=r.yoy.values[periodKeyOf(y,mi)];
+        cells+='<td>'+(v==null?"":esc(fmtVal(v,r.fmt)))+'</td>';
+      }
+      // change against the year above, so each row reads against its predecessor
+      var dtxt="—", dcls="";
+      if(ya&&prevAvg!=null){ var d=fmtDelta(deltaRel(prevAvg,ya.avg),r.dir||"up"); dtxt=d.text; dcls=d.cls; }
+      body+='<tr>'+(yi===0?'<td class="yg-metric" rowspan="'+years.length+'">'+esc(r.key)+'</td>':'')
+        +'<td class="yg-year">'+y+'</td>'+cells
+        +'<td class="yg-avg">'+(ya?esc(fmtVal(ya.avg,r.fmt)):"")+'</td>'
+        +'<td class="yg-delta '+dcls+'">'+esc(dtxt)+'</td></tr>';
+      if(ya) prevAvg=ya.avg;
+    });
+  });
+  if(!any) return "";
+  var head='<tr><th>Metric</th><th>Year</th>'
+    +MON.map(function(m){return "<th>"+m+"</th>";}).join("")
+    +'<th>Avg</th><th>Δ vs prior yr</th></tr>';
+  return '<div class="yg-wrap"><table class="yg-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+}
+/* one panel per report page that has metrics */
+function yoySections(){
+  if(!hasMultipleYears()) return [];
+  var panels=[];
+  STRUCTURE.forEach(function(sl){
+    if(sl.type!=="content") return;
+    var html=yoyTableHTML(buildPageRows(sl));
+    if(html) panels.push({n:"yoy-"+sl.n, title:sl.title, body:html, charts:[]});
+  });
+  if(!panels.length) return [];
+  var ys=timelineYears();
+  panels.unshift({n:"yoy-intro", title:"About these figures",
+    body:'<div class="yg-intro">Every metric across <b>'+ys.join("</b>, <b>")+'</b>. '
+      +'A year\'s average covers only the months that have data, so the current year is not '
+      +'dragged down by months that have not happened yet. <b>Δ vs prior yr</b> compares each '
+      +'year\'s average with the year above it.</div>', charts:[]});
+  return [{name:"Year over Year", panels:panels}];
+}
+
 /* full deck grouped into sections (for the export) */
 function computeSections(){
   var sections=[], cur=null;
@@ -2138,7 +2433,7 @@ function computeSections(){
     else if(sl.type==="content"){ if(!cur){ cur={name:sl.title,panels:[]}; sections.push(cur); } cur.panels.push(panelFor(sl)); }
     else if(sl.type==="appendix"){ cur={name:"Appendix",panels:[]}; sections.push(cur); cur.panels.push(panelFor(sl)); }
   });
-  return sections;
+  return sections.concat(yoySections());
 }
 /* assemble a self-contained dashboard document from a sections array */
 function assembleDashboardDoc(sections, showTabs){
@@ -2191,6 +2486,75 @@ function buildHtmlPreview(){
   var f=document.getElementById("htmlPreview");
   if(f) f.srcdoc=buildDashboardHTML();
 }
+/* ============================================================================
+   NARRATIVE HELPERS — year-over-year sentences
+
+   These are drafts, not prose: they state the arithmetic in the report's own
+   phrasing so the writer can drop one in and then say what it means.
+   ========================================================================== */
+/* the size of a change, in the units the metric is read in */
+function fmtGap(a,b,fmt){
+  if(a==null||b==null) return null;
+  var gap=Math.abs(b-a);
+  var s = (fmt==="pct") ? (gap*100).toFixed(1)+" points" : fmtVal(gap,fmt);
+  // a gap that rounds away to nothing ("$0") reads as a mistake next to a live
+  // percentage — drop the amount and let the percentage carry the sentence
+  return /[1-9]/.test(s) ? s : null;
+}
+function fmtPctChange(from,to){
+  if(from==null||to==null||from===0) return null;
+  return Math.abs((to-from)/Math.abs(from)*100).toFixed(1)+"%";
+}
+function moveWord(from,to){ return (to>from)?"an increase of":"a decrease of"; }
+
+/* One sentence per metric: last year's monthly average, the same month a year
+   ago, and this month against it. Parts with no data are left out rather than
+   written as blanks. */
+function yoySentenceFor(r){
+  var rp=reportPeriod();
+  if(!rp||!r.yoy) return null;
+  var st=r.yoy, cur=r.thisMonth;
+  if(cur==null) return null;
+  var name=r.key, mon=MONFULL[rp.mi];
+  var bits=[];
+  if(st.priorAvg!=null){
+    bits.push("Average monthly "+name+" was "+fmtVal(st.priorAvg,r.fmt)+" in "+st.priorYear
+      +(st.priorAvgMonths<12?(" (across "+st.priorAvgMonths+" month"+(st.priorAvgMonths===1?"":"s")+" of data)"):"")+".");
+  }
+  if(st.sameMonthLY!=null){
+    var gap=fmtGap(st.sameMonthLY,cur,r.fmt), pc=fmtPctChange(st.sameMonthLY,cur);
+    var tail=pc?(" — "+moveWord(st.sameMonthLY,cur)+" "+(gap?(gap+" ("+pc+")"):pc)):"";
+    bits.push(mon+" "+st.priorYear+" was "+fmtVal(st.sameMonthLY,r.fmt)+"; "+mon+" "+rp.yr
+      +" came in at "+fmtVal(cur,r.fmt)+tail+".");
+  } else if(st.priorAvg!=null){
+    var gap2=fmtGap(st.priorAvg,cur,r.fmt), pc2=fmtPctChange(st.priorAvg,cur);
+    bits.push(mon+" "+rp.yr+" came in at "+fmtVal(cur,r.fmt)
+      +(pc2?(" — "+moveWord(st.priorAvg,cur)+" "+(gap2?(gap2+" ("+pc2+")"):pc2)+" against that average"):"")+".");
+  }
+  return bits.length?bits.join(" "):null;
+}
+function yoySentencesHTML(rows){
+  if(!hasMultipleYears()) return "";
+  var items=[];
+  rows.forEach(function(r){
+    var s=yoySentenceFor(r);
+    if(s) items.push({key:r.key, text:s});
+  });
+  if(!items.length) return "";
+  var out='<div class="yoy-draft"><div class="yoy-draft-head">'
+    +'<span>Year-over-year sentences</span>'
+    +'<button type="button" class="yoy-copy-all">Copy all</button></div>'
+    +'<div class="yoy-draft-hint">Drafted from the numbers — click <b>Insert</b> to drop one into this page\'s notes, then edit it.</div>';
+  items.forEach(function(it,i){
+    out+='<div class="yoy-line"><button type="button" class="yoy-ins" data-i="'+i+'">Insert</button>'
+      +'<span class="yoy-text">'+esc(it.text)+'</span></div>';
+  });
+  out+='</div>';
+  YOY_DRAFTS=items;
+  return out;
+}
+var YOY_DRAFTS=[];
+
 /* build a reference list of every data point (metric → per-month values) for a slide's charts */
 function dataReferenceHTML(chartIds){
   if(!chartIds||!chartIds.length) return '<div class="wu-data wu-data-empty">No chart data on this slide.</div>';
@@ -2256,7 +2620,28 @@ function buildPageEditor(pg){
                                 : '<div class="mt-empty">No metrics on this page.</div>';
   root.innerHTML=RTE_TOOLBAR
     +'<div class="wu-slide focused" data-n="'+n+'"><label>'+esc(lbl)+'</label>'
-    + tableBlock + genNotesHTML(n,true) + '</div>';
+    + tableBlock + yoySentencesHTML(rows) + genNotesHTML(n,true) + '</div>';
+
+  // insert a drafted sentence into this page's notes
+  root.querySelectorAll(".yoy-ins").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var it=YOY_DRAFTS[+btn.getAttribute("data-i")]; if(!it) return;
+      var rte=root.querySelector(".rte.gennotes"); if(!rte) return;
+      var div=document.createElement("div"); div.textContent=it.text;
+      rte.appendChild(div);
+      GENNOTES[n]=rte.innerHTML;
+      markDirty(true);
+      btn.textContent="Inserted"; btn.disabled=true;
+      rte.scrollIntoView({block:"nearest"});
+    });
+  });
+  var copyAll=root.querySelector(".yoy-copy-all");
+  if(copyAll) copyAll.addEventListener("click",function(){
+    var txt=YOY_DRAFTS.map(function(d){return d.text;}).join("\n");
+    var done=function(){ copyAll.textContent="Copied!"; setTimeout(function(){copyAll.textContent="Copy all";},1200); };
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,done);
+    else done();
+  });
 
   // per-row notes
   root.querySelectorAll('.mt-note[data-key]').forEach(function(td){
@@ -2374,8 +2759,10 @@ var DASH_CSS = [
 ".dc-writeup{font-size:13px;line-height:1.5;color:#33384a;overflow-x:auto}",
 ".mtable{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;font-variant-numeric:tabular-nums;margin-bottom:12px}",
 ".mtable th,.mtable td{border:1px solid #e3e8f0;padding:5px 8px;text-align:center;vertical-align:top;overflow-wrap:anywhere}",
-".mtable th:nth-child(1),.mtable td:nth-child(1){width:22%}",
-".mtable th:nth-child(7),.mtable td:nth-child(7){width:20%}",
+".mtable th:nth-child(1),.mtable td:nth-child(1){width:20%}",
+".mtable th:last-child,.mtable td:last-child{width:18%}",
+".mtable td.mt-ly{color:#5c6785}",
+".mtable td.mt-calc{color:#005BBB}",
 ".mtable thead th{background:#eef2f8;color:#00428D;font-weight:800;font-size:11px}",
 ".mtable td.mt-cat{text-align:left;font-weight:700;color:#005BBB}",
 ".mtable td.mt-this{font-weight:700}",
@@ -2400,6 +2787,19 @@ var DASH_CSS = [
 ".dc-card{background:#fff;border:1px solid #eef1f6;border-radius:10px;padding:8px;height:300px;position:relative}",
 ".dc-card canvas{position:absolute;inset:8px;width:calc(100% - 16px)!important;height:calc(100% - 16px)!important}",
 ".dc-footer{text-align:center;color:#8a92a6;font-size:12px;padding:18px}",
+".yg-intro{font-size:13px;line-height:1.55;color:#33384a}",
+".yg-wrap{overflow-x:auto}",
+".yg-table{border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums;min-width:100%}",
+".yg-table th,.yg-table td{border:1px solid #e3e8f0;padding:4px 7px;text-align:right;white-space:nowrap}",
+".yg-table thead th{background:#eef2f8;color:#00428D;font-weight:800;font-size:11px;text-align:right;position:sticky;top:0}",
+".yg-table thead th:first-child,.yg-table thead th:nth-child(2){text-align:left}",
+".yg-table td.yg-metric{text-align:left;font-weight:700;color:#005BBB;vertical-align:top;white-space:normal;min-width:170px;background:#fbfcff}",
+".yg-table td.yg-year{text-align:left;font-weight:700;color:#33384a}",
+".yg-table td.yg-avg{font-weight:800;background:#f7f9fc}",
+".yg-table td.yg-delta{font-weight:700}",
+".yg-table td.yg-delta.good{color:#2f8f46}",
+".yg-table td.yg-delta.bad{color:#c0392b}",
+".yg-table tbody tr:last-child td{border-bottom:2px solid #d7dce6}",
 ".dc-card{cursor:pointer;transition:box-shadow .12s}",
 ".dc-card:hover{box-shadow:0 4px 16px rgba(68,114,196,.28)}",
 ".dc-card::after{content:'\\1F50D data';position:absolute;top:6px;right:8px;font-size:10px;color:#9aa6bd;background:#fff;padding:1px 6px;border-radius:10px;border:1px solid #e6eaf2;opacity:0;transition:.12s}",
@@ -2485,8 +2885,12 @@ function download(blob,name){
 }
 /* ---- workbook loading (drag-drop / picker / persisted handle) ---- */
 var FILE_HANDLE=null, FILE_NAME="", FILE_BYTES=null;
-function revealWorkbook(wb){
-  parseWorkbook(wb);
+/* Rebuild the whole report from every loaded year. `list` is oldest-first, so
+   the newest workbook is parsed last and supplies the report structure, the
+   report month and the Reference values. */
+function revealBooks(list){
+  BOOKS=[];
+  list.forEach(function(b){ parseWorkbook(b.wb, b.name); });
   EDITED={}; ROWNOTES={}; CELLEDITS={}; GENNOTES={};
   document.getElementById("empty").style.display="none";
   document.getElementById("topnav").style.display="flex";
@@ -2498,16 +2902,34 @@ function revealWorkbook(wb){
   goToPage(0);
   reflectLink();
 }
-/* ---- two-file data pipeline state ---- */
+/* ---- data pipeline state ----
+   MASTERS holds one year-workbook per year, oldest first. Only the year that
+   matches the raw file gets the new month written into it; the rest are
+   read-only history feeding the year-over-year comparisons. */
+var MASTERS=[];          // [{year, bytes, name, light}] — `light` is a Data-Tables-only parse
 var BASE_BYTES=null, BASE_NAME="", RAW_WB=null, RAW_NAME="", WORKING_WB=null, PIPE_MONTH="";
 var PIPE_CHANGES=null;   // {sheetName:{addr:value}} — what to write back into the original file
 function loadWorkbookBytes(buf, name){ classifyAndStore(buf, name); }
 function classifyAndStore(buf, name){
-  var wb;
-  try{ wb=XLSX.read(buf,{type:"array",cellDates:true}); }
+  var light;
+  // Read Data Tables alone first: it identifies a year workbook and is all the
+  // timeline needs, and it skips the raw sheets that make these files slow.
+  try{ light=XLSX.read(buf,{type:"array",cellDates:true,sheets:["Data Tables","Reference"]}); }
   catch(err){ setStatus("Could not read "+name+": "+err.message); return; }
-  if(wb.Sheets && wb.Sheets["Data Tables"]){ BASE_BYTES=buf; BASE_NAME=name; FILE_BYTES=buf; FILE_NAME=name; }
-  else { RAW_WB=wb; RAW_NAME=name; }
+
+  if(light.Sheets && light.Sheets["Data Tables"] && light.Sheets["Data Tables"]["!ref"]){
+    var dt=XLSX.utils.sheet_to_json(light.Sheets["Data Tables"],{header:1,raw:true,defval:null});
+    var yr=bookYear(dt);
+    if(yr==null){ setStatus("Could not tell which year “"+name+"” covers — check its “Month” header row."); return; }
+    MASTERS=MASTERS.filter(function(m){ return m.year!==yr; });   // reloading a year replaces it
+    MASTERS.push({year:yr, bytes:buf, name:name, light:light});
+    MASTERS.sort(function(a,b){ return a.year-b.year; });
+  } else {
+    var raw;
+    try{ raw=XLSX.read(buf,{type:"array",cellDates:true}); }
+    catch(err2){ setStatus("Could not read "+name+": "+err2.message); return; }
+    RAW_WB=raw; RAW_NAME=name;
+  }
   processPipeline();
 }
 var MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -2542,35 +2964,63 @@ function changesBySheet(wb, log){
   return out;
 }
 function processPipeline(){
-  if(BASE_BYTES && RAW_WB){
-    setStatus("Building the report — processing raw data …");
-    try{
-      var wb=XLSX.read(BASE_BYTES,{type:"array",cellDates:true});   // fresh copy so re-runs are clean
-      var tgt=detectReportMonth(RAW_WB);
-      if(!tgt){ setStatus("Could not find any dated rows in "+RAW_NAME+"."); return; }
-      var p=tgt.split("-"), md=new Date(+p[0], +p[1]-1, 1);
-      ReportPipeline.beginChanges();
-      var repA=StageA.ingest(ReportPipeline.helpers, wb, RAW_WB, md);
-      var repB=ReportPipeline.runAll(wb, tgt);
-      PIPE_CHANGES=changesBySheet(wb, ReportPipeline.endChanges());
-      WORKING_WB=wb; PIPE_MONTH=tgt; FILE_HANDLE=null; FILE_BYTES=null; FILE_NAME=BASE_NAME;
-      revealWorkbook(wb);
-      document.getElementById("btnWB").disabled=false;
-      renderPipeReport(repA,repB,tgt);
-      setStatus("Built "+MONTH_NAMES[(+p[1])-1]+" "+p[0]+" — "+ACTIVE.length+" month(s) through "+REPORT_MONTH+".");
-    }catch(err){ setStatus("Pipeline error: "+err.message); console.error(err); }
-  } else if(BASE_BYTES){
-    try{
-      var wb2=XLSX.read(BASE_BYTES,{type:"array",cellDates:true});
-      WORKING_WB=wb2; PIPE_CHANGES=null; revealWorkbook(wb2);
-      document.getElementById("btnWB").disabled=false;
+  if(!MASTERS.length){
+    if(RAW_WB){
+      setStatus("Raw file “"+RAW_NAME+"” loaded. Now drop the year workbook(s) — the ones with the “Data Tables” sheet.");
       renderPipeReport(null,null,null);
-      setStatus("Loaded "+BASE_NAME+" — "+ACTIVE.length+" month(s) through "+REPORT_MONTH+". Drop this month’s raw-data file to add a new month.");
-    }catch(err){ setStatus("Error: "+err.message); }
-  } else if(RAW_WB){
-    setStatus("Raw file “"+RAW_NAME+"” loaded. Now drop the 12-month master workbook (contains the “Data Tables” sheet).");
-    renderPipeReport(null,null,null);
+    }
+    return;
   }
+  try{
+    /* Which year gets the new month? The one the raw file's dates fall in. */
+    var tgtMonth=null, targetYear=MASTERS[MASTERS.length-1].year;
+    if(RAW_WB){
+      tgtMonth=detectReportMonth(RAW_WB);
+      if(!tgtMonth){ setStatus("Could not find any dated rows in "+RAW_NAME+"."); return; }
+      targetYear=+tgtMonth.split("-")[0];
+      if(!MASTERS.some(function(m){ return m.year===targetYear; })){
+        setStatus("“"+RAW_NAME+"” is "+targetYear+" data, but no "+targetYear+" workbook is loaded — drop it and the month will be added there.");
+        renderPipeReport(null,null,null);
+        return;
+      }
+      setStatus("Building the report — processing raw data …");
+    }
+
+    var list=[], repA=null, repB=null;
+    PIPE_CHANGES=null; PIPE_MONTH="";
+    MASTERS.forEach(function(m){
+      if(m.year!==targetYear){ list.push({wb:m.light, name:m.name}); return; }   // read-only history
+
+      // the target year is re-read in full so each run starts from clean bytes
+      var wb = RAW_WB ? XLSX.read(m.bytes,{type:"array",cellDates:true}) : m.light;
+      if(RAW_WB){
+        var p=tgtMonth.split("-"), md=new Date(+p[0], +p[1]-1, 1);
+        ReportPipeline.beginChanges();
+        repA=StageA.ingest(ReportPipeline.helpers, wb, RAW_WB, md);
+        repB=ReportPipeline.runAll(wb, tgtMonth);
+        PIPE_CHANGES=changesBySheet(wb, ReportPipeline.endChanges());
+        PIPE_MONTH=tgtMonth;
+      }
+      WORKING_WB=wb; BASE_BYTES=m.bytes; BASE_NAME=m.name;
+      FILE_HANDLE=null; FILE_BYTES=m.bytes; FILE_NAME=m.name;
+      list.push({wb:wb, name:m.name});
+    });
+
+    revealBooks(list);
+    document.getElementById("btnWB").disabled=false;
+    renderPipeReport(repA,repB,tgtMonth);
+
+    var yrs=timelineYears();
+    var span=yrs.length>1 ? (yrs.length+" years ("+yrs[0]+"–"+yrs[yrs.length-1]+")") : (yrs[0]+"");
+    if(RAW_WB){
+      var pm=tgtMonth.split("-");
+      setStatus("Built "+MONTH_NAMES[(+pm[1])-1]+" "+pm[0]+" into "+BASE_NAME+" — "+
+                PERIODS.length+" month(s) across "+span+", through "+REPORT_MONTH+".");
+    } else {
+      setStatus("Loaded "+MASTERS.length+" workbook(s) — "+PERIODS.length+" month(s) across "+span+
+                ", through "+REPORT_MONTH+". Drop this month’s raw-data file to add a new month.");
+    }
+  }catch(err){ setStatus("Pipeline error: "+err.message); console.error(err); }
 }
 /* Name the download after the master, keeping its own extension so an .xlsm
    stays an .xlsm (and keeps its macros). */
@@ -2622,8 +3072,22 @@ function renderPipeReport(repA,repB,tgt){
   el.style.display="block";
   var rows=[];
   rows.push('<div style="font-weight:700;color:#00428D;margin-bottom:6px">Data files</div>');
-  rows.push('<div>'+(BASE_BYTES?'✅':'⬜')+' 12-month master: <b>'+(BASE_NAME||'not loaded yet')+'</b></div>');
-  rows.push('<div>'+(RAW_WB?'✅':'⬜')+' Raw-data file: <b>'+(RAW_NAME||'not loaded yet')+'</b></div>');
+  if(MASTERS.length){
+    MASTERS.forEach(function(m){
+      var isTarget = (m.name===BASE_NAME);
+      rows.push('<div>✅ '+m.year+' workbook: <b>'+esc(m.name)+'</b>'+
+        (isTarget?' <span style="color:#005BBB;font-weight:700">← this month is added here</span>'
+                 :' <span style="color:#8a92a6">(history)</span>')+'</div>');
+    });
+  } else {
+    rows.push('<div>⬜ Year workbook: <b>not loaded yet</b></div>');
+  }
+  rows.push('<div>'+(RAW_WB?'✅':'⬜')+' Raw-data file: <b>'+esc(RAW_NAME||'not loaded yet')+'</b></div>');
+  if(PERIODS.length){
+    var ys=timelineYears();
+    rows.push('<div style="margin-top:6px;color:#5c6785">Timeline: <b>'+PERIODS[0].full+'</b> → <b>'+
+      PERIODS[PERIODS.length-1].full+'</b> ('+PERIODS.length+' months, '+ys.join(', ')+')</div>');
+  }
   if(repA||repB){
     var mp=tgt?tgt.split("-"):null;
     rows.push('<div style="font-weight:700;color:#00428D;margin:10px 0 6px">New month added: '+(mp?(MONTH_NAMES[(+mp[1])-1]+" "+mp[0]):"")+'</div>');
