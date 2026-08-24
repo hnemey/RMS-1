@@ -1271,7 +1271,7 @@ table.rms-table th.plain { cursor: default; }
     root.appendChild(k);
     root.appendChild(section("Status mix"));
     root.appendChild(el("div", { class: "rms-grid one" }, card("Verification status", "Card / Fax / Manually Verified count as clean; everything else needs work.",
-      hbars(topOf(v.statuses, 20).map(function (it) { return { label: it.label, value: it.value, flag: !STATUS_GOOD[it.label] }; }), { labelChars: 28, labelW: 190 }))));
+      hbars(topOf(v.statuses, 20), { labelChars: 28, labelW: 190 }))));
     root.appendChild(section("By clinic"));
     var statuses = topOf(v.statuses, 0).map(function (x) { return x.label; });
     var rows = Object.keys(S.clinics).map(function (cn) {
