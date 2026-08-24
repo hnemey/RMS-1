@@ -1,0 +1,1320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAS Executive View</title>
+<style>
+/* ============ RMS Bypassed Warnings Dashboard — shared viewer styles ============ */
+.rms {
+  color-scheme: light;
+  --surface-0: #f4f4f2;   /* page */
+  --surface-1: #ffffff;   /* card */
+  --surface-2: #faf9f7;   /* inset */
+  --border:    #e4e3df;
+  --border-2:  #d3d2cc;
+  --text-1:    #16161a;
+  --text-2:    #55544f;
+  --text-3:    #86857e;
+  --series-1:  #2a78d6;   /* primary / magnitude blue */
+  --series-1b: #cde2fb;   /* light blue fill */
+  --accent:    #eb6834;
+  --good:      #008300;
+  --warn:      #eda100;
+  --crit:      #e34948;
+  --crit-bg:   #fdecec;
+  --shadow: 0 1px 2px rgba(16,16,20,.04), 0 4px 16px rgba(16,16,20,.05);
+  --radius: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text-1);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .rms {
+    color-scheme: dark;
+    --surface-0: #131316;
+    --surface-1: #1c1c20;
+    --surface-2: #232329;
+    --border:    #2e2e35;
+    --border-2:  #3a3a42;
+    --text-1:    #f4f4f6;
+    --text-2:    #b7b6b0;
+    --text-3:    #86857e;
+    --series-1:  #3987e5;
+    --series-1b: #1e3a5c;
+    --accent:    #e0703f;
+    --good:      #35b135;
+    --warn:      #e0b13a;
+    --crit:      #e66767;
+    --crit-bg:   #3a1f21;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] .rms {
+  color-scheme: dark;
+  --surface-0: #131316; --surface-1: #1c1c20; --surface-2: #232329;
+  --border: #2e2e35; --border-2: #3a3a42;
+  --text-1: #f4f4f6; --text-2: #b7b6b0; --text-3: #86857e;
+  --series-1: #3987e5; --series-1b: #1e3a5c; --accent: #e0703f;
+  --good: #35b135; --warn: #e0b13a; --crit: #e66767; --crit-bg: #3a1f21;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+}
+
+.rms *, .rms *::before, .rms *::after { box-sizing: border-box; }
+.rms { background: var(--surface-0); min-height: 100vh; padding: 0; margin: 0; }
+.rms-wrap { max-width: 1180px; margin: 0 auto; padding: 26px 22px 70px; }
+
+/* Header (v2 — breadcrumb + pickers + exports) */
+.rms-head2 { margin-bottom: 18px; }
+.rms-titlebox h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 6px; }
+.rms-subtitle { color: var(--text-3); font-size: 13px; margin-top: 2px; }
+.rms-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 13px; }
+.rms-crumbs .crumb { font: inherit; font-size: 13px; color: var(--text-3); background: none; border: none; padding: 2px 4px; border-radius: 6px; }
+.rms-crumbs button.crumb { cursor: pointer; color: var(--series-1); font-weight: 600; }
+.rms-crumbs button.crumb:hover { background: var(--surface-2); text-decoration: underline; }
+.rms-crumbs .crumb.active { color: var(--text-1); font-weight: 640; }
+.rms-crumbs .sep { color: var(--text-3); }
+.rms-headright { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; margin: 14px 0 12px; }
+.rms-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+  color: var(--text-2); background: var(--surface-1); border: 1px solid var(--border); padding: 5px 11px; border-radius: 999px; }
+.rms-badge b { color: var(--text-1); }
+
+.rms-exports { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 0 2px; border-top: 1px solid var(--border); }
+.rms-xbtn { font: inherit; font-size: 13px; font-weight: 640; cursor: pointer; border-radius: 10px; padding: 9px 15px; border: 1px solid transparent; }
+.rms-xbtn.primary { background: var(--series-1); color: #fff; box-shadow: var(--shadow); }
+.rms-xbtn.primary:hover { filter: brightness(1.06); }
+.rms-xbtn.ghost { background: var(--surface-1); color: var(--text-1); border-color: var(--border-2); }
+.rms-xbtn.ghost:hover { border-color: var(--series-1); color: var(--series-1); }
+.rms-themebtn { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-2);
+  background: var(--surface-1); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; }
+.rms-themebtn:hover { border-color: var(--series-1); color: var(--series-1); }
+.rms-xstatus { font-size: 12.5px; color: var(--text-3); margin-left: 4px; }
+
+.rms-linkbtn { font: inherit; background: none; border: none; color: var(--series-1); cursor: pointer; padding: 0; font-weight: 600; text-align: left; }
+.rms-linkbtn:hover { text-decoration: underline; }
+.chart .hit.clickable { cursor: pointer; }
+
+/* picker */
+.rms-picker { display: flex; align-items: center; gap: 9px; }
+.rms-picker label { font-size: 12px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.rms-select { font: inherit; font-size: 14px; font-weight: 560; color: var(--text-1);
+  background: var(--surface-1); border: 1px solid var(--border-2); border-radius: 10px;
+  padding: 9px 34px 9px 13px; cursor: pointer; min-width: 220px; box-shadow: var(--shadow);
+  appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%2386857e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat; background-position: right 12px center; }
+.rms-select:focus { outline: 2px solid var(--series-1); outline-offset: 1px; }
+
+/* Section titles */
+.rms-section { margin: 26px 0 12px; font-size: 13px; font-weight: 680; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-3); }
+
+/* KPI tiles */
+.rms-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 15px 16px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.kpi .k-label { font-size: 12px; color: var(--text-3); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.kpi .k-val { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin-top: 6px; line-height: 1.05;
+  font-variant-numeric: tabular-nums; }
+.kpi .k-val small { font-size: 14px; font-weight: 600; color: var(--text-3); }
+.kpi .k-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; min-height: 15px; }
+.kpi.crit .k-val { color: var(--crit); }
+.kpi.accent .k-val { color: var(--accent); }
+
+/* Card / chart grid */
+.rms-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.rms-grid.one { grid-template-columns: 1fr; }
+.rms-grid + .rms-grid { margin-top: 18px; }   /* breathing room between the timeline graph and the cards below it */
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 17px 14px; box-shadow: var(--shadow); min-width: 0; }
+.card h3 { font-size: 14px; font-weight: 650; margin: 0 0 2px; letter-spacing: -.005em; }
+.card .c-note { font-size: 12px; color: var(--text-3); margin: 0 0 12px; }
+.card.span2 { grid-column: 1 / -1; }
+
+/* SVG charts */
+.chart svg { display: block; width: 100%; max-width: 720px; height: auto; margin: 0 auto; overflow: visible; }
+.chart .axis text, .chart .tick text { fill: var(--text-3); font-size: 11px; }
+.chart .grid line { stroke: var(--border); stroke-width: 1; }
+.chart .bar { fill: var(--series-1); transition: opacity .12s; }
+.chart .bar.flag { fill: var(--crit); }
+.chart .bar:hover { opacity: .82; }
+.chart .barlabel { fill: var(--text-2); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart .barcat { fill: var(--text-1); font-size: 12px; font-weight: 500; }
+.chart .area { fill: var(--series-1b); opacity: .55; }
+.chart .line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .dot { fill: var(--surface-1); stroke: var(--series-1); stroke-width: 2; }
+.chart .hit { fill: transparent; cursor: pointer; }
+.chart .cross { stroke: var(--border-2); stroke-width: 1; stroke-dasharray: 3 3; }
+.empty-note { color: var(--text-3); font-size: 13px; padding: 18px 0; text-align: center; }
+
+/* Tooltip */
+.rms-tip { position: fixed; z-index: 9999; pointer-events: none; background: var(--text-1);
+  color: var(--surface-1); font-size: 12px; line-height: 1.4; padding: 7px 10px; border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.28); opacity: 0; transition: opacity .1s; max-width: 260px;
+  font-variant-numeric: tabular-nums; }
+.rms-tip b { font-weight: 700; }
+.rms-tip .t-k { opacity: .7; }
+
+/* Table */
+.rms-tablewrap { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden; }
+.rms-tbtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 13px 15px; border-bottom: 1px solid var(--border); }
+.rms-tbtools input[type=search] { font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 9px;
+  border: 1px solid var(--border-2); background: var(--surface-2); color: var(--text-1); min-width: 240px; flex: 1 1 240px; max-width: 380px; }
+.rms-tbtools input:focus { outline: 2px solid var(--series-1); outline-offset: -1px; }
+.rms-tbtools .count { font-size: 12px; color: var(--text-3); margin-left: auto; }
+.rms-scroll { overflow-x: auto; }
+table.rms-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.rms-table th { text-align: left; font-weight: 640; color: var(--text-2); background: var(--surface-2);
+  padding: 9px 12px; position: sticky; top: 0; white-space: nowrap; border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none; }
+/* Numeric headers align right, directly over their (right-aligned) numbers, so each title sits above its column. */
+table.rms-table th.num { text-align: right; }
+table.rms-table th .arrow { color: var(--series-1); font-size: 10px; }
+table.rms-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text-1); vertical-align: top; }
+table.rms-table tr:hover td { background: var(--surface-2); }
+table.rms-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: var(--series-1b); color: var(--series-1); white-space: nowrap; }
+:root[data-theme="dark"] .rms .pill, .rms .pill { }
+/* expandable employee drill-down */
+table.rms-table.drill td.exp-cell { width: 26px; text-align: center; color: var(--series-1); }
+.exp-chev { display: inline-block; font-size: 11px; transition: transform .12s; }
+table.rms-table.drill td.exp-hint { color: var(--text-3); font-size: 11px; text-align: right; }
+table.rms-table.drill tr.drill-main.open td { background: var(--surface-2); }
+table.rms-table.drill tr.drill-detail > td { padding: 0; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.emp-detail { padding: 8px 14px 16px; }
+.emp-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.emp-detail-h { font-size: 12px; font-weight: 650; color: var(--text-2); margin: 4px 0 8px; }
+@media (max-width: 720px) { .emp-detail-grid { grid-template-columns: 1fr; } }
+
+.tb-more { padding: 12px 15px; text-align: center; }
+.tb-more button, .rms-btn { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--surface-2); color: var(--text-1); border: 1px solid var(--border-2); border-radius: 9px; padding: 8px 16px; }
+.tb-more button:hover, .rms-btn:hover { border-color: var(--series-1); color: var(--series-1); }
+
+/* flag list */
+.flaglist { display: flex; flex-direction: column; gap: 8px; }
+.flagrow { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.flagrow.hot { border-color: var(--crit); background: var(--crit-bg); }
+.flagrow .ic { flex: none; width: 18px; height: 18px; }
+.flagrow .txt { flex: 1 1 auto; min-width: 0; }
+.flagrow .txt b { font-weight: 650; }
+.flagrow .txt .m { color: var(--text-3); font-size: 12px; }
+.flagrow .n { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--crit); }
+.flagrow.cool .n { color: var(--text-2); }
+
+.rms-foot { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--border);
+  color: var(--text-3); font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.rms-foot .spacer { flex: 1 1 auto; }
+
+@media (max-width: 720px) {
+  .rms-grid { grid-template-columns: 1fr; }
+  .rms-head h1 { font-size: 19px; }
+}
+
+
+/* ===== Executive View additions ===== */
+.ev-top { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; justify-content: space-between;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.ev-title h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 4px; }
+.ev-title .sub { color: var(--text-3); font-size: 13px; }
+.ev-actions { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+.ev-link { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 11px 0 0; font-size: 12.5px; color: var(--text-3); }
+.ev-link .folder { color: var(--text-1); font-weight: 640; }
+.ev-link .warn { color: var(--warn); font-weight: 640; }
+.ev-link .crit { color: var(--crit); font-weight: 640; }
+
+.ev-drop { border: 1.5px dashed var(--border-2); border-radius: var(--radius); background: var(--surface-1);
+  padding: 34px 22px; text-align: center; margin: 18px 0; transition: border-color .12s, background .12s; }
+.ev-drop.over { border-color: var(--series-1); background: var(--series-1b); }
+.ev-drop h2 { font-size: 17px; margin: 0 0 8px; font-weight: 660; }
+.ev-drop p { color: var(--text-2); font-size: 13.5px; margin: 0 auto 10px; max-width: 620px; line-height: 1.55; }
+.ev-drop .small { color: var(--text-3); font-size: 12.5px; }
+.ev-steps { text-align: left; max-width: 620px; margin: 16px auto 0; color: var(--text-2); font-size: 13px; line-height: 1.7; padding-left: 20px; }
+.ev-steps code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 12px; }
+
+.ev-list { margin: 10px 0 0; padding-left: 22px; color: var(--text-2); font-size: 13px; line-height: 1.7; }
+.ev-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin: 18px 0 4px; }
+.ev-tab { font: inherit; font-size: 13px; font-weight: 620; cursor: pointer; border-radius: 9px; padding: 8px 14px;
+  border: 1px solid var(--border-2); background: var(--surface-1); color: var(--text-2); }
+.ev-tab:hover { border-color: var(--series-1); color: var(--series-1); }
+.ev-tab.on { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+.ev-filters { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; padding: 13px 15px; margin: 14px 0 6px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+.ev-delta { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ev-delta.up { color: var(--crit); }
+.ev-delta.down { color: var(--good); }
+.ev-delta.flat { color: var(--text-3); }
+.ev-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+.ev-dot.ok { background: var(--good); } .ev-dot.stale { background: var(--warn); } .ev-dot.miss { background: var(--crit); }
+.ev-note { font-size: 12px; color: var(--text-3); margin: 10px 2px 0; }
+.ev-err { background: var(--crit-bg); border: 1px solid var(--crit); color: var(--crit); border-radius: 10px;
+  padding: 10px 13px; font-size: 12.5px; margin: 12px 0; }
+table.rms-table th.plain { cursor: default; }
+.ev-bartd { min-width: 90px; }
+.ev-minibar { display: block; height: 7px; border-radius: 4px; background: var(--series-1b); overflow: hidden; }
+.ev-minibar i { display: block; height: 100%; background: var(--series-1); }
+</style>
+</head>
+<body class="rms">
+<div class="rms-wrap">
+
+  <div class="ev-top">
+    <div class="ev-title">
+      <h1>PAS Quality — Executive View</h1>
+      <div class="sub">Every clinic's rollup in one place. Link the shared folder once; press Update whenever clinics drop new files.</div>
+    </div>
+    <div class="ev-actions">
+      <button class="rms-xbtn primary" id="btnLink">📁 Link Folder</button>
+      <button class="rms-xbtn ghost" id="btnUpdate" disabled>🔄 Update</button>
+      <button class="rms-themebtn" id="btnTheme">☾ Dark</button>
+    </div>
+  </div>
+  <div class="ev-link" id="linkstatus"></div>
+  <input id="fileInput" type="file" accept=".json,.pasq.json" multiple style="display:none">
+
+  <div id="errbox"></div>
+  <div class="ev-drop" id="drop">
+    <h2>No clinic data linked yet</h2>
+    <p>Link the shared folder your clinics sync their rollup files into — or drag the files straight onto this box.</p>
+    <ol class="ev-steps">
+      <li>Each clinic opens <code>PAS_Quality_Dashboard.html</code>, imports its own Epic exports, and clicks <b>⬇ Export for executive view (data)</b>.</li>
+      <li>That saves a small <code>.pasq.json</code> rollup — counts only, no patient identifiers.</li>
+      <li>Everyone drops their file into the same synced folder (OneDrive, SharePoint or a network drive).</li>
+      <li>Click <b>Link Folder</b> above and pick that folder. Press <b>🔄 Update</b> any time to pull in new files.</li>
+    </ol>
+    <p class="small">Link Folder needs Chrome or Edge. In Safari or Firefox, drag the files onto this box instead.</p>
+  </div>
+
+  <div id="filters" style="display:none"></div>
+  <div id="tabs" style="display:none"></div>
+  <div id="view"></div>
+
+  <div class="rms-foot" id="foot" style="display:none"></div>
+</div>
+<script>
+/* ================= PAS Quality — Executive View =================
+   Reads pre-aggregated ".pasq.json" rollups written by PAS_Quality_Dashboard.html and merges every
+   one it finds in a linked folder into a single cross-clinic view.
+
+   Merge rule: every number in a rollup is bucketed under (clinic, month). The winner for each
+   (clinic, month) pair is the block from the file with the newest generatedAtISO. That is what makes
+   the folder safe to drop files into repeatedly — a clinic re-exporting May replaces its own May
+   rather than adding a second copy of it.
+
+   Rollups carry counts only. No patient identifiers are present in the files this page reads. ---- */
+(function () {
+  "use strict";
+
+  var FORMAT = "PAS_QUALITY_ROLLUP";
+  var NO_MONTH = "unknown";
+  var MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  // Coverage statuses that represent a finished, clean verification; everything else needs work.
+  var STATUS_GOOD = { "Verified by Card": 1, "Verified by Fax": 1, "Manually Verified": 1 };
+  var IDB_DB = "pasExecView", IDB_STORE = "kv", IDB_KEY = "folder";
+
+  /* ================= DOM + format helpers ================= */
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      if (k === "class") e.className = attrs[k];
+      else if (k === "text") e.textContent = attrs[k];
+      else if (k === "html") e.innerHTML = attrs[k];
+      else if (k.slice(0, 2) === "on" && typeof attrs[k] === "function") e.addEventListener(k.slice(2), attrs[k]);
+      else if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+    }
+    if (kids != null) (Array.isArray(kids) ? kids : [kids]).forEach(function (c) {
+      if (c == null) return; e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    });
+    return e;
+  }
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function svg(tag, attrs) {
+    var e = document.createElementNS(SVGNS, tag);
+    if (attrs) for (var k in attrs) if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function fmt(n) { return (n == null ? 0 : Math.round(n)).toLocaleString("en-US"); }
+  function fmt1(n) { return n == null ? "—" : (Math.round(n * 10) / 10).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+  function usd(n) { return "$" + (Math.round((n || 0) * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+  function pct(n) { return n == null ? "—" : (Math.round((n || 0) * 1000) / 10).toLocaleString("en-US") + "%"; }
+  function trunc(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+  function monthLabel(p) {
+    if (!p || p === NO_MONTH || !/^\d{4}-\d{2}$/.test(p)) return "Undated";
+    var s = p.split("-"); return MON[+s[1]] + " " + s[0];
+  }
+  function monthShort(p) {
+    if (!p || p === NO_MONTH || !/^\d{4}-\d{2}$/.test(p)) return "Undated";
+    var s = p.split("-"); return MON[+s[1]] + " " + s[0].slice(2);
+  }
+  function sortMonths(a) {
+    return a.slice().sort(function (x, y) {
+      if (x === NO_MONTH) return 1; if (y === NO_MONTH) return -1;
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
+  }
+  function topOf(obj, n) {
+    var a = Object.keys(obj || {}).map(function (k) { return { label: k, value: obj[k] }; });
+    a.sort(function (x, y) { return y.value - x.value || String(x.label).localeCompare(String(y.label)); });
+    return n ? a.slice(0, n) : a;
+  }
+
+  /* ================= state ================= */
+  var FILES = [];         // [{name, ts, tsLabel, data, bytes}] oldest generated first
+  var MERGED = {};        // clinic -> month -> {ts, tsLabel, block, file}
+  var SUPERSEDED = 0;     // (clinic, month) pairs that appeared in more than one file
+  var SKIPPED = [];       // files that were not readable rollups
+  var DIR_HANDLE = null, LINK_NAME = "", LAST_REFRESH = "";
+  var state = { tab: "overview", month: "", clinic: "" };
+
+  /* ================= IndexedDB (remember the linked folder across reloads) ================= */
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open(IDB_DB, 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore(IDB_STORE); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function idbPut(k, v) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(v, k);
+        tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+  function idbGet(k) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction(IDB_STORE, "readonly"), rq = tx.objectStore(IDB_STORE).get(k);
+        rq.onsuccess = function () { res(rq.result); }; rq.onerror = function () { rej(rq.error); };
+      });
+    });
+  }
+
+  /* ================= linking a folder ================= */
+  var RE_JSON = /\.json$/i;
+  function readDir(dirHandle) {
+    var files = [], iter = dirHandle.values();
+    function step() {
+      return iter.next().then(function (res) {
+        if (res.done) return files;
+        var entry = res.value;
+        if (entry.kind === "file" && RE_JSON.test(entry.name)) {
+          return entry.getFile().then(function (f) { files.push(f); return step(); });
+        }
+        return step();
+      });
+    }
+    return step();
+  }
+  function pickFolder() {
+    if (!window.showDirectoryPicker) { $("fileInput").click(); return; }
+    window.showDirectoryPicker({ mode: "read" }).then(function (h) {
+      DIR_HANDLE = h; LINK_NAME = h.name;
+      idbPut(IDB_KEY, h).catch(function () {});
+      return readDir(h).then(function (files) { return processFiles(files, false); });
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") return;
+      $("fileInput").click();
+    });
+  }
+  function updateData() {
+    if (!DIR_HANDLE) { $("fileInput").click(); return; }
+    setBusy(true);
+    Promise.resolve(DIR_HANDLE.queryPermission ? DIR_HANDLE.queryPermission({ mode: "read" }) : "granted")
+      .then(function (p) { return p === "granted" ? p : DIR_HANDLE.requestPermission({ mode: "read" }); })
+      .then(function (p) {
+        if (p !== "granted") { showErr("Permission to read “" + LINK_NAME + "” was declined."); setBusy(false); return; }
+        return readDir(DIR_HANDLE).then(function (files) { return processFiles(files, true); });
+      })
+      .catch(function (e) {
+        setBusy(false);
+        showErr("Could not re-read “" + LINK_NAME + "”. If the folder moved or was renamed, link it again. (" + (e && e.message ? e.message : e) + ")");
+      });
+  }
+  function setBusy(on) {
+    var b = $("btnUpdate"); if (b) b.textContent = on ? "⏳ Reading…" : "🔄 Update";
+  }
+  // Drag-and-drop fallback (and the only path on Safari/Firefox). Walks dropped folders too.
+  function filesFromDataTransfer(dt) {
+    var items = dt.items, entries = [];
+    if (items && items.length && items[0].webkitGetAsEntry) {
+      for (var i = 0; i < items.length; i++) {
+        var en = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+        if (en) entries.push(en);
+      }
+    }
+    if (!entries.length) return Promise.resolve(Array.prototype.slice.call(dt.files || []));
+    var out = [];
+    function walk(entry) {
+      return new Promise(function (res) {
+        if (entry.isFile) { entry.file(function (f) { out.push(f); res(); }, function () { res(); }); return; }
+        if (entry.isDirectory) {
+          var rd = entry.createReader(), acc = [];
+          (function read() {
+            rd.readEntries(function (list) {
+              if (!list.length) { Promise.all(acc.map(walk)).then(function () { res(); }); return; }
+              acc = acc.concat(Array.prototype.slice.call(list)); read();
+            }, function () { res(); });
+          })();
+          return;
+        }
+        res();
+      });
+    }
+    return Promise.all(entries.map(walk)).then(function () { return out; });
+  }
+
+  /* ================= reading + validating rollups ================= */
+  function readText(f) {
+    if (f.text) return f.text();
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () { res(String(r.result || "")); };
+      r.onerror = function () { rej(r.error); };
+      r.readAsText(f);
+    });
+  }
+  function parseRollup(name, text) {
+    var d;
+    try { d = JSON.parse(text); } catch (e) { return { err: "not valid JSON" }; }
+    if (!d || d.format !== FORMAT) return { err: "not a PAS rollup (missing format tag)" };
+    if (!d.clinics || typeof d.clinics !== "object") return { err: "no clinic data inside" };
+    var ts = Date.parse(d.generatedAtISO || "");
+    if (!ts) ts = 0;
+    return { ok: { name: name, ts: ts, tsLabel: d.generatedAt || "", data: d, bytes: text.length } };
+  }
+  function processFiles(files, isUpdate) {
+    var arr = Array.prototype.slice.call(files || []).filter(function (f) { return RE_JSON.test(f.name); });
+    setBusy(true);
+    if (!arr.length) {
+      setBusy(false);
+      showErr("No .json rollup files in that folder. Clinics create them with “⬇ Export for executive view (data)”.");
+      return Promise.resolve();
+    }
+    return Promise.all(arr.map(function (f) {
+      return readText(f).then(function (t) { return { name: f.name, text: t }; }, function () { return { name: f.name, text: null }; });
+    })).then(function (reads) {
+      var out = []; SKIPPED = [];
+      reads.forEach(function (r) {
+        if (r.text == null) { SKIPPED.push(r.name + " — could not be read"); return; }
+        var p = parseRollup(r.name, r.text);
+        if (p.err) { SKIPPED.push(r.name + " — " + p.err); return; }
+        out.push(p.ok);
+      });
+      FILES = out.sort(function (a, b) { return a.ts - b.ts || String(a.name).localeCompare(String(b.name)); });
+      LAST_REFRESH = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      setBusy(false);
+      if (!FILES.length) {
+        showErr("None of the " + arr.length + " .json file(s) were PAS rollups." + (SKIPPED.length ? " " + SKIPPED.slice(0, 3).join("; ") : ""));
+        return;
+      }
+      showErr(SKIPPED.length ? "Ignored " + SKIPPED.length + " file(s) that are not PAS rollups — see the Data sources tab." : "");
+      if (!isUpdate) { state.month = ""; state.clinic = ""; }
+      rebuild();
+    });
+  }
+  function showErr(msg) {
+    var box = $("errbox"); box.innerHTML = "";
+    if (msg) box.appendChild(el("div", { class: "ev-err", text: msg }));
+  }
+
+  /* ================= merge ================= */
+  /* One winner per (clinic, month): the block from the most recently generated file that contains it.
+     Files are already sorted oldest-generated first, so a later file simply overwrites an earlier one. */
+  function mergeAll(files) {
+    var pick = {}; SUPERSEDED = 0;
+    files.forEach(function (f) {
+      var cs = (f.data && f.data.clinics) || {};
+      Object.keys(cs).forEach(function (cn) {
+        var ms = (cs[cn] && cs[cn].months) || {};
+        Object.keys(ms).forEach(function (p) {
+          var byC = pick[cn] || (pick[cn] = {});
+          if (byC[p]) { SUPERSEDED++; if (f.ts < byC[p].ts) return; }
+          byC[p] = { ts: f.ts, tsLabel: f.tsLabel, block: ms[p], file: f.name };
+        });
+      });
+    });
+    return pick;
+  }
+  function allMonths() {
+    var s = {};
+    Object.keys(MERGED).forEach(function (c) { Object.keys(MERGED[c]).forEach(function (p) { s[p] = 1; }); });
+    return sortMonths(Object.keys(s));
+  }
+  function allClinics() { return Object.keys(MERGED).sort(function (a, b) { return String(a).localeCompare(String(b)); }); }
+  function datedMonths() { return allMonths().filter(function (p) { return p !== NO_MONTH; }); }
+
+  /* ================= accumulators ================= */
+  function newAll() {
+    return {
+      bypass: { n: 0, patients: 0, types: {}, details: {}, byWeekday: [0, 0, 0, 0, 0, 0, 0], byHour: {}, byDay: {}, employees: {} },
+      copays: { countDue: 0, countPaid: 0, sumDue: 0, sumPaid: 0, employees: {} },
+      coverage: { n: 0, statuses: {}, employees: {} },
+      registrations: { n: 0, employees: {} },
+      months: {}, buckets: 0
+    };
+  }
+  function addC(d, s) { if (!s) return; Object.keys(s).forEach(function (k) { d[k] = (d[k] || 0) + (+s[k] || 0); }); }
+  function addBlock(dst, blk) {
+    if (!blk) return;
+    dst.buckets++;
+    var b = blk.bypass;
+    if (b) {
+      var D = dst.bypass;
+      D.n += +b.n || 0; D.patients += +b.patients || 0;
+      addC(D.types, b.types); addC(D.details, b.details); addC(D.byHour, b.byHour); addC(D.byDay, b.byDay);
+      for (var i = 0; i < 7; i++) D.byWeekday[i] += (b.byWeekday && +b.byWeekday[i]) || 0;
+      Object.keys(b.employees || {}).forEach(function (en) {
+        var s = b.employees[en], e = D.employees[en] || (D.employees[en] = { n: 0, patients: 0, types: {} });
+        e.n += +s.n || 0; e.patients += +s.patients || 0; addC(e.types, s.types);
+      });
+    }
+    var c = blk.copays;
+    if (c) {
+      var Dc = dst.copays;
+      Dc.countDue += +c.countDue || 0; Dc.countPaid += +c.countPaid || 0;
+      Dc.sumDue += +c.sumDue || 0; Dc.sumPaid += +c.sumPaid || 0;
+      Object.keys(c.employees || {}).forEach(function (en) {
+        var s = c.employees[en], e = Dc.employees[en] || (Dc.employees[en] = { countDue: 0, countPaid: 0, sumDue: 0, sumPaid: 0 });
+        e.countDue += +s.countDue || 0; e.countPaid += +s.countPaid || 0;
+        e.sumDue += +s.sumDue || 0; e.sumPaid += +s.sumPaid || 0;
+      });
+    }
+    var v = blk.coverage;
+    if (v) {
+      var Dv = dst.coverage;
+      Dv.n += +v.n || 0; addC(Dv.statuses, v.statuses);
+      Object.keys(v.employees || {}).forEach(function (en) {
+        var s = v.employees[en], e = Dv.employees[en] || (Dv.employees[en] = { n: 0, statuses: {} });
+        e.n += +s.n || 0; addC(e.statuses, s.statuses);
+      });
+    }
+    var g = blk.registrations;
+    if (g) { dst.registrations.n += +g.n || 0; addC(dst.registrations.employees, g.employees); }
+  }
+
+  /* Aggregate everything the current Month/Clinic filters allow, keeping per-clinic and per-month
+     breakdowns alongside the grand total so every tab can render off one pass. */
+  function slice() {
+    var out = { total: newAll(), clinics: {}, byMonth: {}, empClinic: {} };
+    Object.keys(MERGED).forEach(function (cn) {
+      if (state.clinic && cn !== state.clinic) return;
+      Object.keys(MERGED[cn]).forEach(function (p) {
+        if (state.month && p !== state.month) return;
+        var blk = MERGED[cn][p].block;
+        var C = out.clinics[cn] || (out.clinics[cn] = newAll());
+        addBlock(C, blk); C.months[p] = 1;
+        addBlock(out.total, blk); out.total.months[p] = 1;
+        var M = out.byMonth[p] || (out.byMonth[p] = newAll());
+        addBlock(M, blk);
+        // remember which clinic each person's numbers came from (for the Employees tab)
+        ["bypass", "copays", "coverage"].forEach(function (mod) {
+          var src = blk[mod] && blk[mod].employees; if (!src) return;
+          Object.keys(src).forEach(function (en) { (out.empClinic[en] || (out.empClinic[en] = {}))[cn] = 1; });
+        });
+        if (blk.registrations && blk.registrations.employees) {
+          Object.keys(blk.registrations.employees).forEach(function (en) { (out.empClinic[en] || (out.empClinic[en] = {}))[cn] = 1; });
+        }
+      });
+    });
+    return out;
+  }
+
+  /* ================= derived metrics ================= */
+  function per100(warnings, regs) { return regs > 0 ? (warnings / regs) * 100 : null; }
+  function collectPct(c) { return c && c.sumDue > 0 ? c.sumPaid / c.sumDue : null; }
+  function covFlagged(v) {
+    if (!v || !v.n) return { n: 0, pct: null };
+    var good = 0;
+    Object.keys(v.statuses).forEach(function (s) { if (STATUS_GOOD[s]) good += v.statuses[s]; });
+    return { n: v.n - good, pct: (v.n - good) / v.n };
+  }
+  function hasMod(S, mod) {
+    if (mod === "copays") return S.total.copays.countDue > 0 || S.total.copays.countPaid > 0;
+    if (mod === "coverage") return S.total.coverage.n > 0;
+    if (mod === "registrations") return S.total.registrations.n > 0;
+    return S.total.bypass.n > 0;
+  }
+
+  /* ================= chart + table primitives ================= */
+  function ticks(max, count) {
+    var step = Math.max(1, Math.ceil(max / count)), mag = Math.pow(10, Math.floor(Math.log10(step)));
+    step = Math.ceil(step / mag) * mag;
+    var out = []; for (var v = step; v <= max * 1.001; v += step) out.push(v);
+    return out;
+  }
+  function hbars(items, opts) {
+    opts = opts || {};
+    var wrap = el("div", { class: "chart" });
+    items = (items || []).filter(function (i) { return i && i.value; });
+    if (!items.length) { wrap.appendChild(el("div", { class: "empty-note", text: opts.empty || "No data" })); return wrap; }
+    var rowH = 25, padT = 6, labelW = opts.labelW || 170, plotW = 400, W = labelW + plotW + 78;
+    var H = padT * 2 + items.length * rowH;
+    var s = svg("svg", { viewBox: "0 0 " + W + " " + H });
+    var max = Math.max.apply(null, items.map(function (i) { return i.value; })) || 1;
+    items.forEach(function (it, i) {
+      var y = padT + i * rowH, bw = Math.max(2, (it.value / max) * plotW);
+      var t = svg("text", { x: labelW - 9, y: y + 15, "text-anchor": "end", class: "barcat" });
+      t.textContent = trunc(it.label, opts.labelChars || 26); s.appendChild(t);
+      s.appendChild(svg("rect", { x: labelW, y: y + 4, width: bw, height: 14, rx: 4, class: "bar" + (it.flag ? " flag" : "") }));
+      var v = svg("text", { x: labelW + bw + 7, y: y + 15, class: "barlabel" });
+      v.textContent = opts.fmt ? opts.fmt(it.value) : fmt(it.value); s.appendChild(v);
+    });
+    wrap.appendChild(s); return wrap;
+  }
+  function vbars(items, opts) {
+    opts = opts || {};
+    var wrap = el("div", { class: "chart" });
+    items = items || [];
+    if (!items.length || !items.some(function (i) { return i.value; })) {
+      wrap.appendChild(el("div", { class: "empty-note", text: opts.empty || "No data" })); return wrap;
+    }
+    var W = 720, H = 215, padL = 54, padR = 14, padT = 16, padB = 34;
+    var plotW = W - padL - padR, plotH = H - padT - padB, base = padT + plotH;
+    var max = Math.max.apply(null, items.map(function (i) { return i.value; })) || 1;
+    var s = svg("svg", { viewBox: "0 0 " + W + " " + H });
+    ticks(max, 3).forEach(function (t) {
+      var y = base - (t / max) * plotH, g = svg("g", { class: "grid" });
+      g.appendChild(svg("line", { x1: padL, x2: W - padR, y1: y, y2: y }));
+      var tx = svg("text", { x: padL - 9, y: y + 4, "text-anchor": "end", class: "barlabel" });
+      tx.textContent = opts.fmt ? opts.fmt(t) : fmt(t); g.appendChild(tx); s.appendChild(g);
+    });
+    var n = items.length, slot = plotW / n, bw = Math.min(58, slot * 0.6);
+    items.forEach(function (it, i) {
+      var h = Math.max(1, (it.value / max) * plotH), x = padL + slot * i + (slot - bw) / 2, y = base - h;
+      s.appendChild(svg("rect", { x: x, y: y, width: bw, height: h, rx: 5, class: "bar" + (it.flag ? " flag" : "") }));
+      var vt = svg("text", { x: x + bw / 2, y: y - 6, "text-anchor": "middle", class: "barlabel" });
+      vt.textContent = opts.fmt ? opts.fmt(it.value) : fmt(it.value); s.appendChild(vt);
+      var lt = svg("text", { x: x + bw / 2, y: base + 18, "text-anchor": "middle", class: "barcat" });
+      lt.textContent = it.label; s.appendChild(lt);
+    });
+    s.appendChild(svg("line", { x1: padL, x2: W - padR, y1: base, y2: base, stroke: "var(--border-2)" }));
+    wrap.appendChild(s); return wrap;
+  }
+  function kpi(label, value, sub, cls) {
+    return el("div", { class: "kpi" + (cls ? " " + cls : "") }, [
+      el("div", { class: "k-label", text: label }),
+      el("div", { class: "k-val", html: value }),
+      el("div", { class: "k-sub", text: sub || "" })
+    ]);
+  }
+  function card(title, note, body, span) {
+    return el("div", { class: "card" + (span ? " span2" : "") }, [
+      el("h3", { text: title }), note ? el("p", { class: "c-note", text: note }) : null, body
+    ]);
+  }
+  function section(t) { return el("div", { class: "rms-section", text: t }); }
+  /* goodUp=true for metrics where rising is the good direction (copay collection rate); the default
+     assumes rising is bad, which is what warnings and error counts want. */
+  function delta(cur, prev, goodUp) {
+    if (prev == null || cur == null || !prev) return el("span", { class: "ev-delta flat", text: "—" });
+    var d = (cur - prev) / prev, up = d > 0.001, down = d < -0.001;
+    var cls = !up && !down ? "flat" : (up === !!goodUp ? "down" : "up");   // "down" is the green class
+    return el("span", { class: "ev-delta " + cls,
+      text: (up ? "▲ " : down ? "▼ " : "") + (Math.abs(Math.round(d * 1000) / 10)) + "%" });
+  }
+  function minibar(v, max) {
+    var w = max > 0 ? Math.max(2, Math.round((v / max) * 100)) : 0;
+    return el("span", { class: "ev-minibar" }, el("i", { style: "width:" + w + "%" }));
+  }
+
+  /* Sortable (and optionally searchable) table.
+     cols: [{key, label, num, get(row), render(row), sortVal(row), plain}] */
+  function table(cols, rows, opts) {
+    opts = opts || {};
+    var sortKey = opts.sort || cols[0].key, sortDir = opts.dir == null ? -1 : opts.dir;
+    var shown = opts.page || rows.length, q = "";
+    var wrap = el("div", { class: "rms-tablewrap" });
+    var countEl = el("span", { class: "count" });
+    if (opts.search) {
+      var input = el("input", { type: "search", placeholder: opts.search });
+      input.addEventListener("input", function () { q = input.value.trim().toLowerCase(); shown = opts.page || rows.length; paint(); });
+      wrap.appendChild(el("div", { class: "rms-tbtools" }, [input, countEl]));
+    }
+    var scroll = el("div", { class: "rms-scroll" });
+    var t = el("table", { class: "rms-table" }), thead = el("thead"), tb = el("tbody");
+    t.appendChild(thead); t.appendChild(tb); scroll.appendChild(t); wrap.appendChild(scroll);
+    var more = el("div", { class: "tb-more" }); wrap.appendChild(more);
+
+    function sortVal(r, c) { return c.sortVal ? c.sortVal(r) : (c.get ? c.get(r) : r[c.key]); }
+    function paint() {
+      thead.innerHTML = ""; tb.innerHTML = ""; more.innerHTML = "";
+      var htr = el("tr");
+      cols.forEach(function (c) {
+        var th = el("th", { class: (c.num ? "num" : "") + (c.plain ? " plain" : "") }, [
+          c.label, sortKey === c.key ? el("span", { class: "arrow", text: sortDir > 0 ? " ▲" : " ▼" }) : null
+        ]);
+        if (!c.plain) th.addEventListener("click", function () {
+          if (sortKey === c.key) sortDir *= -1; else { sortKey = c.key; sortDir = c.num ? -1 : 1; }
+          paint();
+        });
+        htr.appendChild(th);
+      });
+      thead.appendChild(htr);
+
+      var list = rows;
+      if (q) list = list.filter(function (r) {
+        return cols.some(function (c) { var v = c.get ? c.get(r) : r[c.key]; return String(v == null ? "" : v).toLowerCase().indexOf(q) >= 0; });
+      });
+      var sc = cols.filter(function (c) { return c.key === sortKey; })[0] || cols[0];
+      list = list.slice().sort(function (a, b) {
+        var av = sortVal(a, sc), bv = sortVal(b, sc);
+        if (typeof av === "number" || typeof bv === "number") return ((+av || 0) - (+bv || 0)) * sortDir;
+        return String(av == null ? "" : av).localeCompare(String(bv == null ? "" : bv)) * sortDir;
+      });
+      countEl.textContent = list.length + (list.length === 1 ? " row" : " rows");
+      list.slice(0, shown).forEach(function (r) {
+        var tr = el("tr");
+        cols.forEach(function (c) {
+          var td = el("td", { class: c.num ? "num" : "" });
+          var content = c.render ? c.render(r) : String(c.get ? c.get(r) : r[c.key]);
+          if (content == null) content = "";
+          td.appendChild(typeof content === "string" ? document.createTextNode(content) : content);
+          tr.appendChild(td);
+        });
+        tb.appendChild(tr);
+      });
+      if (shown < list.length) {
+        var b = el("button", { text: "Show " + Math.min(opts.page || 50, list.length - shown) + " more (" + (list.length - shown) + " hidden)" });
+        b.addEventListener("click", function () { shown += (opts.page || 50); paint(); });
+        more.appendChild(b);
+      }
+    }
+    paint();
+    return wrap;
+  }
+
+  /* ================= chrome: link status, filters, tabs, footer ================= */
+  function renderLinkStatus() {
+    var box = $("linkstatus"); box.innerHTML = "";
+    if (!FILES.length && !LINK_NAME) return;
+    if (LINK_NAME) box.appendChild(el("span", {}, [document.createTextNode("📁 "), el("b", { class: "folder", text: LINK_NAME })]));
+    if (FILES.length) box.appendChild(el("span", { text: FILES.length + " rollup file" + (FILES.length === 1 ? "" : "s") + " · " + allClinics().length + " clinic" + (allClinics().length === 1 ? "" : "s") }));
+    if (LAST_REFRESH) box.appendChild(el("span", { text: "Refreshed " + LAST_REFRESH }));
+    var st = staleness();
+    if (st.missing.length) box.appendChild(el("span", { class: "crit", text: "⚠ " + st.missing.length + " clinic" + (st.missing.length === 1 ? "" : "s") + " missing " + monthLabel(st.latest) }));
+    if (SKIPPED.length) box.appendChild(el("span", { class: "warn", text: SKIPPED.length + " file(s) ignored" }));
+    if (!window.showDirectoryPicker) box.appendChild(el("span", { class: "warn", text: "This browser cannot link a folder — drag files in instead" }));
+  }
+  // Which clinics have not reported the newest month anyone has reported.
+  function staleness() {
+    var dm = datedMonths(), latest = dm.length ? dm[dm.length - 1] : "";
+    var missing = [], ok = [];
+    allClinics().forEach(function (cn) {
+      var ms = Object.keys(MERGED[cn]).filter(function (p) { return p !== NO_MONTH; }).sort();
+      var last = ms.length ? ms[ms.length - 1] : "";
+      (latest && last !== latest ? missing : ok).push({ clinic: cn, last: last });
+    });
+    return { latest: latest, missing: missing, ok: ok };
+  }
+  function renderFilters(S) {
+    var box = $("filters"); box.innerHTML = "";
+    var inner = el("div", { class: "ev-filters" });
+    function picker(label, options, cur, allText, onChange) {
+      var sel = el("select", { class: "rms-select" });
+      sel.appendChild(el("option", { value: "", text: allText }));
+      options.forEach(function (o) {
+        var op = el("option", { value: o.value, text: o.label });
+        if (o.value === cur) op.selected = true;
+        sel.appendChild(op);
+      });
+      sel.addEventListener("change", function () { onChange(sel.value); });
+      return el("div", { class: "rms-picker" }, [el("label", { text: label }), sel]);
+    }
+    var months = allMonths();
+    if (months.length > 1) inner.appendChild(picker("Month",
+      months.map(function (p) { return { value: p, label: monthLabel(p) }; }),
+      state.month, "All months combined", function (v) { state.month = v; render(); }));
+    var cl = allClinics();
+    if (cl.length > 1) inner.appendChild(picker("Clinic",
+      cl.map(function (c) { return { value: c, label: trunc(c, 44) }; }),
+      state.clinic, "All clinics (" + cl.length + ")", function (v) { state.clinic = v; render(); }));
+    if (state.month || state.clinic) {
+      var b = el("button", { class: "rms-btn", text: "Clear filters" });
+      b.addEventListener("click", function () { state.month = ""; state.clinic = ""; render(); });
+      inner.appendChild(b);
+    }
+    if (inner.childNodes.length) box.appendChild(inner);
+  }
+  function tabList(S) {
+    var t = [["overview", "Overview"]];
+    if (allClinics().length > 1) t.push(["clinics", "Clinics"]);
+    if (hasMod(S, "bypass")) t.push(["employees", "Employees"]);
+    if (hasMod(S, "copays")) t.push(["copays", "Copays"]);
+    if (hasMod(S, "coverage")) t.push(["coverage", "Coverage"]);
+    t.push(["sources", "Data sources"]);
+    return t;
+  }
+  function renderTabs(S) {
+    var box = $("tabs"); box.innerHTML = "";
+    var list = tabList(S);
+    if (!list.some(function (x) { return x[0] === state.tab; })) state.tab = "overview";
+    var wrap = el("div", { class: "ev-tabs" });
+    list.forEach(function (x) {
+      var b = el("button", { class: "ev-tab" + (state.tab === x[0] ? " on" : ""), text: x[1] });
+      b.addEventListener("click", function () { if (state.tab !== x[0]) { state.tab = x[0]; render(); } });
+      wrap.appendChild(b);
+    });
+    box.appendChild(wrap);
+  }
+  function renderFoot() {
+    var f = $("foot"); f.innerHTML = "";
+    var scope = (state.clinic || "All clinics") + " · " + (state.month ? monthLabel(state.month) : "All months combined");
+    f.appendChild(el("span", { text: scope }));
+    f.appendChild(el("span", { class: "spacer" }));
+    f.appendChild(el("span", { text: "Rollups carry counts only — no patient identifiers." }));
+  }
+  function clinicLink(name) {
+    if (state.clinic) return document.createTextNode(name);
+    var b = el("button", { class: "rms-linkbtn", text: trunc(name, 40) });
+    b.addEventListener("click", function () { state.clinic = name; render(); });
+    return b;
+  }
+
+  /* ================= Overview ================= */
+  function viewOverview(S) {
+    var root = el("div");
+    var b = S.total.bypass, r = S.total.registrations, c = S.total.copays, v = S.total.coverage;
+    var clinics = Object.keys(S.clinics), nClin = clinics.length;
+    var k = el("div", { class: "rms-kpis" });
+    var nMonths = Object.keys(S.total.months).length;
+    k.appendChild(kpi("Bypassed warnings", fmt(b.n),
+      state.month ? monthLabel(state.month) : nMonths + " month" + (nMonths === 1 ? "" : "s"), "accent"));
+    k.appendChild(kpi("Clinics reporting", fmt(nClin), state.clinic ? "filtered to one" : "in this folder"));
+    if (r.n) k.appendChild(kpi("Warnings / 100 regs", fmt1(per100(b.n, r.n)), fmt(r.n) + " registrations"));
+    k.appendChild(kpi("Staff with warnings", fmt(Object.keys(b.employees).length), ""));
+    k.appendChild(kpi("Patients affected", (S.total.buckets > 1 ? "≈" : "") + fmt(b.patients),
+      S.total.buckets > 1 ? "sum of per-clinic-month distincts" : ""));
+    if (c.countDue) k.appendChild(kpi("Copay collected", pct(collectPct(c)), usd(c.sumPaid) + " of " + usd(c.sumDue)));
+    if (v.n) { var cf = covFlagged(v); k.appendChild(kpi("Coverage needing work", fmt(cf.n), pct(cf.pct) + " of " + fmt(v.n) + " verifications", cf.pct > 0.5 ? "crit" : null)); }
+    root.appendChild(k);
+
+    var months = sortMonths(Object.keys(S.byMonth)).filter(function (p) { return p !== NO_MONTH; });
+    if (months.length > 1) {
+      root.appendChild(section("Trend"));
+      var g1 = el("div", { class: "rms-grid one" });
+      g1.appendChild(card("Bypassed warnings by month", "Every clinic in the current filter, combined.",
+        vbars(months.map(function (p) { return { label: monthShort(p), value: S.byMonth[p].bypass.n }; }))));
+      if (r.n) {
+        var rateItems = months.map(function (p) {
+          var m = S.byMonth[p];
+          return { label: monthShort(p), value: per100(m.bypass.n, m.registrations.n) || 0 };
+        });
+        if (rateItems.some(function (i) { return i.value; })) {
+          g1.appendChild(card("Warnings per 100 registrations by month", "Volume-adjusted — the number to steer on.",
+            vbars(rateItems, { fmt: fmt1 })));
+        }
+      }
+      root.appendChild(g1);
+    }
+
+    root.appendChild(section("Where the warnings are"));
+    var g2 = el("div", { class: "rms-grid" });
+    g2.appendChild(card("Clinics by warnings", nClin + " reporting", hbars(
+      clinics.map(function (cn) { return { label: cn, value: S.clinics[cn].bypass.n }; })
+        .sort(function (x, y) { return y.value - x.value; }).slice(0, 12), { labelChars: 28 })));
+    g2.appendChild(card("Top warning types", "Message type on the bypassed warning", hbars(topOf(b.types, 10), { labelChars: 30 })));
+    root.appendChild(g2);
+    var det = topOf(b.details, 10);
+    if (det.length) {
+      var g3 = el("div", { class: "rms-grid" });
+      g3.appendChild(card("Top error details", "The specific rule that was bypassed", hbars(det, { labelChars: 30 })));
+      g3.appendChild(card("By weekday", "When warnings are bypassed",
+        hbars(WD.map(function (d, i) { return { label: d, value: b.byWeekday[i] }; }), { labelW: 70, labelChars: 10 })));
+      root.appendChild(g3);
+    }
+
+    root.appendChild(section("Clinic scorecard"));
+    root.appendChild(clinicTable(S));
+    root.appendChild(el("p", { class: "ev-note",
+      text: "Click a clinic name to filter the whole page to it. Sort by any column header." }));
+    return root;
+  }
+
+  function clinicTable(S) {
+    var names = Object.keys(S.clinics);
+    var rows = names.map(function (cn) {
+      var C = S.clinics[cn], cf = covFlagged(C.coverage);
+      var ms = Object.keys(C.months).filter(function (p) { return p !== NO_MONTH; }).sort();
+      return {
+        clinic: cn, warnings: C.bypass.n, regs: C.registrations.n,
+        rate: per100(C.bypass.n, C.registrations.n),
+        staff: Object.keys(C.bypass.employees).length, patients: C.bypass.patients,
+        copay: collectPct(C.copays), copayDue: C.copays.sumDue,
+        covFlag: cf.n, covPct: cf.pct,
+        months: ms.length, last: ms.length ? ms[ms.length - 1] : ""
+      };
+    });
+    var maxW = Math.max.apply(null, rows.map(function (r) { return r.warnings; }).concat([1]));
+    var cols = [
+      { key: "clinic", label: "Clinic", get: function (r) { return r.clinic; }, render: function (r) { return clinicLink(r.clinic); } },
+      { key: "warnings", label: "Warnings", num: true, get: function (r) { return r.warnings; },
+        render: function (r) { return el("span", {}, [document.createTextNode(fmt(r.warnings) + " "), minibar(r.warnings, maxW)]); } }
+    ];
+    if (rows.some(function (r) { return r.regs; })) {
+      cols.push({ key: "rate", label: "/100 regs", num: true, get: function (r) { return r.rate; },
+        sortVal: function (r) { return r.rate == null ? -1 : r.rate; }, render: function (r) { return fmt1(r.rate); } });
+      cols.push({ key: "regs", label: "Registrations", num: true, get: function (r) { return r.regs; }, render: function (r) { return fmt(r.regs); } });
+    }
+    cols.push({ key: "staff", label: "Staff", num: true, get: function (r) { return r.staff; }, render: function (r) { return fmt(r.staff); } });
+    cols.push({ key: "patients", label: "Patients", num: true, get: function (r) { return r.patients; }, render: function (r) { return fmt(r.patients); } });
+    if (rows.some(function (r) { return r.copayDue; })) {
+      cols.push({ key: "copay", label: "Copay collected", num: true, sortVal: function (r) { return r.copay == null ? -1 : r.copay; },
+        get: function (r) { return r.copay; }, render: function (r) { return pct(r.copay); } });
+    }
+    if (rows.some(function (r) { return r.covFlag; })) {
+      cols.push({ key: "covFlag", label: "Coverage flagged", num: true, get: function (r) { return r.covFlag; },
+        render: function (r) { return fmt(r.covFlag) + (r.covPct == null ? "" : " (" + pct(r.covPct) + ")"); } });
+    }
+    cols.push({ key: "last", label: "Latest month", get: function (r) { return r.last; },
+      render: function (r) {
+        var st = staleness(), behind = st.latest && r.last !== st.latest;
+        return el("span", {}, [el("span", { class: "ev-dot " + (behind ? "stale" : "ok") }), document.createTextNode(monthLabel(r.last))]);
+      } });
+    return table(cols, rows, { sort: "warnings", dir: -1, page: 60, search: "Filter clinics…" });
+  }
+
+  /* ================= Clinics (clinic x month matrices) ================= */
+  function matrix(S, months, valueFor, opts) {
+    opts = opts || {};
+    var names = Object.keys(S.clinics);
+    var rows = names.map(function (cn) {
+      var m = {}, total = 0;
+      months.forEach(function (p) {
+        var v = valueFor(cn, p);
+        m[p] = v;
+        if (typeof v === "number") total += v;
+      });
+      var dated = months.filter(function (p) { return p !== NO_MONTH; });
+      var last = dated.length ? m[dated[dated.length - 1]] : null;
+      var prev = dated.length > 1 ? m[dated[dated.length - 2]] : null;
+      return { clinic: cn, m: m, total: opts.totalFor ? opts.totalFor(cn) : total, last: last, prev: prev };
+    });
+    var cols = [{ key: "clinic", label: "Clinic", get: function (r) { return r.clinic; }, render: function (r) { return clinicLink(r.clinic); } }];
+    months.forEach(function (p) {
+      cols.push({ key: "m_" + p, label: monthShort(p), num: true,
+        get: function (r) { return r.m[p]; },
+        sortVal: function (r) { return r.m[p] == null ? -1 : r.m[p]; },
+        render: function (r) { return r.m[p] == null ? "—" : (opts.fmt ? opts.fmt(r.m[p]) : fmt(r.m[p])); } });
+    });
+    cols.push({ key: "total", label: opts.totalLabel || "Total", num: true, get: function (r) { return r.total; },
+      render: function (r) { return el("b", { text: opts.totalFmt ? opts.totalFmt(r.total) : (opts.fmt ? opts.fmt(r.total) : fmt(r.total)) }); } });
+    if (months.filter(function (p) { return p !== NO_MONTH; }).length > 1) {
+      cols.push({ key: "delta", label: "Latest vs prior", num: true,
+        sortVal: function (r) { return (r.prev ? (r.last - r.prev) / r.prev : -99); },
+        get: function (r) { return r.last; }, render: function (r) { return delta(r.last, r.prev, opts.goodUp); } });
+    }
+    return table(cols, rows, { sort: "total", dir: -1, page: 60, search: "Filter clinics…" });
+  }
+  function viewClinics(S) {
+    var root = el("div");
+    var months = sortMonths(Object.keys(S.byMonth));
+    root.appendChild(section("Bypassed warnings by clinic and month"));
+    root.appendChild(matrix(S, months, function (cn, p) {
+      var e = MERGED[cn] && MERGED[cn][p];
+      return e && e.block.bypass ? (+e.block.bypass.n || 0) : 0;
+    }));
+    if (S.total.registrations.n) {
+      root.appendChild(section("Warnings per 100 registrations by clinic and month"));
+      root.appendChild(el("p", { class: "ev-note",
+        text: "Volume-adjusted. A small clinic with a high rate outranks a big clinic with a high count — this is the comparison to run the meeting on." }));
+      root.appendChild(matrix(S, months, function (cn, p) {
+        var e = MERGED[cn] && MERGED[cn][p]; if (!e) return null;
+        var b = e.block.bypass, g = e.block.registrations;
+        return (g && g.n) ? per100(b ? b.n : 0, g.n) : null;
+      }, { fmt: fmt1,
+        totalFor: function (cn) { return per100(S.clinics[cn].bypass.n, S.clinics[cn].registrations.n) || 0; },
+        totalLabel: "Overall", totalFmt: fmt1 }));
+    }
+    if (S.total.copays.sumDue) {
+      root.appendChild(section("Copay collection rate by clinic and month"));
+      root.appendChild(matrix(S, months, function (cn, p) {
+        var e = MERGED[cn] && MERGED[cn][p]; if (!e || !e.block.copays) return null;
+        return collectPct(e.block.copays);
+      }, { fmt: pct, goodUp: true, totalFor: function (cn) { return collectPct(S.clinics[cn].copays) || 0; },
+        totalLabel: "Overall", totalFmt: pct }));
+    }
+    return root;
+  }
+
+  /* ================= Employees ================= */
+  function viewEmployees(S) {
+    var root = el("div");
+    var b = S.total.bypass, c = S.total.copays, v = S.total.coverage, g = S.total.registrations;
+    var names = {};
+    Object.keys(b.employees).forEach(function (n) { names[n] = 1; });
+    Object.keys(c.employees).forEach(function (n) { names[n] = 1; });
+    Object.keys(v.employees).forEach(function (n) { names[n] = 1; });
+    Object.keys(g.employees).forEach(function (n) { names[n] = 1; });
+    var rows = Object.keys(names).map(function (n) {
+      var be = b.employees[n], ce = c.employees[n], ve = v.employees[n];
+      var regs = +g.employees[n] || 0;
+      var warnings = be ? be.n : 0;
+      var cf = ve ? covFlagged(ve) : { n: 0, pct: null };
+      var cls = Object.keys(S.empClinic[n] || {});
+      return { emp: n, clinic: cls.length === 1 ? cls[0] : (cls.length ? cls.length + " clinics" : "—"),
+        warnings: warnings, patients: be ? be.patients : 0, regs: regs, rate: per100(warnings, regs),
+        copay: ce ? collectPct(ce) : null, copayDue: ce ? ce.sumDue : 0, copayShort: ce ? Math.max(0, ce.sumDue - ce.sumPaid) : 0,
+        covFlag: cf.n, topType: be ? (topOf(be.types, 1)[0] || {}).label || "" : "" };
+    });
+    root.appendChild(section("Staff across every reporting clinic"));
+    var cols = [
+      { key: "emp", label: "Staff", get: function (r) { return r.emp; } },
+      { key: "clinic", label: "Clinic", get: function (r) { return r.clinic; }, render: function (r) { return trunc(r.clinic, 34); } },
+      { key: "warnings", label: "Warnings", num: true, get: function (r) { return r.warnings; }, render: function (r) { return fmt(r.warnings); } }
+    ];
+    if (rows.some(function (r) { return r.regs; })) {
+      cols.push({ key: "rate", label: "/100 regs", num: true, get: function (r) { return r.rate; },
+        sortVal: function (r) { return r.rate == null ? -1 : r.rate; }, render: function (r) { return fmt1(r.rate); } });
+      cols.push({ key: "regs", label: "Registrations", num: true, get: function (r) { return r.regs; }, render: function (r) { return fmt(r.regs); } });
+    }
+    cols.push({ key: "patients", label: "Patients", num: true, get: function (r) { return r.patients; }, render: function (r) { return fmt(r.patients); } });
+    if (rows.some(function (r) { return r.copayDue; })) {
+      cols.push({ key: "copay", label: "Copay collected", num: true, get: function (r) { return r.copay; },
+        sortVal: function (r) { return r.copay == null ? -1 : r.copay; }, render: function (r) { return pct(r.copay); } });
+      cols.push({ key: "copayShort", label: "Uncollected", num: true, get: function (r) { return r.copayShort; }, render: function (r) { return usd(r.copayShort); } });
+    }
+    if (rows.some(function (r) { return r.covFlag; })) {
+      cols.push({ key: "covFlag", label: "Coverage flagged", num: true, get: function (r) { return r.covFlag; }, render: function (r) { return fmt(r.covFlag); } });
+    }
+    cols.push({ key: "topType", label: "Most common warning", get: function (r) { return r.topType; }, render: function (r) { return trunc(r.topType, 34); } });
+    root.appendChild(table(cols, rows, { sort: "warnings", dir: -1, page: 50, search: "Search staff…" }));
+    return root;
+  }
+
+  /* ================= Copays ================= */
+  function viewCopays(S) {
+    var root = el("div"), c = S.total.copays;
+    var k = el("div", { class: "rms-kpis" });
+    k.appendChild(kpi("Collection rate", pct(collectPct(c)), "by dollars", collectPct(c) != null && collectPct(c) < 0.6 ? "crit" : null));
+    k.appendChild(kpi("Collected", usd(c.sumPaid), fmt(c.countPaid) + " payments"));
+    k.appendChild(kpi("Due", usd(c.sumDue), fmt(c.countDue) + " copays due"));
+    k.appendChild(kpi("Left on the table", usd(Math.max(0, c.sumDue - c.sumPaid)), "due minus collected", "accent"));
+    root.appendChild(k);
+    var months = sortMonths(Object.keys(S.byMonth)).filter(function (p) { return p !== NO_MONTH && S.byMonth[p].copays.sumDue; });
+    if (months.length > 1) {
+      root.appendChild(section("Trend"));
+      var g = el("div", { class: "rms-grid" });
+      g.appendChild(card("Collection rate by month", "Collected ÷ due, all clinics in filter",
+        vbars(months.map(function (p) { return { label: monthShort(p), value: (collectPct(S.byMonth[p].copays) || 0) * 100 }; }),
+          { fmt: function (n) { return fmt1(n) + "%"; } })));
+      g.appendChild(card("Uncollected by month", "Dollars due that were not collected",
+        vbars(months.map(function (p) {
+          var m = S.byMonth[p].copays;
+          return { label: monthShort(p), value: Math.max(0, m.sumDue - m.sumPaid) };
+        }), { fmt: usd })));
+      root.appendChild(g);
+    }
+    root.appendChild(section("By clinic"));
+    var rows = Object.keys(S.clinics).map(function (cn) {
+      var cc = S.clinics[cn].copays;
+      return { clinic: cn, rate: collectPct(cc), paid: cc.sumPaid, due: cc.sumDue,
+        short: Math.max(0, cc.sumDue - cc.sumPaid), countDue: cc.countDue, countPaid: cc.countPaid };
+    }).filter(function (r) { return r.due || r.countDue; });
+    root.appendChild(table([
+      { key: "clinic", label: "Clinic", get: function (r) { return r.clinic; }, render: function (r) { return clinicLink(r.clinic); } },
+      { key: "rate", label: "Collection rate", num: true, get: function (r) { return r.rate; },
+        sortVal: function (r) { return r.rate == null ? -1 : r.rate; }, render: function (r) { return pct(r.rate); } },
+      { key: "paid", label: "Collected", num: true, get: function (r) { return r.paid; }, render: function (r) { return usd(r.paid); } },
+      { key: "due", label: "Due", num: true, get: function (r) { return r.due; }, render: function (r) { return usd(r.due); } },
+      { key: "short", label: "Uncollected", num: true, get: function (r) { return r.short; }, render: function (r) { return usd(r.short); } },
+      { key: "countDue", label: "Copays due", num: true, get: function (r) { return r.countDue; }, render: function (r) { return fmt(r.countDue); } }
+    ], rows, { sort: "short", dir: -1, page: 60, search: "Filter clinics…" }));
+    return root;
+  }
+
+  /* ================= Coverage ================= */
+  function viewCoverage(S) {
+    var root = el("div"), v = S.total.coverage, cf = covFlagged(v);
+    var k = el("div", { class: "rms-kpis" });
+    k.appendChild(kpi("Verifications", fmt(v.n), "rows in the selected scope"));
+    k.appendChild(kpi("Needing work", fmt(cf.n), pct(cf.pct) + " of all", cf.pct > 0.5 ? "crit" : "accent"));
+    k.appendChild(kpi("Clean", fmt(v.n - cf.n), pct(cf.pct == null ? null : 1 - cf.pct)));
+    root.appendChild(k);
+    root.appendChild(section("Status mix"));
+    root.appendChild(el("div", { class: "rms-grid one" }, card("Verification status", "Card / Fax / Manually Verified count as clean; everything else needs work.",
+      hbars(topOf(v.statuses, 20).map(function (it) { return { label: it.label, value: it.value, flag: !STATUS_GOOD[it.label] }; }), { labelChars: 28, labelW: 190 }))));
+    root.appendChild(section("By clinic"));
+    var statuses = topOf(v.statuses, 0).map(function (x) { return x.label; });
+    var rows = Object.keys(S.clinics).map(function (cn) {
+      var cv = S.clinics[cn].coverage, f = covFlagged(cv);
+      return { clinic: cn, n: cv.n, flag: f.n, pct: f.pct, s: cv.statuses };
+    }).filter(function (r) { return r.n; });
+    var cols = [
+      { key: "clinic", label: "Clinic", get: function (r) { return r.clinic; }, render: function (r) { return clinicLink(r.clinic); } },
+      { key: "n", label: "Verifications", num: true, get: function (r) { return r.n; }, render: function (r) { return fmt(r.n); } },
+      { key: "flag", label: "Needing work", num: true, get: function (r) { return r.flag; },
+        render: function (r) { return fmt(r.flag) + " (" + pct(r.pct) + ")"; } }
+    ];
+    statuses.forEach(function (st) {
+      cols.push({ key: "s_" + st, label: st, num: true, get: function (r) { return r.s[st] || 0; },
+        render: function (r) { return r.s[st] ? fmt(r.s[st]) : "—"; } });
+    });
+    root.appendChild(table(cols, rows, { sort: "flag", dir: -1, page: 60, search: "Filter clinics…" }));
+    return root;
+  }
+
+  /* ================= Data sources ================= */
+  function viewSources(S) {
+    var root = el("div"), st = staleness();
+    root.appendChild(section("Reporting status"));
+    if (st.missing.length) {
+      root.appendChild(el("div", { class: "ev-err",
+        text: st.missing.length + " clinic" + (st.missing.length === 1 ? " has" : "s have") + " not reported " + monthLabel(st.latest) + ": " +
+          st.missing.map(function (m) { return m.clinic + (m.last ? " (last: " + monthLabel(m.last) + ")" : " (no dated data)"); }).join("; ") }));
+    } else if (st.latest) {
+      root.appendChild(el("p", { class: "ev-note", text: "All " + allClinics().length + " clinics have reported " + monthLabel(st.latest) + "." }));
+    }
+    var frows = allClinics().map(function (cn) {
+      var ms = Object.keys(MERGED[cn]).sort(), dated = ms.filter(function (p) { return p !== NO_MONTH; });
+      var last = dated.length ? dated[dated.length - 1] : "";
+      var newest = 0, file = "";
+      ms.forEach(function (p) { if (MERGED[cn][p].ts >= newest) { newest = MERGED[cn][p].ts; file = MERGED[cn][p].file; } });
+      return { clinic: cn, months: dated.length, first: dated.length ? dated[0] : "", last: last,
+        behind: !!(st.latest && last !== st.latest), file: file, ts: newest };
+    });
+    root.appendChild(table([
+      { key: "clinic", label: "Clinic", get: function (r) { return r.clinic; },
+        render: function (r) { return el("span", {}, [el("span", { class: "ev-dot " + (r.behind ? "stale" : "ok") }), document.createTextNode(r.clinic)]); } },
+      { key: "last", label: "Latest month", get: function (r) { return r.last; }, render: function (r) { return monthLabel(r.last); } },
+      { key: "first", label: "Earliest month", get: function (r) { return r.first; }, render: function (r) { return monthLabel(r.first); } },
+      { key: "months", label: "Months", num: true, get: function (r) { return r.months; }, render: function (r) { return fmt(r.months); } },
+      { key: "file", label: "Newest file", get: function (r) { return r.file; }, render: function (r) { return trunc(r.file, 46); } },
+      { key: "ts", label: "Exported", num: true, get: function (r) { return r.ts; },
+        render: function (r) { return r.ts ? new Date(r.ts).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"; } }
+    ], frows, { sort: "last", dir: -1, page: 80, search: "Filter clinics…" }));
+
+    root.appendChild(section("Files in the folder"));
+    root.appendChild(table([
+      { key: "name", label: "File", get: function (r) { return r.name; }, render: function (r) { return trunc(r.name, 52); } },
+      { key: "clinics", label: "Clinics", num: true, get: function (r) { return r.clinics; }, render: function (r) { return fmt(r.clinics); } },
+      { key: "span", label: "Months", get: function (r) { return r.span; } },
+      { key: "ts", label: "Exported", num: true, get: function (r) { return r.ts; }, render: function (r) { return r.tsLabel || (r.ts ? new Date(r.ts).toLocaleString() : "—"); } },
+      { key: "kb", label: "Size", num: true, get: function (r) { return r.kb; }, render: function (r) { return fmt(r.kb) + " KB"; } }
+    ], FILES.map(function (f) {
+      var ms = (f.data.months || []);
+      return { name: f.name, clinics: Object.keys(f.data.clinics || {}).length,
+        span: ms.length ? (monthLabel(ms[0]) + (ms.length > 1 ? " – " + monthLabel(ms[ms.length - 1]) : "")) : "—",
+        ts: f.ts, tsLabel: f.tsLabel, kb: Math.max(1, Math.round(f.bytes / 1024)) };
+    }), { sort: "ts", dir: -1, page: 80, search: "Filter files…" }));
+
+    if (SUPERSEDED) root.appendChild(el("p", { class: "ev-note",
+      text: SUPERSEDED + " clinic-month block" + (SUPERSEDED === 1 ? " was" : "s were") + " present in more than one file. The most recently exported copy won — nothing was double-counted." }));
+    if (SKIPPED.length) {
+      root.appendChild(section("Ignored files"));
+      var ul = el("ul", { class: "ev-list" });
+      SKIPPED.forEach(function (s) { ul.appendChild(el("li", { text: s })); });
+      root.appendChild(ul);
+    }
+    return root;
+  }
+
+  /* ================= render ================= */
+  function rebuild() {
+    MERGED = mergeAll(FILES);
+    var ms = allMonths(), cs = allClinics();
+    if (state.month && ms.indexOf(state.month) < 0) state.month = "";
+    if (state.clinic && cs.indexOf(state.clinic) < 0) state.clinic = "";
+    render();
+  }
+  function render() {
+    var has = FILES.length > 0;
+    $("drop").style.display = has ? "none" : "";
+    $("filters").style.display = has ? "" : "none";
+    $("tabs").style.display = has ? "" : "none";
+    $("foot").style.display = has ? "" : "none";
+    renderLinkStatus();
+    if (!has) { $("view").innerHTML = ""; return; }
+    var S = slice();
+    renderFilters(S);
+    renderTabs(S);
+    var v = $("view"); v.innerHTML = "";
+    var f = { overview: viewOverview, clinics: viewClinics, employees: viewEmployees,
+              copays: viewCopays, coverage: viewCoverage, sources: viewSources }[state.tab] || viewOverview;
+    v.appendChild(f(S));
+    renderFoot();
+    updateBtnState();
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {}
+  }
+
+  /* ================= boot ================= */
+  function isDark() {
+    var d = document.documentElement.getAttribute("data-theme");
+    return d === "dark" || (d == null && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+  function paintTheme() { $("btnTheme").textContent = isDark() ? "☀︎ Light" : "☾ Dark"; }
+  try {
+    var saved = localStorage.getItem("pasExecTheme");
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+  } catch (e) {}
+
+  $("btnLink").addEventListener("click", pickFolder);
+  $("btnUpdate").addEventListener("click", updateData);
+  $("btnTheme").addEventListener("click", function () {
+    var next = isDark() ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("pasExecTheme", next); } catch (e) {}
+    paintTheme();
+  });
+  paintTheme();
+
+  $("fileInput").addEventListener("change", function (e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    if (files.length) { LINK_NAME = files.length + " file(s) dropped in"; DIR_HANDLE = null; processFiles(files, false); }
+  });
+  var drop = $("drop");
+  ["dragenter", "dragover"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); if (ev === "dragleave" && e.target !== drop) return; drop.classList.remove("over"); });
+  });
+  drop.addEventListener("drop", function (e) {
+    e.preventDefault();
+    if (!e.dataTransfer) return;
+    filesFromDataTransfer(e.dataTransfer).then(function (files) {
+      if (!files.length) return;
+      DIR_HANDLE = null; LINK_NAME = files.length + " file(s) dropped in";
+      processFiles(files, false);
+    });
+  });
+  drop.addEventListener("click", function (e) {
+    if (["BUTTON", "A", "CODE"].indexOf(e.target.tagName) >= 0) return;
+    pickFolder();
+  });
+
+  // A folder linked in an earlier session comes back automatically; Chrome/Edge still asks for
+  // permission on the first read, which is why this only restores the handle and waits for Update.
+  function updateBtnState() {
+    var b = $("btnUpdate");
+    b.disabled = !DIR_HANDLE;
+    b.title = DIR_HANDLE ? "Re-read “" + LINK_NAME + "” and refresh" : "Link a folder first";
+  }
+  idbGet(IDB_KEY).then(function (h) {
+    if (!h || h.kind !== "directory") { updateBtnState(); return; }
+    DIR_HANDLE = h; LINK_NAME = h.name;
+    updateBtnState(); renderLinkStatus();
+    // Re-read straight away if the permission is still live, otherwise leave it to the Update button.
+    Promise.resolve(h.queryPermission ? h.queryPermission({ mode: "read" }) : "granted").then(function (p) {
+      if (p === "granted") updateData();
+      else {
+        var box = $("linkstatus");
+        box.appendChild(el("span", { class: "warn", text: "Press 🔄 Update to re-open “" + h.name + "”" }));
+      }
+    }).catch(function () {});
+  }).catch(function () { updateBtnState(); });
+
+  updateBtnState();
+})();
+</script>
+</body>
+</html>
