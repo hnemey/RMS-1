@@ -36,6 +36,21 @@ week-keyed files in one folder would double-count. Nothing downstream needs upda
   section stays by month at week granularity and says so — rather than disappearing, which is what
   the unmodified `regScope()` would have done.
 
+## Executive export: Save as dialog
+
+"Export for executive view (data)" opens a real **Save as** dialog (`showSaveFilePicker`) so the
+rollup can be named and written straight into the shared executive folder, rather than landing in
+Downloads under a generated name. The generated name is still offered as the default.
+
+The API is Chrome/Edge only and needs the click's user activation, so `exportExecutiveData` builds
+its JSON synchronously and awaits `saveBlobAs` immediately — anything asynchronous in between spends
+the activation and the dialog is refused. Firefox, Safari, and policy-blocked Chrome fall back to the
+ordinary download and the status line says so. Cancelling writes nothing and says nothing was saved.
+
+Note: the historical archive still auto-downloads after every import (pre-existing behaviour), and
+the clinic/employee HTML exports still use the plain download. `saveBlobAs` is generic if those
+should get the dialog too.
+
 ## Editing this file
 
 `PAS_Quality_Dashboard.html` is one generated 1.2 MB file. Its script blocks are too large to edit
@@ -64,3 +79,7 @@ Driven through Chromium against a generated `.xlsx`, importing via the app's own
 - Archive and rollup stay month-keyed while the screen is in week mode.
 - Archive round-trip: re-importing the same archive twice does not double-count.
 - No console or page errors in the app or in an exported file.
+- Executive export save dialog, with the picker stubbed, across all five outcomes: success (correct
+  rollup JSON written, chosen filename reported), cancel (nothing written), unsupported browser and
+  policy-blocked (both fall back to the download), and a write failure (reported, not swallowed).
+  User activation confirmed active at the moment the picker is invoked.

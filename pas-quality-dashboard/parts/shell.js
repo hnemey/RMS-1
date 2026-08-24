@@ -1353,18 +1353,60 @@
     return "PAS " + safe + " " + span + ".pasq.json";
   }
 
-  function exportExecutiveData() {
+  // The plain browser download: a pre-named file straight into the Downloads folder, no dialog.
+  function downloadBlob(blob, name) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  }
+  /* Save a blob through a real "Save as" dialog, so the file can be named and dropped straight into
+     the shared folder instead of being fished back out of Downloads.
+
+     showSaveFilePicker is Chrome/Edge only and needs the click's user activation, so a caller must
+     build its blob synchronously and await this immediately — anything asynchronous in between spends
+     the activation and the dialog is refused. Firefox and Safari have no equivalent, and the API can
+     also be blocked by policy, so both fall back to the ordinary download rather than failing.
+     Returns { ok, name, picked, cancelled, error }. */
+  async function saveBlobAs(blob, suggestedName, typeDesc, accept) {
+    if (window.showSaveFilePicker) {
+      var handle = null;
+      try {
+        handle = await window.showSaveFilePicker({ suggestedName: suggestedName,
+          types: [{ description: typeDesc, accept: accept }] });
+      } catch (e) {
+        if (e && e.name === "AbortError") return { ok: false, cancelled: true };
+        handle = null;              // SecurityError / NotAllowedError -> fall through to the download
+      }
+      if (handle) {
+        try {
+          var w = await handle.createWritable();
+          await w.write(blob); await w.close();
+          return { ok: true, name: handle.name || suggestedName, picked: true };
+        } catch (e2) {
+          if (e2 && e2.name === "AbortError") return { ok: false, cancelled: true };
+          return { ok: false, error: (e2 && e2.message) || String(e2) };
+        }
+      }
+    }
+    downloadBlob(blob, suggestedName);
+    return { ok: true, name: suggestedName, picked: false };
+  }
+  async function exportExecutiveData() {
     if (!hasAnyData()) { setHeaderXStatus("No data loaded yet — import your export files first."); return; }
     var roll = rollupBuild(), names = Object.keys(roll.clinics);
     if (!names.length) { setHeaderXStatus("Nothing to export for the current filters."); return; }
     var label = gState.dept || (names.length === 1 ? names[0] : "All clinics");
     var json = JSON.stringify(roll), fname = rollupFileName(label, roll.months);
-    var blob = new Blob([json], { type: "application/json" }), a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    var blob = new Blob([json], { type: "application/json" });
+    setHeaderXStatus("Choose where to save…");
+    var res = await saveBlobAs(blob, fname, "PAS executive rollup", { "application/json": [".json"] });
+    if (res.cancelled) { setHeaderXStatus("Export cancelled — nothing was saved."); return; }
+    if (!res.ok) { setHeaderXStatus("Couldn't save the file: " + res.error); return; }
     var kb = Math.max(1, Math.round(json.length / 1024)), mn = roll.months.length;
-    setHeaderXStatus("Saved " + fname + " — " + names.length + " clinic" + (names.length === 1 ? "" : "s") + ", " +
-      mn + " month" + (mn === 1 ? "" : "s") + ", " + kb + " KB. Put it in the shared executive folder.");
+    setHeaderXStatus("Saved " + res.name + " — " + names.length + " clinic" + (names.length === 1 ? "" : "s") + ", " +
+      mn + " month" + (mn === 1 ? "" : "s") + ", " + kb + " KB." +
+      (res.picked ? "" : " Your browser can't offer a folder picker, so it went to Downloads.") +
+      " Put it in the shared executive folder.");
   }
 
   function exportLeadership() {
