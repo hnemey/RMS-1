@@ -585,7 +585,7 @@ table.rms-table th.plain { cursor: default; }
      One winner per (clinic, month): the file with the newest generatedAtISO. Files are already
      sorted oldest-generated first, so a later file simply overwrites an earlier one. */
   function mergeAll(files) {
-    var pick = {}, labels = {}; SUPERSEDED = 0;
+    var pick = {}, labels = {}; SUPERSEDED = 0; EMP_LABEL = {};
     files.forEach(function (f) {
       var label = cleanClinicName(f.name), key = clinicKey(label);
       labels[key] = label;                       // the newest file spells the clinic
@@ -615,6 +615,54 @@ table.rms-table th.plain { cursor: default; }
   function allClinics() { return Object.keys(MERGED).sort(function (a, b) { return String(a).localeCompare(String(b)); }); }
   function datedMonths() { return allMonths().filter(function (p) { return p !== NO_MONTH; }); }
 
+  /* ================= staff names ================= */
+  /* Epic spells a person differently in each extract — "CASH, TERESA" in the warning and copay
+     files, "Teresa Cash" in the registration file — which used to put one person on two rows.
+     Every spelling folds onto one "LAST, FIRST" key; the nicest spelling seen wins the label. */
+  var EMP_LABEL = {};
+  var NAME_SUFFIX = /^(jr|sr|ii|iii|iv|md|do|rn|lpn|cna|cma|np|pa|pac|phd|dds|mba)$/;
+  var NAME_PARTICLE = /^(van|von|de|del|dela|della|di|da|dos|du|den|der|ter|la|le|st|bin|al|mc|mac|abu)$/;
+  function letters(w) { return String(w).toLowerCase().replace(/[^a-z]/g, ""); }
+  function keepNamePart(w) { return !!w && !NAME_SUFFIX.test(letters(w)); }
+  function upName(x) { return String(x).toUpperCase().replace(/[^A-Z ]/g, "").replace(/\s+/g, " ").trim(); }
+  function empParts(name) {
+    var s = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
+    if (!s) return null;
+    var last, first;
+    if (s.indexOf(",") >= 0) {                 // "CASH, TERESA" / "CASH, TERESA A"
+      var c = s.split(",");
+      last = c[0].split(" ").filter(keepNamePart);
+      first = c.slice(1).join(" ").split(" ").filter(keepNamePart);
+    } else {                                   // "Teresa Cash" / "Teresa A Cash RN" / "Lee Van Dyke"
+      var w = s.split(" ").filter(keepNamePart);
+      if (w.length < 2) { last = w; first = []; }
+      else {
+        var i = w.length - 1;                  // pull particles into the surname, as the comma form has them
+        while (i > 1 && NAME_PARTICLE.test(letters(w[i - 1]))) i--;
+        last = w.slice(i); first = w.slice(0, i);
+      }
+    }
+    var lastS = last.join(" "), firstS = first.join(" ");
+    if (!lastS && !firstS) return null;
+    // matched on last + first only: a middle name or initial appears in some extracts and not others
+    return { key: (upName(lastS) + ", " + upName(first[0] || "")).trim(),
+             display: firstS ? lastS + ", " + firstS : lastS };
+  }
+  /* Fold a raw name to its key, remembering the best spelling for the Employees table. Keys are
+     themselves valid input ("CASH, TERESA" folds to itself), so re-aggregating stays stable. */
+  function empName(raw) {
+    var p = empParts(raw);
+    if (!p) return String(raw == null ? "" : raw);
+    var cur = EMP_LABEL[p.key];
+    if (!cur || betterLabel(p.display, cur)) EMP_LABEL[p.key] = p.display;
+    return p.key;
+  }
+  // A spelling with lower-case letters reads better than Epic's shouting; longer breaks the tie.
+  function betterLabel(a, b) {
+    var am = /[a-z]/.test(a), bm = /[a-z]/.test(b);
+    return am !== bm ? am : a.length > b.length;
+  }
+
   /* ================= accumulators ================= */
   function newAll() {
     return {
@@ -636,7 +684,7 @@ table.rms-table th.plain { cursor: default; }
       addC(D.types, b.types); addC(D.details, b.details); addC(D.byHour, b.byHour); addC(D.byDay, b.byDay);
       for (var i = 0; i < 7; i++) D.byWeekday[i] += (b.byWeekday && +b.byWeekday[i]) || 0;
       Object.keys(b.employees || {}).forEach(function (en) {
-        var s = b.employees[en], e = D.employees[en] || (D.employees[en] = { n: 0, patients: 0, types: {} });
+        var s = b.employees[en], k = empName(en), e = D.employees[k] || (D.employees[k] = { n: 0, patients: 0, types: {} });
         e.n += +s.n || 0; e.patients += +s.patients || 0; addC(e.types, s.types);
       });
     }
@@ -646,7 +694,7 @@ table.rms-table th.plain { cursor: default; }
       Dc.countDue += +c.countDue || 0; Dc.countPaid += +c.countPaid || 0;
       Dc.sumDue += +c.sumDue || 0; Dc.sumPaid += +c.sumPaid || 0;
       Object.keys(c.employees || {}).forEach(function (en) {
-        var s = c.employees[en], e = Dc.employees[en] || (Dc.employees[en] = { countDue: 0, countPaid: 0, sumDue: 0, sumPaid: 0 });
+        var s = c.employees[en], k = empName(en), e = Dc.employees[k] || (Dc.employees[k] = { countDue: 0, countPaid: 0, sumDue: 0, sumPaid: 0 });
         e.countDue += +s.countDue || 0; e.countPaid += +s.countPaid || 0;
         e.sumDue += +s.sumDue || 0; e.sumPaid += +s.sumPaid || 0;
       });
@@ -656,12 +704,16 @@ table.rms-table th.plain { cursor: default; }
       var Dv = dst.coverage;
       Dv.n += +v.n || 0; addC(Dv.statuses, v.statuses);
       Object.keys(v.employees || {}).forEach(function (en) {
-        var s = v.employees[en], e = Dv.employees[en] || (Dv.employees[en] = { n: 0, statuses: {} });
+        var s = v.employees[en], k = empName(en), e = Dv.employees[k] || (Dv.employees[k] = { n: 0, statuses: {} });
         e.n += +s.n || 0; addC(e.statuses, s.statuses);
       });
     }
     var g = blk.registrations;
-    if (g) { dst.registrations.n += +g.n || 0; addC(dst.registrations.employees, g.employees); }
+    if (g) {
+      dst.registrations.n += +g.n || 0;
+      var Dg = dst.registrations.employees, ge = g.employees || {};
+      Object.keys(ge).forEach(function (en) { var k = empName(en); Dg[k] = (Dg[k] || 0) + (+ge[en] || 0); });
+    }
   }
 
   /* Aggregate everything the current Month/Clinic filters allow, keeping per-clinic and per-month
@@ -1190,7 +1242,7 @@ table.rms-table th.plain { cursor: default; }
       var warnings = be ? be.n : 0;
       var cf = ve ? covFlagged(ve) : { n: 0, pct: null };
       var cls = Object.keys(S.empClinic[n] || {});
-      return { emp: n, clinic: cls.length === 1 ? cls[0] : (cls.length ? cls.length + " clinics" : "—"),
+      return { emp: EMP_LABEL[n] || n, clinic: cls.length === 1 ? cls[0] : (cls.length ? cls.length + " clinics" : "—"),
         warnings: warnings, patients: be ? be.patients : 0, regs: regs, rate: per100(warnings, regs),
         copay: ce ? collectPct(ce) : null, copayDue: ce ? ce.sumDue : 0, copayShort: ce ? Math.max(0, ce.sumDue - ce.sumPaid) : 0,
         covFlag: cf.n, topType: be ? (topOf(be.types, 1)[0] || {}).label || "" : "" };
@@ -1217,6 +1269,8 @@ table.rms-table th.plain { cursor: default; }
     }
     cols.push({ key: "topType", label: "Most common warning", get: function (r) { return r.topType; }, render: function (r) { return trunc(r.topType, 34); } });
     root.appendChild(table(cols, rows, { sort: "warnings", dir: -1, page: 50, search: "Search staff…" }));
+    root.appendChild(el("p", { class: "ev-note",
+      text: "Staff are matched on last + first name, so someone Epic writes as \u201cCASH, TERESA\u201d in the warning export and \u201cTeresa Cash\u201d in the registration export is one row here." }));
     return root;
   }
 
