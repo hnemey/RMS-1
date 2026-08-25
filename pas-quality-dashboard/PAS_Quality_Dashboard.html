@@ -1509,10 +1509,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (v == null || v === "") return null;
     var s = String(v).trim();
     var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-    if (m) { var y = +m[3]; if (y < 100) y += 2000; return { y: y, mo: +m[1] }; }
+    if (m) { var y = +m[3]; if (y < 100) y += 2000; return { y: y, mo: +m[1], d: +m[2] }; }
     m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if (m) return { y: +m[1], mo: +m[2] };
-    var d = new Date(s); if (!isNaN(d)) return { y: d.getFullYear(), mo: d.getMonth() + 1 };
+    if (m) return { y: +m[1], mo: +m[2], d: +m[3] };
+    var d = new Date(s); if (!isNaN(d)) return { y: d.getFullYear(), mo: d.getMonth() + 1, d: d.getDate() };
     return null;
   }
   var MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1641,8 +1641,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   /* Period granularity — see the viewer module for the rationale. Kept local because this module is
      injected into exported files on its own. Week keys are the Monday as "YYYY-MM-DD". */
   function padc2(n) { return String(n).length < 2 ? "0" + n : String(n); }
-  function copayWeekKey(y, mo, d, ws) { var dt = new Date(y, mo - 1, d); dt.setDate(dt.getDate() - ((dt.getDay() - ws + 7) % 7));
-    return dt.getFullYear() + "-" + padc2(dt.getMonth() + 1) + "-" + padc2(dt.getDate()); }
+  function copayWeekKey(y, mo, d, ws) {
+    var dt = new Date(y, mo - 1, d);
+    if (isNaN(dt.getTime())) return "";
+    dt.setDate(dt.getDate() - ((dt.getDay() - ws + 7) % 7));
+    return dt.getFullYear() + "-" + padc2(dt.getMonth() + 1) + "-" + padc2(dt.getDate());
+  }
   function copayIsWeekKey(k) { return /^\d{4}-\d{2}-\d{2}$/.test(String(k)); }
 
   function mount(root, payload) {

@@ -90,6 +90,8 @@ Driven through Chromium against a generated `.xlsx`, importing via the app's own
   `<select>` (the period picker) — no granularity control for the reader.
 - Archive and rollup stay month-keyed while the screen is in week mode.
 - Archive round-trip: re-importing the same archive twice does not double-count.
+- Copays tab across both granularities: two weeks of copay rows total 30 / $750, and a single week
+  is exactly half (15 / $375), on screen and inside an exported file.
 - No console or page errors in the app or in an exported file.
 - Executive export save dialog, with the picker stubbed, across all five outcomes: success (correct
   rollup JSON written, chosen filename reported), cancel (nothing written), unsupported browser and
