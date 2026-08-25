@@ -196,7 +196,7 @@
   /* Period granularity — see the viewer module for the rationale. Kept local because this module is
      injected into exported files on its own. Week keys are the Monday as "YYYY-MM-DD". */
   function padc2(n) { return String(n).length < 2 ? "0" + n : String(n); }
-  function copayWeekKey(y, mo, d) { var dt = new Date(y, mo - 1, d); dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
+  function copayWeekKey(y, mo, d, ws) { var dt = new Date(y, mo - 1, d); dt.setDate(dt.getDate() - ((dt.getDay() - ws + 7) % 7));
     return dt.getFullYear() + "-" + padc2(dt.getMonth() + 1) + "-" + padc2(dt.getDate()); }
   function copayIsWeekKey(k) { return /^\d{4}-\d{2}-\d{2}$/.test(String(k)); }
 
@@ -208,10 +208,11 @@
 
     /* Period buckets from the date column — by month, or by week when the export was written that way. */
     var gran = payload.granularity === "week" ? "week" : "month";
+    var wstart = (+payload.weekStart >= 0 && +payload.weekStart <= 6) ? +payload.weekStart : 1;
     var pnoun = gran === "week" ? "week" : "month";
     var months = new Map();
     recs.forEach(function (r) { var d = parseDate(r[cm.date]);
-      var key = d ? (gran === "week" ? copayWeekKey(d.y, d.mo, d.d) : d.y + "-" + String(d.mo).padStart(2, "0")) : "";
+      var key = d ? (gran === "week" ? copayWeekKey(d.y, d.mo, d.d, wstart) : d.y + "-" + String(d.mo).padStart(2, "0")) : "";
       if (!months.has(key)) months.set(key, []); months.get(key).push(r); });
     var monthKeys = Array.from(months.keys()).filter(function (k) { return k; }).sort();
 

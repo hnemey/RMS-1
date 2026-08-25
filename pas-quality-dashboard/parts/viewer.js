@@ -81,12 +81,25 @@
      Week granularity exists for the first month with a new clinic, when a month is too coarse to show
      anyone whether the week's coaching landed. */
   var GRAN = "month";
+  /* Which weekday a reporting week begins on, in getDay() numbering (0=Sun … 6=Sat). Clinics do not
+     all run Monday-to-Sunday: a clinic whose week starts Wednesday needs Wed–Tue buckets, or every
+     total silently blends two of its real weeks. Set per clinic and baked into that clinic's export. */
+  var WEEK_START = 1;
   function setGranularity(g) { GRAN = (g === "week") ? "week" : "month"; }
+  function setWeekStart(n) { n = +n; WEEK_START = (n >= 0 && n <= 6) ? n : 1; }
   function granularity() { return GRAN; }
+  function weekStart() { return WEEK_START; }
   function isWeekKey(p) { return /^\d{4}-\d{2}-\d{2}$/.test(String(p)); }
   function pad2v(n) { return String(n).length < 2 ? "0" + n : String(n); }
   // Monday of the week containing y/mo/d, as a Date.
-  function weekStartOf(y, mo, d) { var dt = new Date(y, mo - 1, d); dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7)); return dt; }
+  function weekStartOf(y, mo, d) { var dt = new Date(y, mo - 1, d); dt.setDate(dt.getDate() - ((dt.getDay() - WEEK_START + 7) % 7)); return dt; }
+  // "Wed Jun 3 – Tue Jun 9" — spells the week out so the start-day setting can be checked at a glance.
+  function weekRangeLabel(p) {
+    var a = String(p).split("-"), d0 = new Date(+a[0], +a[1] - 1, +a[2]), d1 = new Date(+a[0], +a[1] - 1, +a[2] + 6);
+    return WD[d0.getDay()] + " " + monthName(d0.getMonth() + 1) + " " + d0.getDate() + " – " +
+           WD[d1.getDay()] + " " + monthName(d1.getMonth() + 1) + " " + d1.getDate();
+  }
+  function weekRunsLabel() { return WD[WEEK_START] + "–" + WD[(WEEK_START + 6) % 7]; }
   function weekKeyOf(y, mo, d) { var w = weekStartOf(y, mo, d); return w.getFullYear() + "-" + pad2v(w.getMonth() + 1) + "-" + pad2v(w.getDate()); }
   // dd = a parseDate() result. `gran` overrides the active granularity (registrations force "month").
   function periodKeyOf(dd, gran) {
@@ -261,7 +274,7 @@
       while (w <= wEnd && wguard++ < 600) {
         var wk2 = w.getFullYear() + "-" + pad2v(w.getMonth() + 1) + "-" + pad2v(w.getDate());
         wout.push({ label: pad2v(w.getMonth() + 1) + "/" + pad2v(w.getDate()),
-                    full: "Week of " + monthName(w.getMonth() + 1) + " " + w.getDate(), value: wmap.get(wk2) || 0 });
+                    full: weekRangeLabel(wk2), value: wmap.get(wk2) || 0 });
         w = new Date(w.getFullYear(), w.getMonth(), w.getDate() + 7);
       }
       return wout;
@@ -437,7 +450,8 @@
         var d0 = new Date(y, mo - 1, +p[2]), d1 = new Date(y, mo - 1, +p[2] + 6);
         var partial = (lo != null && d0.getTime() < lo) || (hi != null && d1.getTime() > hi);
         return { key: k, y: y, mo: mo, short: monthName(mo) + " " + (+p[2]), head: monthName(mo) + " " + (+p[2]),
-                 full: "Week of " + monthName(mo) + " " + (+p[2]) + ", " + y, value: value, partial: partial };
+                 full: "Week of " + monthName(mo) + " " + (+p[2]) + ", " + y, range: weekRangeLabel(k),
+                 value: value, partial: partial };
       }
       return { key: k, y: y, mo: mo, short: monthName(mo), head: monthName(mo) + " " + y,
                full: monthName(mo) + " " + y, value: value, partial: false };
@@ -552,10 +566,12 @@
     if (moM.length >= 2) {
       container.appendChild(el("div", { class: "rms-section", text: GRAN === "week" ? "Week over week" : "Month over month" }));
       var peakIdx = 0; moM.forEach(function (m, i) { if (m.value > moM[peakIdx].value) peakIdx = i; });
-      var mitems = moM.map(function (m) { return { label: m.short + (m.partial ? "*" : ""), full: m.full + (m.partial ? " (part " + periodNoun() + ")" : ""), value: m.value }; });
+      var mitems = moM.map(function (m) { return { label: m.short + (m.partial ? "*" : ""),
+        full: (m.range || m.full) + (m.partial ? " (part " + periodNoun() + ")" : ""), value: m.value }; });
       var firstM = moM[0], lastM = moM[moM.length - 1], delta = firstM.value ? Math.round((lastM.value - firstM.value) / firstM.value * 100) : 0;
       var trendNote = firstM.full + ": " + fmt(firstM.value) + " → " + lastM.full + ": " + fmt(lastM.value) +
         (firstM.value ? "  (" + (delta >= 0 ? "+" : "") + delta + "% overall)" : "");
+      if (GRAN === "week") trendNote += "  • weeks run " + weekRunsLabel();
       if (trimmed > 0) trendNote += "  • latest " + moM.length + " " + periodNoun(true) + " (" + trimmed + " earlier " + (trimmed === 1 ? periodNoun() : periodNoun(true)) + " not shown)";
       var anyPartial = moM.some(function (m) { return m.partial; });
       if (anyPartial) trendNote += "  • * part " + periodNoun() + " — not fully covered by the imported dates";
@@ -738,7 +754,7 @@
   function mount(root, payload) {
     // Granularity rides on the payload: the live app passes the filter-bar setting, and an exported
     // file carries the value chosen when it was written (there is no reader-facing control by design).
-    setGranularity(payload.granularity);
+    setGranularity(payload.granularity); setWeekStart(payload.weekStart);
     root.classList.add("rms"); ensureTip(); root.innerHTML = "";
     var recs = payload.records || [], headers = payload.headers || (recs[0] ? Object.keys(recs[0]) : []);
     var cm = payload.colMap || {}, deptKey = payload.deptKey, empKey = payload.empKey;
@@ -868,7 +884,7 @@
     function setXStatus(msg) { var e = document.getElementById("rms-xstatus"); if (e) e.textContent = msg || ""; }
 
     /* export builders */
-    function payloadFor(level, dept, emp, subset, ro, cpay) { return { level: level, dept: dept, emp: emp, records: subset, headers: headers, colMap: cm, granularity: granularity(),
+    function payloadFor(level, dept, emp, subset, ro, cpay) { return { level: level, dept: dept, emp: emp, records: subset, headers: headers, colMap: cm, granularity: granularity(), weekStart: weekStart(),
       deptKey: deptKey, empKey: empKey, deptLabel: deptLabel, empLabel: empLabel, title: title, generatedAt: gen, regData: regData, readOnly: !!ro,
       periods: periods, period: state.period,
       monthRecords: momFor(dept === "All Departments" ? null : dept, emp), monthWindow: payload.monthWindow || null,
@@ -948,6 +964,7 @@
   }
 
   window.RMSViewer = { mount: mount, summarize: summarize, buildHTML: buildHTML,
-                       setGranularity: setGranularity, granularity: granularity, periodKeyLabel: periodKeyLabel, isWeekKey: isWeekKey };
+                       setGranularity: setGranularity, granularity: granularity, setWeekStart: setWeekStart, weekStart: weekStart,
+                       periodKeyLabel: periodKeyLabel, isWeekKey: isWeekKey };
 })();
 

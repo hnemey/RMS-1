@@ -11,7 +11,7 @@
   var regEntries = [], regMonth = "", regFileNames = [];   // Detailed-View registrations (staff -> count)
   var coverageRecords = [], coverageHeaders = [], coverageFileNames = [];  // May.xlsx PB (coverage verification) rows
   var activeModule = "bypass"; // "bypass" | "copays" | "coverage"
-  var gState = { dept: "", emp: "", period: "", gran: "month" };   // global Department / Employee / Period filters (shown above the tabs, shared across modules). period "" = all periods; gran = "month" | "week"
+  var gState = { dept: "", emp: "", period: "", gran: "month", weekStart: 1 };   // global Department / Employee / Period filters (shown above the tabs, shared across modules). period "" = all periods; gran = "month" | "week"; weekStart = getDay() number a reporting week begins on
   var copayPeriod = "all";              // remembered month selection for the Copays tab (standalone exports only)
   var periodInitialized = false;        // once true, respect the user's Month pick; until then, default to the most recent month
   // On first render after an import, open on the MOST RECENT month (leaders want the latest numbers by
@@ -31,6 +31,17 @@
     if (window.RMSViewer && RMSViewer.setGranularity) RMSViewer.setGranularity(g);
     ensurePeriodDefault();
   }
+  /* Moving the week's start day re-cuts every bucket, so the selected period (a key from the old
+     cut) is dropped and re-defaulted the same way a granularity change is. */
+  function setWeekStartG(n) {
+    n = +n; if (!(n >= 0 && n <= 6) || n === gState.weekStart) return;
+    gState.weekStart = n; gState.period = ""; periodInitialized = false;
+    if (window.RMSViewer && RMSViewer.setWeekStart) RMSViewer.setWeekStart(n);
+    ensurePeriodDefault();
+  }
+  var WD_G = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var WD_G_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function weekRunsLabelG() { return WD_G_SHORT[gState.weekStart] + "–" + WD_G_SHORT[(gState.weekStart + 6) % 7]; }
   var ruleInclude = null, ruleExclude = null, ruleIncludeRaw = [], ruleExcludeRaw = [], ruleFileName = "", applyRules = true;
   function ruleKey(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").trim().toLowerCase(); }
   function escText(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
@@ -677,7 +688,7 @@
       if (m) { var y = +m[3]; if (y < 100) y += 2000; d = new Date(y, +m[1] - 1, +m[2]); }
       else { var dd = new Date(s); if (!isNaN(dd)) d = new Date(dd.getFullYear(), dd.getMonth(), dd.getDate()); } }
     if (!d || isNaN(d)) return "";
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));          // back up to Monday
+    d.setDate(d.getDate() - ((d.getDay() - gState.weekStart + 7) % 7));   // back up to the week's start day
     return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
   }
   function gPeriodFrom(v) { return gState.gran === "week" ? gWeekKeyFromDate(v) : periodFromDate(v); }
@@ -1024,6 +1035,23 @@
     gsel.addEventListener("change", function () { setGranularityG(gsel.value); render(); });
     gf.appendChild(gsel); inner.appendChild(gf);
 
+    /* Week starts — only meaningful, and only shown, while grouping by week. Clinics do not all run
+       Monday-to-Sunday; a clinic whose week starts Wednesday needs Wed–Tue buckets or every total
+       blends two of its real weeks. Weekends are not offered because no clinic starts a week on one. */
+    if (gState.gran === "week") {
+      var wf = document.createElement("div"); wf.className = "gf-field";
+      var wlab = document.createElement("label"); wlab.textContent = "Week starts"; wf.appendChild(wlab);
+      var wsel = document.createElement("select");
+      wsel.title = "The weekday this clinic's reporting week begins on. Weeks currently run " + weekRunsLabelG() + ".";
+      [1, 2, 3, 4, 5].forEach(function (n) {
+        var op = document.createElement("option"); op.value = String(n);
+        op.textContent = WD_G[n] + " (" + WD_G_SHORT[n] + "–" + WD_G_SHORT[(n + 6) % 7] + ")";
+        if (n === gState.weekStart) op.selected = true; wsel.appendChild(op);
+      });
+      wsel.addEventListener("change", function () { setWeekStartG(wsel.value); render(); });
+      wf.appendChild(wsel); inner.appendChild(wf);
+    }
+
     // Period filter — every period present across the loaded data. "All …" combines them; picking one
     // scopes EVERY tab (Bypassed Warnings, Copays, Coverage) to that period.
     var months = historyMonths();
@@ -1116,7 +1144,7 @@
       if (Object.keys(want).length) recsC = recsC.filter(function (r) { return want[covNameKey(r[ccm.checkinUser])]; });
     }
     return { records: recsC, headers: copayHeaders, title: "PAS Quality — Copays", generatedAt: nowLabel(), groupKey: "checkin",
-      granularity: gState.gran,
+      granularity: gState.gran, weekStart: gState.weekStart,
       period: gPeriodActive() ? gState.period : "all", hideMonthPicker: historyMonths().length > 1 };
   }
   // Every month's registration counts, each entry tagged with its own YYYY-MM period. The viewer lines
@@ -1168,7 +1196,7 @@
      weekly file, everyone else gets the monthly one, and neither sees a control for the other. */
   function bypassPayload(level, dept, emp, subset, ro, cpay) {
     return { level: level, dept: dept, emp: emp, records: subset, headers: headers, colMap: colMap,
-      granularity: gState.gran,
+      granularity: gState.gran, weekStart: gState.weekStart,
       periods: exportPeriods(), period: gPeriodActive() ? gState.period : "",
       deptKey: PAS_SYN, empKey: PAS_EMP, deptLabel: "department", empLabel: labelFromHeader(empKey, "employee"),
       title: "PAS Quality — Bypassed Warnings", generatedAt: nowLabel(),
@@ -1187,7 +1215,8 @@
   function exportScopeNote() {
     if (historyMonths().length < 2) return "";
     return " (opens on " + (gPeriodActive() ? periodLabelLongG(gState.period) : "all " + periodNounG(true) + " combined") +
-      ", grouped by " + periodNounG() + " — the reader can switch " + periodNounG(true) + ")";
+      ", grouped by " + periodNounG() + (gState.gran === "week" ? " (" + weekRunsLabelG() + ")" : "") +
+      " — the reader can switch " + periodNounG(true) + ")";
   }
   /* ================= Executive rollup (.pasq.json) =================
      "Export for leadership" used to write a self-contained HTML with every raw row baked in, so two
@@ -1483,7 +1512,7 @@
         return true;
       });
       RMSCopays.mount(dashboard, { records: subset, headers: copayHeaders, colMap: ccm,
-        title: "PAS Quality — Copays", generatedAt: nowLabel(), groupKey: "checkin", granularity: gState.gran,
+        title: "PAS Quality — Copays", generatedAt: nowLabel(), groupKey: "checkin", granularity: gState.gran, weekStart: gState.weekStart,
         externalFilters: true, period: gPeriodActive() ? gState.period : "all",
         onPeriod: function (p) { copayPeriod = p; } });
       return;
@@ -1506,12 +1535,12 @@
     recs1.forEach(function (r) { r[SYN] = deptDisplay; r[PAS_EMP] = cleanDisplayName(r[empKey]); });
     var level = gState.emp ? "employee" : "department";
     RMSViewer.mount(dashboard, {
-      level: level, dept: deptDisplay, emp: gState.emp || null, granularity: gState.gran,
+      level: level, dept: deptDisplay, emp: gState.emp || null, granularity: gState.gran, weekStart: gState.weekStart,
       records: recs1, monthRecords: recsMoM, headers: headers, colMap: colMap,
       deptKey: SYN, empKey: PAS_EMP, deptLabel: "department", empLabel: empLabel,
       // the viewer appends the month it is showing to this subtitle — don't name it twice
       title: "PAS Quality — Bypassed Warnings" + (filterActive ? " (Include-only)" : ""), generatedAt: nowLabel(), onReset: showImport, externalFilters: true,
-      copayData: copayRecords.length ? { records: copayRecords, headers: copayHeaders, title: "PAS Quality — Copays", generatedAt: nowLabel(), granularity: gState.gran, period: gPeriodActive() ? gState.period : "all" } : null,
+      copayData: copayRecords.length ? { records: copayRecords, headers: copayHeaders, title: "PAS Quality — Copays", generatedAt: nowLabel(), granularity: gState.gran, weekStart: gState.weekStart, period: gPeriodActive() ? gState.period : "all" } : null,
       regData: scopedRegData(),
       getCoverageSnapshot: coverageRecords.length ? function (names) { return coverageSnapshotHTML(coverageKeysFor(names)); } : null
     });

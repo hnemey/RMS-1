@@ -5,6 +5,18 @@ onboarding can be shown week-over-week numbers while everyone else keeps the mon
 
 ## How it works
 
+### Week start day
+
+Clinics do not all run Monday-to-Sunday, so **Week starts** (Mon–Fri, shown only while grouping by
+week) sets the weekday a reporting week begins on. A clinic whose week starts Wednesday gets Wed–Tue
+buckets; left on Monday, every total would blend two of that clinic's real weeks. The setting is
+baked into exports alongside the granularity, so a clinic's file cuts weeks exactly as the dashboard
+did. Changing it re-cuts every bucket, so the selected period is dropped and re-defaulted.
+
+The whole Monday assumption was three copies of `(getDay() + 6) % 7`; they are now
+`(getDay() - weekStart + 7) % 7`. Card notes state the definition in words ("weeks run Wed–Tue") and
+bar tooltips spell out the range ("Wed Jun 3 – Tue Jun 9") so a wrong setting is visible immediately.
+
 A period key is *derived* from each row's date — it is never read from a column in the source
 export. Month keys are `YYYY-MM`; week keys are the **Monday** of that week as `YYYY-MM-DD`
 (sortable, never confusable with a month key, and free of the ISO week-year edge cases that a
