@@ -41,9 +41,36 @@ grid, writes `<name> (pre-ledger backup <stamp>).xlsx` beside it, then converts.
 Weeks previously exiled to Sheet1 are recovered into the ledger. The confirm
 dialog names any payer row whose label matched no standard bucket.
 
+## Adjustments
+
+An adjustment is deducted from its payor's week and *also* recorded as a
+labeled `Item` row. Items are never summed into any total — the money is
+removed once and shown once.
+
+A week the loaded report covers is rebuilt wholesale from that report's rows,
+so re-saving is naturally idempotent. A week **outside** the report is adjusted
+in place in the ledger instead: what moves the payor figure is the delta against
+the item row already stored. Re-saving changes nothing, editing the amount
+applies only the difference, and setting it to zero backs the adjustment out and
+removes the item row. That week must already exist in the ledger.
+
+The editor tints rows that need attention:
+
+| Tint | Meaning |
+| --- | --- |
+| red    | not written — no amount, no valid week, or a week in neither the report nor the ledger |
+| amber  | written, but no description, so it saves as `Adjustment` and a second undescribed row on the same week would collide with it |
+| none (with a note) | an earlier week, applied straight to the ledger |
+
+Amounts normalise when the field is committed, never while typing: `00` becomes
+empty, `007.500` becomes `7.5`. Blocked rows are named in the Save dialog rather
+than being dropped silently.
+
 ## Tests
 
     ./run-tests.sh
+
+`test7` needs jsdom (`npm i jsdom`) and is skipped if it isn't installed.
 
 - `test1` — migration off a synthetic legacy grid reproduces the old
   dashboard numbers exactly (the pre-change `computeRollingDash` is frozen
@@ -53,3 +80,8 @@ dialog names any payer row whose label matched no standard bucket.
 - `test4` — end-to-end `saveToRolling` against a mock filesystem: bucketing,
   adjustment netting, backup, no history loss, re-save clears stale items.
 - `test5` — `saveRollingEdits`, and cross-foot-row detection by behaviour.
+- `test6` — earlier-week adjustments: they apply, re-saving doesn't
+  double-subtract, an amount edit applies only the delta, zero backs it out,
+  and blocked rows create no phantom weeks.
+- `test7` — the adjustments editor in a real DOM (jsdom): row tinting, amount
+  normalisation on commit but not mid-typing, and in-place status repaint.
