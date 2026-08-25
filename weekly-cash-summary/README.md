@@ -38,8 +38,29 @@ so hand-editing either can't skew the numbers.
 
 Open the app, link the folder, press **Save**. The first save detects the old
 grid, writes `<name> (pre-ledger backup <stamp>).xlsx` beside it, then converts.
-Weeks previously exiled to Sheet1 are recovered into the ledger. The confirm
-dialog names any payer row whose label matched no standard bucket.
+The confirm dialog names anything that needed a judgement call.
+
+What migration does with the old workbook:
+
+- **Payor rows** map to canonical buckets by label prefix. A row matching no
+  key keeps its own bucket rather than being folded into ALL OTHER PAYORS, and
+  a row whose prefix is already taken (`CIGNA EDGE TRANS…` vs `CIGNA …`) keeps
+  its own identity too — the dashboard averages **per row**, so merging two
+  rows would move the category average.
+- **Sheet1** is the archive of weeks earlier saves exiled out of the grid. Its
+  *payor* rows are recovered (they sit above TOTAL at a fixed layout and tie to
+  the Rolling Ave sheet across the time boundary), which can add years of
+  history. Its rows *below* TOTAL are deliberately ignored: that list is
+  append-only and has grown since the archive was written, so row N there is
+  not the same item it is on the Rolling Ave sheet. Reading it by row number
+  invents settlements that never happened.
+- **The cross-foot row** is dropped, detected by behaviour — a row that keeps
+  reproducing the week's payor total — rather than by position.
+- **Labels** are trimmed to the 16-character payer-name column, but only when
+  trimming leaves the row in the same category.
+
+Migration is checked against the frozen pre-change implementation: same
+categories, same weekly series, same averages.
 
 ## Adjustments
 
@@ -85,3 +106,5 @@ than being dropped silently.
   and blocked rows create no phantom weeks.
 - `test7` — the adjustments editor in a real DOM (jsdom): row tinting, amount
   normalisation on commit but not mid-typing, and in-place status repaint.
+- `test8` — loads the migrated production ledger into the full app and renders
+  the rolling tab (`node migrate.js` produces the file it needs).

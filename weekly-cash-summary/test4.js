@@ -29,7 +29,6 @@ for (let i = 51; i >= 0; i--) {
     new Map([['NORIDIANAKID', 100000], ['CIGNA', 20000], ['ALLOTHERPAYORS', 5000]]), []);
 }
 led.legacy = true;                                          // exercise the backup + conversion path
-disk['Rolling Ave.xlsx'] = X.writeRollingXlsx(led);          // stand-in for the on-disk original
 X.state.rolling = led;
 const oldestKey = X.ledgerSorted(led)[0].key;
 
@@ -49,6 +48,7 @@ X.state.rows = [
 X.state.adjustments = [{ id:'a1', desc:'UPL PAYMENT', cat:'MEDICARE', amt: 50000, week: '07/03/26-07/09/26' }];
 
 (async () => {
+  disk['Rolling Ave.xlsx'] = await X.writeRollingXlsx(led);   // stand-in for the on-disk original
   const before = X.computeRollingDash();
   console.log('\n-- pre-save --');
   chk('52 weeks in window', before.labels.length === 52);

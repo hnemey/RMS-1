@@ -29,7 +29,7 @@ const wkRange = (endMs) => fmt(new Date(endMs - 6*DAY)) + '-' + fmt(new Date(end
   chk('oldest week still stored', led.weeks.has(X.dateKey(ranges[0])));
 
   console.log('\n-- xlsx round-trip --');
-  const bytes = X.writeRollingXlsx(led);
+  const bytes = await X.writeRollingXlsx(led);
   const led2 = await X.parseRolling(buf(bytes));
   chk('re-parsed week count', led2.weeks.size === 60, led2.weeks.size);
   const d1 = X.computeRollingDash(led), d2 = X.computeRollingDash(led2);
@@ -38,7 +38,17 @@ const wkRange = (endMs) => fmt(new Date(endMs - 6*DAY)) + '-' + fmt(new Date(end
   chk('totals identical', d1.totals.every((v,i) => near(v, d2.totals[i])));
   chk('MEDICARE avg identical', near(d1.cats.MEDICARE.avg, d2.cats.MEDICARE.avg));
   chk('special item survives', JSON.stringify([...led2.weeks.values()].pop().items) === JSON.stringify([{desc:'UPL PAYMENT', amt:4321.5}]));
-  chk('written file is a single Ledger sheet', (await X.readSheetGrids(buf(bytes))).map(s=>s.name).join() === 'Ledger');
+  chk('written file is Ledger + Meta', (await X.readSheetGrids(buf(bytes))).map(s=>s.name).join() === 'Ledger,Meta');
+
+  console.log('\n-- the rolling window travels with the file --');
+  led.windowWeeks = 51;                                  // as a 51-column grid migration would set it
+  const b51 = await X.writeRollingXlsx(led);
+  const r51 = await X.parseRolling(buf(b51));
+  chk('windowWeeks survives the round-trip', r51.windowWeeks === 51, r51.windowWeeks);
+  chk('  …so the window is 51, not the 52 default', X.ledgerWindow(r51, r51.windowWeeks).length === 51);
+  chk('  …and the average matches the source ledger',
+      near(X.computeRollingDash(led).avgTotal, X.computeRollingDash(r51).avgTotal));
+  led.windowWeeks = 52;
 
   console.log('\n-- upsert replaces a week whole (the stale-adjustment bug) --');
   const before = X.ledgerWindow(led, 52).length;

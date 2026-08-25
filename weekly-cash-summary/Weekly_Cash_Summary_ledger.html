@@ -712,6 +712,8 @@ async function readSheetGrids(arrayBuffer) {
 }
 
 const LEDGER_SHEET = 'Ledger';
+const META_SHEET = 'Meta';
+const LEDGER_FORMAT = 'wcs-ledger-v1';
 const LEDGER_COLS = ['Week Ending', 'Week Range', 'Type', 'Bucket', 'Name', 'Category', 'Amount', 'Updated'];
 const ROLL_WEEKS_DEFAULT = 52;   // the 12-month window, in lockbox weeks
 
@@ -720,7 +722,7 @@ const ROLL_WEEKS_DEFAULT = 52;   // the 12-month window, in lockbox weeks
    `names` remembers the display label for a bucket so the migrated workbook keeps
    finance's own wording; the bucket key is what the maths runs on. */
 function ledgerNew() {
-  return { weeks: new Map(), names: {}, windowWeeks: ROLL_WEEKS_DEFAULT, legacy: false, unmapped: [], droppedRows: 0 };
+  return { weeks: new Map(), names: {}, windowWeeks: ROLL_WEEKS_DEFAULT, legacy: false, unmapped: [], split: [], droppedRows: 0 };
 }
 // the Thursday a week label ends on, as a UTC date (for the human-readable column)
 function weekEndDate(range) {
@@ -734,7 +736,7 @@ function ledgerWeek(led, range, create) {
   if (!key) return null;
   let wk = led.weeks.get(key);
   if (!wk && create) {
-    wk = { key, range: String(range), end: weekEndDate(range), payors: new Map(), items: [] };
+    wk = { key, range: String(range), end: weekEndDate(range), payors: new Map(), items: [], updated: null };
     led.weeks.set(key, wk);
   }
   return wk || null;
@@ -748,6 +750,7 @@ function ledgerUpsertWeek(led, range, payors, items) {
     key, range: String(range), end: weekEndDate(range),
     payors: new Map(payors || []),
     items: (items || []).map(it => ({ desc: it.desc, amt: it.amt })),
+    updated: null,                      // null = stamp it on the next write
   };
   led.weeks.set(key, wk);
   return wk;
@@ -768,8 +771,10 @@ function ledgerClone(led) {
   c.windowWeeks = led.windowWeeks;
   c.legacy = led.legacy;
   c.unmapped = led.unmapped.slice();
+  c.split = (led.split || []).slice();
   for (const [k, w] of led.weeks)
-    c.weeks.set(k, { key: w.key, range: w.range, end: w.end, payors: new Map(w.payors), items: w.items.map(it => ({ desc: it.desc, amt: it.amt })) });
+    c.weeks.set(k, { key: w.key, range: w.range, end: w.end, updated: w.updated,
+      payors: new Map(w.payors), items: w.items.map(it => ({ desc: it.desc, amt: it.amt })) });
   return c;
 }
 function bucketName(led, b) {
@@ -799,6 +804,7 @@ function ledgerFromSheet(sh) {
     const cell = k => (at[k] != null && row[at[k]]) ? row[at[k]].v : null;
     const wk = ledgerWeek(led, cell('WEEKRANGE'), true);
     if (!wk) continue;
+    if (wk.updated == null) { const u = cell('UPDATED'); if (u != null && String(u).trim()) wk.updated = String(u).trim(); }
     const amt = Number(cell('AMOUNT'));
     if (!Number.isFinite(amt)) continue;
     const name = cell('NAME');
@@ -816,6 +822,18 @@ function ledgerFromSheet(sh) {
 }
 
 /* ---------- one-time migration off the old 52-column grid ---------- */
+/* A grid row label is the raw fixed-width bank blob — a 16-character payer-name
+   column, then a transaction code, then the name again ("NORIDIAN AK-ID-OHCCLAIMPM,
+   T,NORIDIAN AK-ID-O…"). Show just the name column, but only when trimming leaves
+   the row in the same dashboard category: a workbook whose labels are shaped
+   differently keeps its full text rather than being silently regrouped. */
+function tidyPayorLabel(label) {
+  const full = String(label == null ? '' : label).trim();
+  const short = full.slice(0, NAME_COL_W).trim();
+  if (!short || short === full) return full;
+  const cat = x => rollingCategoryOf(alnumKey(String(x).split(',')[0]));
+  return cat(short) === cat(full) ? short : full;
+}
 // the canonical bucket for a workbook row label, or null when nothing matches
 function bucketForLabel(label) {
   const head = alnumKey(String(label).split(',')[0]);
@@ -844,16 +862,25 @@ function ledgerFromLegacy(sheets) {
   // a payer row keeps its canonical bucket when the label matches one, and
   // otherwise becomes a bucket of its own — never silently folded into ALL
   // OTHER PAYORS the way the old writer's `rowFor[key] || ALLOTHERPAYORS` did
-  const bucketAt = {}, unmapped = new Set();
+  // The dashboard averages PER ROW — each row averaged over the weeks it appears
+  // in, then summed into its category. So two rows must never collapse into one
+  // bucket: "CIGNA EDGE TRANS…" prefix-matches the CIGNA key, and merging it with
+  // "CIGNA …" would change the category average. The first row to claim a
+  // canonical key keeps it; any later claimant keeps its own identity.
+  const bucketAt = {}, unmapped = new Set(), split = new Set(), used = new Set();
   for (let r = 2; r < totalRow; r++) {
     const l = ra.grid[r] && ra.grid[r][0];
     if (!l || l.v == null || String(l.v).trim() === '') continue;
     const label = String(l.v).trim();
     const key = bucketForLabel(label);
-    const b = key || ('LEGACY:' + alnumKey(label.split(',')[0]));
-    if (!key) unmapped.add(label);
+    const own = 'LEGACY:' + alnumKey(label.split(',')[0]);
+    let b = key || own;
+    if (used.has(b)) { if (key) split.add(tidyPayorLabel(label)); b = own; }
+    while (used.has(b)) b += ':R' + r;                  // identical labels twice
+    used.add(b);
+    if (!key) unmapped.add(tidyPayorLabel(label));
     bucketAt[r] = b;
-    if (!led.names[b]) led.names[b] = label;
+    if (!led.names[b]) led.names[b] = tidyPayorLabel(label);
   }
   const numOf = cell => {
     if (!cell) return null;
@@ -867,21 +894,25 @@ function ledgerFromLegacy(sheets) {
   // Every date-headed column on a sheet laid out against the Rolling Ave sheet's
   // row numbering — payors first, so a week's payor total is known before the
   // rows below TOTAL are classified.
-  const colWeeks = [];                         // [{sheet, col, wk}]
+  const colWeeks = [];                         // [{sheet, col, wk, primary}]
   const claim = (sheet, cols) => {
     for (const c of cols) {
       const range = sheet.grid[1] && sheet.grid[1][c] && sheet.grid[1][c].v;
       const k = dateKey(range);
       if (!k || led.weeks.has(k)) continue;     // a week already read wins
       const wk = ledgerWeek(led, range, true);
-      if (wk) colWeeks.push({ sheet, col: c, wk });
+      if (wk) colWeeks.push({ sheet, col: c, wk, primary: sheet === ra });
     }
   };
   claim(ra, weekCols);
-  // Sheet1 holds the weeks earlier saves exiled out of the grid. The archive
-  // wrote them at the Rolling Ave sheet's own row numbers, so its labels apply —
-  // which means migrating recovers that history instead of leaving it stranded.
-  const s1 = sheets.find(s => s !== ra);
+  // Sheet1 holds the weeks earlier saves exiled out of the grid, at the Rolling
+  // Ave sheet's row numbers, so migrating recovers that history rather than
+  // leaving it stranded. Only its PAYOR rows are trusted: those sit above TOTAL
+  // at a fixed layout, and tie to the Rolling Ave sheet across the time boundary.
+  // The rows BELOW total are a different matter — that list is append-only and
+  // has grown since the archive was written, so row N there is not the same item
+  // it is on the Rolling Ave sheet. Reading it by row number invents settlements.
+  const s1 = sheets.find(s => s !== ra && alnumKey(s.name) !== alnumKey(META_SHEET));
   if (s1) {
     const h1 = s1.grid[1] || {};
     const cols = [];
@@ -919,7 +950,8 @@ function ledgerFromLegacy(sheets) {
     if (matched >= 3 && matched * 2 >= seen) crossfoot.add(r);
     else if (label && CHECKISH.test(alnumKey(label)) && seen >= 3) crossfoot.add(r);
   }
-  for (const { sheet, col, wk } of colWeeks) {
+  for (const { sheet, col, wk, primary } of colWeeks) {
+    if (!primary) continue;                    // archive item rows are not row-addressable — see above
     for (let r = totalRow + 1; r <= ra.maxRow; r++) {
       if (crossfoot.has(r)) continue;
       const v = numOf(sheet.grid[r] && sheet.grid[r][col]);
@@ -929,6 +961,7 @@ function ledgerFromLegacy(sheets) {
     }
   }
   led.unmapped = [...unmapped];
+  led.split = [...split];
   led.droppedRows = crossfoot.size;
   return led;
 }
@@ -940,7 +973,21 @@ async function parseRolling(arrayBuffer) {
     sheets.find(s => { const h = s.grid[1] || {}; return Object.keys(h).some(c => alnumKey(h[c].v) === 'WEEKRANGE'); });
   if (lsheet) {
     const led = ledgerFromSheet(lsheet);
-    if (led && led.weeks.size) return led;
+    if (led && led.weeks.size) {
+      // the rolling window travels with the file — otherwise a workbook migrated
+      // from a 51-column grid would silently widen to the 52-week default the
+      // next time anyone opened it, moving the headline average
+      const meta = sheets.find(x => alnumKey(x.name) === alnumKey(META_SHEET));
+      if (meta) {
+        for (let r = 2; r <= meta.maxRow; r++) {
+          const k = meta.grid[r] && meta.grid[r][0], v = meta.grid[r] && meta.grid[r][1];
+          if (!k || !v || alnumKey(k.v) !== 'WINDOWWEEKS') continue;
+          const n = Number(v.v);
+          if (Number.isFinite(n) && n > 0) led.windowWeeks = Math.round(n);
+        }
+      }
+      return led;
+    }
   }
   const legacy = ledgerFromLegacy(sheets);
   if (legacy && legacy.weeks.size) return legacy;
@@ -2695,6 +2742,7 @@ function applyLedgerAdjustments(led, plan) {
     if (!wk) continue;
     // a bucket that nets to nothing is removed, so the week reads blank for that
     // payor — the same rule buildWeekBuckets applies to in-report weeks
+    wk.updated = null;                  // this week changed — re-stamp it
     const next = Math.round(((wk.payors.get(p.bucket) || 0) - p.delta) * 100) / 100;
     if (next) wk.payors.set(p.bucket, next); else wk.payors.delete(p.bucket);
     const at = wk.items.findIndex(it => alnumKey(it.desc) === alnumKey(p.desc));
@@ -3349,6 +3397,52 @@ function crc32b(bytes) {
   for (let i = 0; i < bytes.length; i++) c = CRC_T[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
   return (c ^ 0xFFFFFFFF) >>> 0;
 }
+async function deflateRaw(bytes) {
+  const cs = new CompressionStream('deflate-raw');
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer());
+}
+/* Same container as zipStoreFiles, but each part is deflated where the browser
+   can do it. A few years of weeks is ~3.5 MB stored and a small fraction of that
+   zipped, and this file is rewritten on every Save and read by everyone who
+   syncs. Falls back to storing when CompressionStream is missing. */
+async function zipDeflateFiles(files) {
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  const prepped = [];
+  for (const f of files) {
+    const raw = enc.encode(f.text);
+    let data = raw, method = 0;
+    if (typeof CompressionStream === 'function') {
+      try { const d = await deflateRaw(raw); if (d.length < raw.length) { data = d; method = 8; } } catch (e) {}
+    }
+    prepped.push({ nameB: enc.encode(f.name), raw, data, method, crc: crc32b(raw) });
+  }
+  let offset = 0;
+  for (const f of prepped) {
+    const lh = new Uint8Array(30 + f.nameB.length), lv = new DataView(lh.buffer);
+    lv.setUint32(0, 0x04034b50, true); lv.setUint16(4, 20, true); lv.setUint16(8, f.method, true);
+    lv.setUint16(12, 0x5b41, true); lv.setUint32(14, f.crc, true);
+    lv.setUint32(18, f.data.length, true); lv.setUint32(22, f.raw.length, true);
+    lv.setUint16(26, f.nameB.length, true);
+    lh.set(f.nameB, 30);
+    parts.push(lh, f.data);
+    const ch = new Uint8Array(46 + f.nameB.length), cv = new DataView(ch.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+    cv.setUint16(10, f.method, true); cv.setUint16(14, 0x5b41, true); cv.setUint32(16, f.crc, true);
+    cv.setUint32(20, f.data.length, true); cv.setUint32(24, f.raw.length, true);
+    cv.setUint16(28, f.nameB.length, true); cv.setUint32(42, offset, true);
+    ch.set(f.nameB, 46);
+    central.push(ch);
+    offset += lh.length + f.data.length;
+  }
+  let cdSize = 0; for (const c of central) cdSize += c.length;
+  const eocd = new Uint8Array(22), ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, prepped.length, true); ev.setUint16(10, prepped.length, true);
+  ev.setUint32(12, cdSize, true); ev.setUint32(16, offset, true);
+  const out = new Uint8Array(offset + cdSize + 22);
+  let p = 0; for (const b of [...parts, ...central, eocd]) { out.set(b, p); p += b.length; }
+  return out;
+}
 function zipStoreFiles(files) {
   const enc = new TextEncoder();
   const parts = [], central = [];
@@ -3452,6 +3546,8 @@ function ledgerRows(led) {
   }
   return out;
 }
+// weeks touched since the last write are stamped now; the rest keep the stamp
+// they already carried, so the column is a real per-week audit trail
 function ledgerSheetXml(led, stamp) {
   const rows = ledgerRows(led);
   const last = colRef2(LEDGER_COLS.length - 1) + Math.max(rows.length + 1, 1);
@@ -3475,21 +3571,46 @@ function ledgerSheetXml(led, stamp) {
       ledCell(4, rn, r.name, 'text') +
       ledCell(5, rn, r.cat, 'text') +
       ledCell(6, rn, r.amt, 'money') +
-      ledCell(7, rn, stamp, 'text') +
+      ledCell(7, rn, r.w.updated || stamp, 'text') +
       '</row>';
   });
   return xml + '</sheetData><autoFilter ref="A1:' + last + '"/></worksheet>';
 }
-function writeRollingXlsx(led) {
+// a small key/value sheet so the file carries its own settings
+function metaSheetXml(led, stamp) {
+  const rows = [
+    ['Format', LEDGER_FORMAT, 'Written by the Weekly Cash Summary app — one row per (week, payor bucket) and per (week, special item).'],
+    ['Window Weeks', led.windowWeeks > 0 ? led.windowWeeks : ROLL_WEEKS_DEFAULT, 'How many of the most recent weeks the 12-month view averages. Every week stays stored regardless.'],
+    ['Weeks Stored', led.weeks.size, 'Total weeks held in the Ledger sheet.'],
+    ['Last Written', stamp, ''],
+  ];
+  let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<dimension ref="A1:C' + (rows.length + 1) + '"/>' +
+    '<cols><col min="1" max="1" width="16" customWidth="1"/><col min="2" max="2" width="22" customWidth="1"/>' +
+    '<col min="3" max="3" width="86" customWidth="1"/></cols>' +
+    '<sheetData><row r="1">' + ['Setting', 'Value', 'What it does'].map((h, i) => ledCell(i, 1, h, 'head')).join('') + '</row>';
+  rows.forEach((r, i) => {
+    const rn = i + 2;
+    xml += '<row r="' + rn + '">' + ledCell(0, rn, r[0], 'text') +
+      (typeof r[1] === 'number' ? '<c r="' + colRef2(1) + rn + '"><v>' + r[1] + '</v></c>' : ledCell(1, rn, r[1], 'text')) +
+      ledCell(2, rn, r[2], 'text') + '</row>';
+  });
+  return xml + '</sheetData></worksheet>';
+}
+async function writeRollingXlsx(led) {
   const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  return zipStoreFiles([
-    { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>' },
+  const bytes = await zipDeflateFiles([
+    { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>' },
     { name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + xmlEscape(LEDGER_SHEET) + '" sheetId="1" r:id="rId1"/></sheets></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + xmlEscape(LEDGER_SHEET) + '" sheetId="1" r:id="rId1"/><sheet name="' + xmlEscape(META_SHEET) + '" sheetId="2" r:id="rId2"/></sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
     { name: 'xl/styles.xml', text: LEDGER_STYLES },
     { name: 'xl/worksheets/sheet1.xml', text: ledgerSheetXml(led, stamp) },
+    { name: 'xl/worksheets/sheet2.xml', text: metaSheetXml(led, stamp) },
   ]);
+  for (const w of led.weeks.values()) if (w.updated == null) w.updated = stamp;
+  return bytes;
 }
 function writeSheetsXlsx(sheets) {
   const names = sheets.map(s => s.name);
@@ -4055,6 +4176,10 @@ async function saveToRolling() {
       ' payor row(s) in the old grid matched no standard bucket. They carry over under their own label ' +
       '(and keep the grouping they already had): ' + led.unmapped.slice(0, 6).join(', ') +
       (led.unmapped.length > 6 ? ', …' : '') : '') +
+    (wasLegacy && led.split && led.split.length ? '\n\n' + led.split.length +
+      ' payor row(s) share a bucket prefix with an earlier row and keep their own identity ' +
+      '(so the per-row averages stay exactly as they are): ' + led.split.slice(0, 6).join(', ') +
+      (led.split.length > 6 ? ', …' : '') : '') +
     (ledPlan.length ? '\n\nEarlier weeks, adjusted in place in the ledger:\n' +
       ledPlan.map(p => '• ' + p.range + ' — ' + p.desc + ' ' + fmtMoney(p.amt) +
         (p.prev ? ' (was ' + fmtMoney(p.prev) + ')' : '')).join('\n') : '') +
@@ -4077,7 +4202,7 @@ async function saveToRolling() {
   // in-report weeks are rebuilt wholesale; earlier weeks are nudged by the delta
   for (const p of plan) ledgerUpsertWeek(next, p.b.range, p.b.payors, p.b.items);
   applyLedgerAdjustments(next, ledPlan);
-  const bytes = writeRollingXlsx(next);
+  const bytes = await writeRollingXlsx(next);
   try {
     const wr = await state.rollingHandle.createWritable();
     await wr.write(new Blob([bytes]));
@@ -4088,6 +4213,7 @@ async function saveToRolling() {
   }
   next.legacy = false;
   next.unmapped = [];
+  next.split = [];
   state.rolling = next;
   let archived = [];
   try {
@@ -4305,7 +4431,7 @@ async function saveRollingEdits() {
     applied++;
   }
   if (!applied) { toast('None of those line items match a week in the ledger'); return; }
-  const bytes = writeRollingXlsx(next);
+  const bytes = await writeRollingXlsx(next);
   try {
     const w = await state.rollingHandle.createWritable();
     await w.write(new Blob([bytes]));

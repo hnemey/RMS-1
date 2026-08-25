@@ -1,6 +1,7 @@
 #!/bin/sh
 # Extracts the app's <script> block and runs the ledger test suite under Node.
-# test7 drives the real DOM and needs jsdom (npm i jsdom); it is skipped if absent.
+# test7/test8 drive a real DOM and need jsdom (npm i jsdom); they are skipped if absent.
+# test8 also needs Rolling_Ave_Ledger.xlsx, produced by `node migrate.js`.
 set -e
 cd "$(dirname "$0")"
 python3 - <<'PY'
@@ -14,9 +15,9 @@ for t in test1 test2 test4 test5 test6; do
   printf '%-8s ' "$t"
   node "$t.js" > /dev/null 2>&1 && echo PASS || { echo FAIL; node "$t.js"; exit 1; }
 done
-printf '%-8s ' test7
-if node -e "require.resolve('jsdom')" 2>/dev/null; then
-  node test7.js > /dev/null 2>&1 && echo PASS || { echo FAIL; node test7.js; exit 1; }
-else
-  echo "SKIP (npm i jsdom)"
-fi
+for t in test7 test8; do
+  printf '%-8s ' "$t"
+  if ! node -e "require.resolve('jsdom')" 2>/dev/null; then echo "SKIP (npm i jsdom)"; continue; fi
+  if [ "$t" = test8 ] && [ ! -f Rolling_Ave_Ledger.xlsx ]; then echo "SKIP (run: node migrate.js)"; continue; fi
+  node "$t.js" > /dev/null 2>&1 && echo PASS || { echo FAIL; node "$t.js"; exit 1; }
+done

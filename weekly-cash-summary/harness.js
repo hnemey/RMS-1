@@ -26,7 +26,7 @@ const doc = {
 const ctx = {
   console, TextEncoder, TextDecoder, Blob, URL, Date, Math, JSON, Number, String, Object, Array, Map, Set,
   Promise, Function, RegExp, Error, isNaN, parseInt, parseFloat, setTimeout, clearTimeout, DecompressionStream,
-  Uint8Array, Uint32Array, DataView, ArrayBuffer, Proxy, Symbol, Intl,
+  Uint8Array, Uint32Array, DataView, ArrayBuffer, Proxy, Symbol, Intl, Response, ReadableStream, CompressionStream,
   document: doc,
   localStorage: { getItem: () => null, setItem(){}, removeItem(){} },
   indexedDB: { open: () => ({}) },
