@@ -87,6 +87,24 @@ Amounts normalise when the field is committed, never while typing: `00` becomes
 empty, `007.500` becomes `7.5`. Blocked rows are named in the Save dialog rather
 than being dropped silently.
 
+## The leader report
+
+`buildLeaderReport()` exports the tabbed HTML report. Tabs run **months newest
+first**, with the fiscal-year-to-date summary **last** — and that YTD tab is the
+one the report opens on.
+
+The YTD view covers the **fiscal year to date** (the year starts 1 October;
+`FY_START_MONTH`), not a trailing twelve months. Its table reads newest month on
+the left, October on the right, then a `YTD` column and the payor mix. The
+month-over-month shading still compares each month with the one that really
+precedes it — the columns are reversed only at render, the arithmetic stays
+chronological.
+
+The heading is the span plus `YTD`, so a fresh fiscal year reads `October YTD`
+and fills out to `October – August YTD`. It draws on the whole ledger rather
+than the 12-month window, because a fiscal year runs up to 53 lockbox weeks and
+a windowed read would quietly drop October late in the year.
+
 ## Tests
 
     ./run-tests.sh
@@ -108,3 +126,7 @@ than being dropped silently.
   normalisation on commit but not mid-typing, and in-place status repaint.
 - `test8` — loads the migrated production ledger into the full app and renders
   the rolling tab (`node migrate.js` produces the file it needs).
+- `test9` — the exported leader report off the real ledger: fiscal-year window,
+  tab order with YTD last and open, newest-first columns, the `YTD` column
+  totalling its row, shading still pointing at the true prior month, and the
+  October-only labelling.

@@ -2610,10 +2610,11 @@ function rollWindowWeeks() {
    sum of its buckets' averages. That is NOT the same as averaging the weekly
    totals whenever buckets have different numbers of blank weeks, so it has to
    stay this way unless finance asks for the other definition. */
-function computeRollingDash(ledOverride) {
+function computeRollingDash(ledOverride, nWeeks) {
   const led = ledOverride || state.rolling;
   if (!led || !led.weeks || !led.weeks.size) return null;
-  const weeks = ledgerWindow(led, (led.windowWeeks > 0 ? led.windowWeeks : ROLL_WEEKS_DEFAULT));
+  // nWeeks overrides the stored window — pass Infinity for the whole ledger
+  const weeks = ledgerWindow(led, nWeeks != null ? nWeeks : (led.windowWeeks > 0 ? led.windowWeeks : ROLL_WEEKS_DEFAULT));
   if (!weeks.length) return null;
   const buckets = new Set();
   for (const w of weeks) for (const b of w.payors.keys()) buckets.add(b);
@@ -4485,7 +4486,10 @@ function weeklyHistoryWeeks() {
   };
   const weekMap = new Map();
   let roll = null;
-  try { roll = computeRollingDash(); } catch (e) {}
+  // the whole ledger, not the 12-month window: a fiscal year runs up to 53
+  // lockbox weeks, so a windowed read would quietly drop October out of the
+  // year-to-date total late in the year
+  try { roll = computeRollingDash(null, Infinity); } catch (e) {}
   if (roll) roll.labels.forEach((lbl, i) => {
     const key = dateKey(lbl), end = parseEnd(lbl);
     if (!key || !end) return;
@@ -4505,6 +4509,9 @@ function weeklyHistoryWeeks() {
     (a.yr * 10000 + a.mo * 100 + a.day) - (b.yr * 10000 + b.mo * 100 + b.day));
 }
 const ROLLING_MONTHS = 12;
+const FY_START_MONTH = 10;                 // the fiscal year starts 1 October
+// FY26 runs Oct 2025 – Sep 2026, so Oct 2025 and Aug 2026 both belong to FY26
+function fiscalYearOf(yr, mo) { return mo >= FY_START_MONTH ? yr + 1 : yr; }
 // rolling 12-month window for the leader report — every week is bucketed into
 // the month its week-end falls in, then the last 12 whole months are kept so
 // the summary reads as months rather than a 52-week slice with partial edges
@@ -4517,18 +4524,26 @@ function rollingMonthsData() {
     if (!byMonth.has(mk)) { const m = { yr: x.yr, mo: x.mo, weeks: [] }; byMonth.set(mk, m); monthsAll.push(m); }
     byMonth.get(mk).weeks.push(x);
   }
-  const startIdx = Math.max(0, monthsAll.length - ROLLING_MONTHS);
+  // the window is the fiscal year to date — every month of the current fiscal
+  // year present in the data, not a trailing twelve
+  const last = monthsAll[monthsAll.length - 1];
+  const fy = fiscalYearOf(last.yr, last.mo);
+  let startIdx = monthsAll.findIndex(m => fiscalYearOf(m.yr, m.mo) === fy);
+  if (startIdx < 0) startIdx = Math.max(0, monthsAll.length - ROLLING_MONTHS);
   const months = monthsAll.slice(startIdx);
-  const prior = startIdx > 0 ? monthsAll[startIdx - 1] : null;   // month just before the window (for M/M shading of the first column)
+  const prior = startIdx > 0 ? monthsAll[startIdx - 1] : null;   // month just before the window (for M/M shading of October)
   const weeks = months.reduce((a, m) => a.concat(m.weeks), []);
   let grand = 0;
   for (const x of weeks) for (const c of WCS_CATEGORIES) grand += (x.vals[c] || 0);
   const nMonths = months.length;
   const fm = months[0], lm = months[months.length - 1];
+  // one month reads as just that month; the fiscal year makes the years unambiguous
   const span = (fm && lm)
-    ? (MONTH_ABBR[fm.mo - 1] + ' ' + fm.yr + ' – ' + MONTH_ABBR[lm.mo - 1] + ' ' + lm.yr) : '';
-  return { months, weeks, nWeeks: weeks.length, nMonths, grand,
-    avgMonth: nMonths ? grand / nMonths : 0, span, prior };
+    ? (fm.yr === lm.yr && fm.mo === lm.mo
+        ? MONTH_FULL_NAMES[fm.mo - 1]
+        : MONTH_FULL_NAMES[fm.mo - 1] + ' – ' + MONTH_FULL_NAMES[lm.mo - 1]) : '';
+  return { months, weeks, nWeeks: weeks.length, nMonths, grand, fy,
+    avgMonth: nMonths ? grand / nMonths : 0, span, ytdLabel: span ? span + ' YTD' : 'YTD', prior };
 }
 // labeled special-item rows from the Rolling Ave workbook (settlements, UPL
 // payments…) with the week column their amount is pinned to
@@ -4600,7 +4615,8 @@ function monthAsW(m) {
   return { weeks, cells, catTot, weekTot, grand, undatedN: 0, undatedAmt: 0, adjTotal: 0, startFri };
 }
 // cash-by-month chart: one bar per month (single series)
-function ytdBarsSvg(months) {
+function ytdBarsSvg(monthsChrono) {
+  const months = [...monthsChrono].reverse();          // newest bar on the left, as the table reads
   const totals = months.map(m => monthAsW(m).grand);
   const max = Math.max(...totals);
   if (max <= 0) return '';
@@ -4624,15 +4640,15 @@ function ytdBarsSvg(months) {
       '<title>' + MONTH_FULL_NAMES[m.mo - 1] + ' ' + m.yr + ': ' + fmtMoney(v) + '</title></path>' +
       '<text x="' + (padL + i * slot + slot / 2) + '" y="' + (padT + plotH + 20) + '" text-anchor="middle">' +
       MONTH_ABBR[m.mo - 1] + '-' + String(m.yr).slice(-2) + '</text>';
-    if (i === months.length - 1) {
+    if (i === 0) {                                     // label the newest month, now leftmost
       s += '<text x="' + (padL + i * slot + slot / 2) + '" y="' + (padT + plotH - h - 8) + '" text-anchor="middle" style="fill:var(--ink);font-weight:650">' + fmtMoneyShort(v) + '</text>';
     }
   });
   s += '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (width - padR) + '" y2="' + (padT + plotH) + '" stroke="var(--baseline)" stroke-width="1"/></svg>';
   return s;
 }
-// by-payor summary over the rolling 12-month window, one column per month
-// plus a rolling total and the payor mix. Cells are color-shaded by the same
+// by-payor summary over the fiscal year to date, one column per month — newest
+// on the left — plus the YTD total and the payor mix. Cells are color-shaded by the same
 // Rules as the weekly view, but month-over-month (each month vs the prior one,
 // or vs the payor's average month when the basis is "12-month average").
 function rollingMonthsSummaryTableHtml(months, prior) {
@@ -4665,16 +4681,19 @@ function rollingMonthsSummaryTableHtml(months, prior) {
     return ' title="prior mo ' + fmtMoney(prev) + ' · ' + (chg >= 0 ? '+' : '−') + fmtMoney(Math.abs(chg)) +
       (p == null ? '' : ' (' + (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(1) + '%)') + '"';
   };
+  // columns read newest first; `mt` stays chronological so every prior-month
+  // comparison above keeps working off the real neighbour
+  const order = mt.map((_, i) => i).reverse();
   let h = '<table class="data wcs"><thead><tr><th>Payors</th>' +
-    mt.map(x => '<th class="num">' + MONTH_ABBR[x.m.mo - 1] + '-' + x.m.yr + '</th>').join('') +
-    '<th class="num">Total</th><th class="num mix">Mix</th></tr></thead><tbody>';
+    order.map(i => '<th class="num">' + MONTH_ABBR[mt[i].m.mo - 1] + '-' + mt[i].m.yr + '</th>').join('') +
+    '<th class="num">YTD</th><th class="num mix">Mix</th></tr></thead><tbody>';
   for (const c of WCS_CATEGORIES) {
     h += '<tr><td>' + esc(c) + '</td>' +
-      mt.map((x, i) => '<td class="num"' + cellShade(c, i) + cellTitle(c, i) + '>' + (x.t[c] ? fmtMoney(x.t[c]) : '·') + '</td>').join('') +
+      order.map(i => '<td class="num"' + cellShade(c, i) + cellTitle(c, i) + '>' + (mt[i].t[c] ? fmtMoney(mt[i].t[c]) : '·') + '</td>').join('') +
       '<td class="num"><b>' + fmtMoney(totC[c]) + '</b></td>' +
       '<td class="num mix">' + (totG ? pct(totC[c] / totG) : '·') + '</td></tr>';
   }
-  h += '<tr class="total"><td>TOTAL</td>' + mt.map(x => '<td class="num">' + fmtMoney(x.g) + '</td>').join('') +
+  h += '<tr class="total"><td>TOTAL</td>' + order.map(i => '<td class="num">' + fmtMoney(mt[i].g) + '</td>').join('') +
     '<td class="num">' + fmtMoney(totG) + '</td><td></td></tr></tbody></table>';
   const thL = rules.metric === '$' ? fmtMoney(rules.threshold) : (+rules.threshold + '%');
   h += rules.basis === 'avg'
@@ -4714,19 +4733,13 @@ function buildLeaderReport() {
   const adjT = wcs ? (wcs.adjTotal || 0) : 0;
   const rollM = rollingMonthsData();
   const tabs = [], sections = [];
+  let openTab = 0;
   // the current-week "This Week" tab is intentionally omitted from the export
-  // order: Fiscal YTD (last 12 months, by month), then months newest → oldest
+  // order: months newest → oldest, then the fiscal-year-to-date summary last —
+  // which is the one the report opens on
   if (rollM) {
     const nMo = rollM.nMonths;
-    const spanNote = rollM.span ? esc(rollM.span) : (nMo + ' months');
-    tabs.push('Fiscal YTD');
-    sections.push(
-      '<div class="kpis">' +
-      tile('Total cash', fmtMoney(rollM.grand), 'last ' + nMo + ' months · ' + spanNote, 'hero') +
-      tile('Average / month', fmtMoney(rollM.avgMonth), nMo + ' months', 'hero') +
-      '</div>' +
-      '<div class="card"><h3>Fiscal YTD <span class="s">last ' + nMo + ' months · by month</span></h3>' + rollingMonthsSummaryTableHtml(rollM.months, rollM.prior) + '</div>' +
-      '<div class="card wcschart"><h3>Cash by month <span class="s">last ' + nMo + ' months</span></h3>' + ytdBarsSvg(rollM.months) + '</div>');
+    const moNote = nMo + (nMo === 1 ? ' month' : ' months');
     for (const m of [...rollM.months].reverse()) {
       const mw = monthAsW(m);
       tabs.push(MONTH_ABBR[m.mo - 1] + ' ’' + String(m.yr).slice(-2));
@@ -4740,6 +4753,16 @@ function buildLeaderReport() {
         '<div class="card wcschart"><h3>Weekly Cash Summary <span class="s">cash by payor and week</span></h3>' +
         wcsLegendHtml(mw) + wcsChartSvg(mw) + '</div>');
     }
+    openTab = tabs.length;                       // the YTD tab, appended next
+    tabs.push(rollM.ytdLabel);
+    sections.push(
+      '<div class="kpis">' +
+      tile('Total cash', fmtMoney(rollM.grand), esc(rollM.ytdLabel), 'hero') +
+      tile('Average / month', fmtMoney(rollM.avgMonth), moNote, 'hero') +
+      '</div>' +
+      '<div class="card"><h3>' + esc(rollM.ytdLabel) + ' <span class="s">FY' + String(rollM.fy).slice(-2) +
+        ' · by month · newest first</span></h3>' + rollingMonthsSummaryTableHtml(rollM.months, rollM.prior) + '</div>' +
+      '<div class="card wcschart"><h3>Cash by month <span class="s">' + esc(rollM.span) + '</span></h3>' + ytdBarsSvg(rollM.months) + '</div>');
   }
   // no rolling workbook linked → show the current week so the export is never blank
   if (!tabs.length) {
@@ -4761,8 +4784,8 @@ function buildLeaderReport() {
   '<h1><span class="logo"><span class="st">St</span><span class="lukes">Luke’s</span></span> Weekly Cash Summary</h1>' +
   '<div class="sub">Lockbox ' + esc(range) + ' · generated ' + esc(genOn) + ' · excluded payors removed</div>' +
   rulesLegendHtml() +
-  '<nav class="rtabs">' + tabs.map((t, i) => '<button data-i="' + i + '"' + (i === 0 ? ' class="on"' : '') + '>' + esc(t) + '</button>').join('') + '</nav>' +
-  sections.map((s, i) => '<section class="rsec' + (i === 0 ? ' on' : '') + '" data-i="' + i + '">' + s + '</section>').join('') +
+  '<nav class="rtabs">' + tabs.map((t, i) => '<button data-i="' + i + '"' + (i === openTab ? ' class="on"' : '') + '>' + esc(t) + '</button>').join('') + '</nav>' +
+  sections.map((s, i) => '<section class="rsec' + (i === openTab ? ' on' : '') + '" data-i="' + i + '">' + s + '</section>').join('') +
   '</div><script>\n' +
   'document.querySelectorAll(".rtabs button").forEach(function(b){b.addEventListener("click",function(){\n' +
   'document.querySelectorAll(".rtabs button").forEach(function(x){x.classList.toggle("on",x===b)});\n' +
