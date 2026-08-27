@@ -39,9 +39,12 @@ setTimeout(async () => {
   console.log('       render time: ' + tRender + 'ms');
 
   const d = win.computeRollingDash();
-  chk('window is 51 weeks', d.labels.length === 51, d.labels.length);
-  chk('last week is 08/07/26-08/13/26', d.labels[50] === '08/07/26-08/13/26', d.labels[50]);
-  chk('avgTotal is the expected figure', Math.abs(d.avgTotal - 69079529.61) < 0.01, d.avgTotal);
+  chk('window defaults to 52 weeks', d.labels.length === 52, d.labels.length);
+  chk('window ends at the newest stored week',
+      d.labels[d.labels.length-1] === '08/07/26-08/13/26', d.labels[d.labels.length-1]);
+  chk('window starts 52 back', d.labels[0] === '8/8/25 - 8/14/25', d.labels[0]);
+  chk('avgTotal is the 52-week figure', Math.abs(d.avgTotal - 69014639.96) < 0.01, d.avgTotal);
+  chk('the v1 file\'s stale Window Weeks=51 is ignored', win.state.rolling.windowWeeks === 52, win.state.rolling.windowWeeks);
   const cats = Object.keys(d.cats).sort();
   console.log('       categories: ' + cats.length + ' — ' + cats.join(', '));
   chk('special items visible', win.rollingSpecialItems().length === 27, win.rollingSpecialItems().length);

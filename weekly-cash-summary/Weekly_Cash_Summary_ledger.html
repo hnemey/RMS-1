@@ -429,6 +429,17 @@ table.ckdetail thead th.num { text-align: right; }
         <button class="primary" id="btnExportRolling">Export HTML report</button>
       </div>
       <div class="kpis" id="rollKpis"></div>
+      <div class="card">
+        <h3>Weeks in the rolling average <span class="sub">exactly what the average is built from</span></h3>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label for="rollWin" style="font-size:13px;color:var(--ink-2)">Window</label>
+          <input id="rollWin" type="number" min="1" max="520" step="1" style="width:80px">
+          <span style="font-size:13px;color:var(--ink-2)">weeks</span>
+          <button id="btnRollWinReset" class="iconbtn">Reset to 52</button>
+          <span class="note" id="rollWinNote" style="margin-left:4px"></span>
+        </div>
+        <div id="rollWeeks" style="margin-top:12px"></div>
+      </div>
       <div class="card wcschart"><h3>Weekly cash — last 12 months <span class="sub">hover for values · click for the detailed view</span></h3><div id="rollTrend"></div></div>
       <div class="card"><h3>12-month rolling average by payor <span class="sub">click a payor for its detailed view</span></h3><div id="rollTable"></div></div>
     </div>
@@ -713,7 +724,12 @@ async function readSheetGrids(arrayBuffer) {
 
 const LEDGER_SHEET = 'Ledger';
 const META_SHEET = 'Meta';
-const LEDGER_FORMAT = 'wcs-ledger-v1';
+/* v1 stored a Window Weeks that migration had inferred from however many week
+   columns the old grid happened to have — a grid one week short of a full year
+   pinned the window at 51 for good. The window is a rule, not an artifact of
+   migration day, so a v1 value is ignored and the default applies; v2 onwards
+   carries a window somebody actually chose. */
+const LEDGER_FORMAT = 'wcs-ledger-v2';
 const LEDGER_COLS = ['Week Ending', 'Week Range', 'Type', 'Bucket', 'Name', 'Category', 'Amount', 'Updated'];
 const ROLL_WEEKS_DEFAULT = 52;   // the 12-month window, in lockbox weeks
 
@@ -852,7 +868,9 @@ function ledgerFromLegacy(sheets) {
     else if (weekCols.length) break;
   }
   if (!weekCols.length) return null;
-  led.windowWeeks = weekCols.length;   // keep the window the grid actually had
+  // NOT weekCols.length: a grid one column short of a full year would pin the
+  // window at that transient width for good. The window is a rule (52 weeks),
+  // not a property of whatever the sheet looked like on migration day.
   let totalRow = 0;
   for (let r = 2; r <= ra.maxRow; r++) {
     const l = ra.grid[r] && ra.grid[r][0];
@@ -979,12 +997,16 @@ async function parseRolling(arrayBuffer) {
       // next time anyone opened it, moving the headline average
       const meta = sheets.find(x => alnumKey(x.name) === alnumKey(META_SHEET));
       if (meta) {
+        let fmt = '', win = null;
         for (let r = 2; r <= meta.maxRow; r++) {
           const k = meta.grid[r] && meta.grid[r][0], v = meta.grid[r] && meta.grid[r][1];
-          if (!k || !v || alnumKey(k.v) !== 'WINDOWWEEKS') continue;
-          const n = Number(v.v);
-          if (Number.isFinite(n) && n > 0) led.windowWeeks = Math.round(n);
+          if (!k || v == null) continue;
+          const kk = alnumKey(k.v);
+          if (kk === 'FORMAT') fmt = String(v.v == null ? '' : v.v).trim();
+          else if (kk === 'WINDOWWEEKS') { const n = Number(v.v); if (Number.isFinite(n) && n > 0) win = Math.round(n); }
         }
+        // only a window from v2 onwards is trusted — see LEDGER_FORMAT
+        if (win != null && fmt && fmt !== 'wcs-ledger-v1') led.windowWeeks = win;
       }
       return led;
     }
@@ -1217,6 +1239,7 @@ const LS_ROLLITEMEDITS = 'wcr_rollitemedits_v1';
 const LS_ROLLITEMS = 'wcr_rollitems_v1';
 const LS_LINEAMT = 'wcr_lineamt_v1';
 const LS_RULES = 'wcr_rules_v1';
+const LS_ROLLWIN = 'wcr_rollwin_v1';
 const DEFAULT_RULES = { basis: 'week', metric: '%', threshold: 10 };
 const DEFAULT_PAYORS = ['BCBS','COMMERCIAL','GUARANTOR','MEDICAID','MEDICARE','MILITARY','Pharmacy','REGENCE','SLHealthPlan','WORKERS COMPENSATION'];
 
@@ -1243,6 +1266,7 @@ const state = {
   payersHandle: null,  // FileSystemFileHandle of the payers-to-remove file
   rollingName: '',
   rolling: null,       // parsed Rolling Ave ledger (see ledgerNew)
+  rollWindow: 0,       // user-set rolling window in weeks (0 = use the file's / the default)
   rules: { basis: 'week', metric: '%', threshold: 10 }, // cell-color rule (Rules tab)
 };
 /* ---- IndexedDB persistence for the folder handle (localStorage can't hold it) ---- */
@@ -1279,6 +1303,8 @@ function loadPersisted() {
     state.lineAmtOv = JSON.parse(localStorage.getItem(LS_LINEAMT) || '{}');
     const rl = JSON.parse(localStorage.getItem(LS_RULES) || 'null');
     if (rl && typeof rl === 'object') state.rules = Object.assign({}, DEFAULT_RULES, rl);
+    const rw = Number(JSON.parse(localStorage.getItem(LS_ROLLWIN) || '0'));
+    if (Number.isFinite(rw) && rw > 0) state.rollWindow = Math.round(rw);
   } catch (e) { /* corrupted storage — start clean */ }
 }
 function persistList() { try { localStorage.setItem(LS_LIST, JSON.stringify({ file: state.listFile, manual: state.manualEntries })); } catch (e) {} }
@@ -1290,6 +1316,7 @@ function persistRollItemEdits() { try { localStorage.setItem(LS_ROLLITEMEDITS, J
 function persistRollItems() { try { localStorage.setItem(LS_ROLLITEMS, JSON.stringify(state.rollItems)); } catch (e) {} }
 function persistLineAmt() { try { localStorage.setItem(LS_LINEAMT, JSON.stringify(state.lineAmtOv)); } catch (e) {} }
 function persistRules() { try { localStorage.setItem(LS_RULES, JSON.stringify(state.rules)); } catch (e) {} }
+function persistRollWindow() { try { localStorage.setItem(LS_ROLLWIN, JSON.stringify(state.rollWindow)); } catch (e) {} }
 // bank accounts compare on digits only, ignoring leading zeros and spacing
 function normAcct(v) { return String(v == null ? '' : v).replace(/\D/g, '').replace(/^0+/, ''); }
 let bankSet = new Set();
@@ -2598,7 +2625,11 @@ function rollingCategoryOf(head) {
 // how many weeks the 12-month window holds. A workbook migrated off the old
 // grid keeps whatever width that grid had, so the headline average doesn't
 // move on the day you switch over.
+// The rolling window, in weeks. A value the user set here wins over whatever the
+// linked file carries, so a stale Meta value can't hold the number hostage; Save
+// writes the choice back so everyone who syncs gets it.
 function rollWindowWeeks() {
+  if (state.rollWindow > 0) return state.rollWindow;
   const led = state.rolling;
   return (led && led.windowWeeks > 0) ? led.windowWeeks : ROLL_WEEKS_DEFAULT;
 }
@@ -2614,7 +2645,8 @@ function computeRollingDash(ledOverride, nWeeks) {
   const led = ledOverride || state.rolling;
   if (!led || !led.weeks || !led.weeks.size) return null;
   // nWeeks overrides the stored window — pass Infinity for the whole ledger
-  const weeks = ledgerWindow(led, nWeeks != null ? nWeeks : (led.windowWeeks > 0 ? led.windowWeeks : ROLL_WEEKS_DEFAULT));
+  const weeks = ledgerWindow(led, nWeeks != null ? nWeeks
+    : (state.rollWindow > 0 ? state.rollWindow : (led.windowWeeks > 0 ? led.windowWeeks : ROLL_WEEKS_DEFAULT)));
   if (!weeks.length) return null;
   const buckets = new Set();
   for (const w of weeks) for (const b of w.payors.keys()) buckets.add(b);
@@ -2954,15 +2986,55 @@ $('rollTrend').addEventListener('click', () => openDetail('TOTAL'));
 bindChartTip($('rollTrend'));
 bindChartTip($('mChart'));
 bindChartTip($('wcsChart'));
+/* Every week the average is built from, oldest first, with its total — so the
+   window can be checked against the workbook without reading any code. */
+function rollWeeksHtml(d) {
+  const led = state.rolling;
+  if (!led) return '';
+  const stored = led.windowWeeks > 0 ? led.windowWeeks : ROLL_WEEKS_DEFAULT;
+  const n = rollWindowWeeks();
+  const all = ledgerSorted(led).length;
+  const short = d.labels.length < n;
+  let h = '<div class="note" style="margin:0 0 8px">' +
+    '<b>' + d.labels.length + ' weeks</b> · ' + esc(d.labels[0]) + ' → ' + esc(d.labels[d.labels.length - 1]) +
+    ' · ' + all + ' weeks stored in the ledger' +
+    (short ? ' · <b style="color:var(--bad)">the ledger only holds ' + d.labels.length + ', short of the ' + n + '-week window</b>' : '') +
+    (state.rollWindow > 0 && state.rollWindow !== stored
+      ? ' · <b>window set here to ' + state.rollWindow + '</b>; the linked file still says ' + stored + ' — Save writes it back'
+      : '') +
+    '</div>';
+  h += '<div class="tablewrap" style="max-height:300px"><table class="data"><thead><tr>' +
+    '<th style="width:44px">#</th><th>Week</th><th class="num">Total</th></tr></thead><tbody>';
+  d.labels.forEach((lbl, i) => {
+    h += '<tr><td style="color:var(--muted)">' + (i + 1) + '</td><td>' + esc(lbl) + '</td>' +
+      '<td class="num">' + fmtMoney(d.totals[i]) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  return h;
+}
 function renderRolling() {
   const d = computeRollingDash();
   $('rollEmpty').classList.toggle('hidden', !!d);
   $('rollBody').classList.toggle('hidden', !d);
   if (!d) return;
+  const win = $('rollWin');
+  if (win && document.activeElement !== win) win.value = String(rollWindowWeeks());
+  $('rollWinNote').textContent = 'The average uses the most recent ' + rollWindowWeeks() +
+    ' weeks. Older weeks stay stored and are never dropped.';
+  $('rollWeeks').innerHTML = rollWeeksHtml(d);
   $('rollKpis').innerHTML = rollingKpisHtml(d);
   $('rollTrend').innerHTML = rollTrendSvg(d);
   $('rollTable').innerHTML = rollingTableHtml(d);
 }
+function setRollWindow(n) {
+  const v = Math.round(Number(n) || 0);
+  state.rollWindow = (v > 0 && v <= 520) ? v : 0;
+  persistRollWindow();
+  markDirty();
+  renderAll();
+}
+$('rollWin').addEventListener('change', e => setRollWindow(e.target.value));
+$('btnRollWinReset').addEventListener('click', () => setRollWindow(ROLL_WEEKS_DEFAULT));
 // standalone HTML export of the 12-month rolling average dashboard
 function buildRollingReport(d) {
   const n = d.labels.length;
@@ -3581,7 +3653,7 @@ function ledgerSheetXml(led, stamp) {
 function metaSheetXml(led, stamp) {
   const rows = [
     ['Format', LEDGER_FORMAT, 'Written by the Weekly Cash Summary app — one row per (week, payor bucket) and per (week, special item).'],
-    ['Window Weeks', led.windowWeeks > 0 ? led.windowWeeks : ROLL_WEEKS_DEFAULT, 'How many of the most recent weeks the 12-month view averages. Every week stays stored regardless.'],
+    ['Window Weeks', rollWindowWeeks(), 'How many of the most recent weeks the 12-month view averages. Every week stays stored regardless.'],
     ['Weeks Stored', led.weeks.size, 'Total weeks held in the Ledger sheet.'],
     ['Last Written', stamp, ''],
   ];

@@ -15,9 +15,9 @@ for t in test1 test2 test4 test5 test6; do
   printf '%-8s ' "$t"
   node "$t.js" > /dev/null 2>&1 && echo PASS || { echo FAIL; node "$t.js"; exit 1; }
 done
-for t in test7 test8 test9; do
+for t in test7 test8 test9 test10; do
   printf '%-8s ' "$t"
   if ! node -e "require.resolve('jsdom')" 2>/dev/null; then echo "SKIP (npm i jsdom)"; continue; fi
-  case "$t" in test8|test9) [ -f Rolling_Ave_Ledger.xlsx ] || { echo "SKIP (run: node migrate.js)"; continue; };; esac
+  case "$t" in test8|test9|test10) [ -f Rolling_Ave_Ledger.xlsx ] || { echo "SKIP (run: node migrate.js)"; continue; };; esac
   node "$t.js" > /dev/null 2>&1 && echo PASS || { echo FAIL; node "$t.js"; exit 1; }
 done

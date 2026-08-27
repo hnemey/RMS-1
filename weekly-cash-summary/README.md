@@ -126,6 +126,10 @@ a windowed read would quietly drop October late in the year.
   normalisation on commit but not mid-typing, and in-place status repaint.
 - `test8` — loads the migrated production ledger into the full app and renders
   the rolling tab (`node migrate.js` produces the file it needs).
+- `test10` — the 52-week window end to end: a v1 file's stale 51 is ignored, a
+  newly saved week extends the window instead of evicting the oldest, the
+  on-screen week list matches the window exactly, and the control changes the
+  figure and writes back as v2.
 - `test9` — the exported leader report off the real ledger: fiscal-year window,
   tab order with YTD last and open, newest-first columns, the `YTD` column
   totalling its row, shading still pointing at the true prior month, and the
