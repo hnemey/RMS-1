@@ -136,11 +136,6 @@ table.rolltbl tbody tr:hover td { background: rgba(var(--heat), 0.07); }
   border-radius: 7px; background: var(--surface); color: var(--ink); width: 100%; }
 #adjRows input.amt { text-align: right; width: 140px; }
 #adjRows td { white-space: normal; }
-#adjRows tr.adj-block > td { background: rgba(208, 59, 59, .06); }
-#adjRows tr.adj-warn  > td { background: rgba(234, 179, 8, .10); }
-#adjRows .adjmsg { font-size: 11.5px; line-height: 1.35; margin-top: 4px; color: var(--muted); }
-#adjRows tr.adj-block .adjmsg { color: var(--bad); }
-#adjRows tr.adj-warn  .adjmsg { color: var(--ink-2); }
 #adjRows td:first-child { min-width: 240px; }
 
 /* report check tab — payor drill-down groups */
@@ -2163,7 +2158,6 @@ function renderAdjEditor() {
   // show every adjustment, including ones tied to earlier periods that aren't in
   // the current report — they stay editable and removable here
   const rows = state.adjustments.slice();
-  const reportKeys = refreshAdjWeekKeys();
   const show = rows.length > 0 || adjEditorOpen;
   $('adjEditor').classList.toggle('hidden', !show);
   $('btnAddTable').classList.toggle('hidden', show);
@@ -2175,10 +2169,8 @@ function renderAdjEditor() {
       months.unshift({ year: cur.year, mo0: cur.mo0, key: cur.year + '-' + cur.mo0, label: ADJ_MONTHS[cur.mo0] + ' ' + cur.year });
     const selKey = cur.year != null ? cur.year + '-' + cur.mo0 : '';
     const wkNums = cur.year != null ? weekNumsInMonth(cur.year, cur.mo0) : weekNumsInMonth(months[0].year, months[0].mo0);
-    const iss = adjIssues(a, reportKeys), lvl = adjLevel(iss);
-    return '<tr data-id="' + a.id + '"' + (lvl ? ' class="adj-' + lvl + '"' : '') + '>' +
-      '<td><input class="desc" value="' + esc(a.desc || '') + '" placeholder="e.g. FY25 Cost Report settlement">' +
-      '<div class="adjmsg">' + esc(iss.map(i => i.msg).join(' · ')) + '</div></td>' +
+    return '<tr data-id="' + a.id + '">' +
+      '<td><input class="desc" value="' + esc(a.desc || '') + '" placeholder="e.g. FY25 Cost Report settlement"></td>' +
       '<td><select class="cat">' + WCS_CATEGORIES.map(c => '<option' + (c === a.cat ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></td>' +
       '<td style="text-align:right"><input class="amt" type="number" step="0.01" min="0" value="' + esc(a.amt || '') + '" placeholder="0.00"></td>' +
       '<td><select class="wkMonth">' + months.map(o => '<option value="' + o.key + '"' + (o.key === selKey ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('') + '</select></td>' +
@@ -2276,14 +2268,7 @@ function onAdjEdit(e) {
   if (range) a.week = range;
   persistAdj();
   scheduleAdjArchive();
-  // the editor is not re-rendered (that would steal focus mid-typing), so repaint
-  // just this row's status line
-  const iss = adjIssues(a, adjWeekKeys), lvl = adjLevel(iss);
-  tr.classList.remove('adj-block', 'adj-warn', 'adj-info');
-  if (lvl) tr.classList.add('adj-' + lvl);
-  const note = tr.querySelector('.adjmsg');
-  if (note) note.textContent = iss.map(i => i.msg).join(' · ');
-  refreshAdjViews();
+  refreshAdjViews(); // the editor itself is not re-rendered, so typing keeps focus
 }
 $('adjRows').addEventListener('input', onAdjEdit);
 $('adjRows').addEventListener('change', onAdjEdit);
@@ -2710,41 +2695,19 @@ function buildWeekBuckets(rows, w) {
    An adjustment only reaches Excel if it names a week Save can write. A week the
    loaded report covers is rebuilt from that report's rows; a week outside it is
    adjusted in place in the ledger, so the ledger has to already hold it. */
-let adjWeekKeys = new Set();               // the loaded report's week keys, cached per render
-function refreshAdjWeekKeys() {
-  adjWeekKeys = new Set();
-  if (!state.rows.length) return adjWeekKeys;
-  try {
-    const w = computeWCS(includedRows());
-    if (w) for (const wk of w.weeks) { const k = dateKey(wk.range); if (k) adjWeekKeys.add(k); }
-  } catch (e) {}
-  return adjWeekKeys;
-}
-// what's wrong with an adjustment row, worst first. level 'block' = it is
-// ignored entirely, 'warn' = it writes but with a caveat, 'info' = worth knowing.
-function adjIssues(a, reportKeys) {
+/* Why an adjustment row would not be written, or [] when it will be. The editor
+   stays quiet — a row being filled in is incomplete by definition — and Save
+   names anything still blocked at the moment it would have been dropped.
+   A missing description is not blocking: the row saves as "Adjustment". */
+function adjBlocked(a, reportKeys) {
   const out = [];
   const key = dateKey(a.week);
-  if (!key) out.push({ level: 'block', msg: 'no valid week — pick a month and week' });
-  else {
-    if (!(Number(a.amt) || 0)) out.push({ level: 'block', msg: 'no amount — nothing will be written' });
-    const inReport = reportKeys.has(key);
-    const inLedger = !!(state.rolling && state.rolling.weeks.has(key));
-    if (!inReport && !inLedger)
-      out.push({ level: 'block', msg: 'that week is in neither this report nor the ledger' });
-    else if (!inReport)
-      out.push({ level: 'info', msg: 'earlier week — applied straight to the ledger on Save' });
-  }
-  if (!String(a.desc || '').trim())
-    out.push({ level: 'warn', msg: 'no description — saves as “Adjustment”, and a second undescribed row on the same week would collide with it' });
+  if (!key) return ['no valid week — pick a month and week'];
+  if (!(Number(a.amt) || 0)) out.push('no amount');
+  const inLedger = !!(state.rolling && state.rolling.weeks.has(key));
+  if (!reportKeys.has(key) && !inLedger) out.push('that week is in neither this report nor the ledger');
   return out;
 }
-function adjLevel(issues) {
-  if (issues.some(i => i.level === 'block')) return 'block';
-  if (issues.some(i => i.level === 'warn')) return 'warn';
-  return issues.length ? 'info' : '';
-}
-function adjBlocked(a, reportKeys) { return adjIssues(a, reportKeys).filter(i => i.level === 'block'); }
 
 /* Adjustments for weeks the loaded report doesn't cover but the ledger does.
    Those weeks can't be rebuilt from report rows, so they're adjusted in place:
@@ -4257,7 +4220,7 @@ async function saveToRolling() {
       ledPlan.map(p => '• ' + p.range + ' — ' + p.desc + ' ' + fmtMoney(p.amt) +
         (p.prev ? ' (was ' + fmtMoney(p.prev) + ')' : '')).join('\n') : '') +
     (blocked.length ? '\n\nNOT being written — ' + blocked.length + ' adjustment row(s):\n' +
-      blocked.map(x => '• ' + (String(x.a.desc || '').trim() || '(no description)') + ' — ' + x.why[0].msg).join('\n') : '') +
+      blocked.map(x => '• ' + (String(x.a.desc || '').trim() || '(no description)') + ' — ' + x.why[0]).join('\n') : '') +
     '\n\nThe report copy in the Data folder will get an Included/Excluded column.';
   if (!confirm(msg)) return;
   let backup = '';
@@ -4825,8 +4788,8 @@ function buildLeaderReport() {
         '<div class="card wcschart"><h3>Weekly Cash Summary <span class="s">cash by payor and week</span></h3>' +
         wcsLegendHtml(mw) + wcsChartSvg(mw) + '</div>');
     }
-    openTab = tabs.length;                       // the YTD tab, appended next
-    tabs.push(rollM.ytdLabel);
+    tabs.push(rollM.ytdLabel);                   // last in the bar; the report opens on
+                                                 // the most recent month, which is tab 0
     sections.push(
       '<div class="kpis">' +
       tile('Total cash', fmtMoney(rollM.grand), esc(rollM.ytdLabel), 'hero') +

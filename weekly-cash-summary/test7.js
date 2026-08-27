@@ -47,17 +47,15 @@ setTimeout(() => {
   win.renderAdjEditor();
 
   const rowOf = id => doc.querySelector('#adjRows tr[data-id="' + id + '"]');
-  const lvlOf = id => { const t = rowOf(id); return ['block','warn','info'].find(l => t.classList.contains('adj-'+l)) || ''; };
-  const msgOf = id => rowOf(id).querySelector('.adjmsg').textContent;
 
-  console.log('\n-- row status painted on render --');
-  chk('complete in-report row is unmarked', lvlOf('g') === '' && msgOf('g') === '', lvlOf('g')+' / '+msgOf('g'));
-  chk('"00" amount is blocked', lvlOf('z') === 'block', lvlOf('z'));
-  chk('  …and says why', /no amount/.test(msgOf('z')), msgOf('z'));
-  chk('blank description warns', lvlOf('n') === 'warn', lvlOf('n'));
-  chk('earlier ledger week shows info', lvlOf('p') === 'info', lvlOf('p') + ' / ' + msgOf('p'));
-  chk('week in neither is blocked', lvlOf('x') === 'block', lvlOf('x'));
-  chk('  …and says why', /neither this report nor the ledger/.test(msgOf('x')), msgOf('x'));
+  console.log('\n-- the editor stays quiet: no status line, no tinting --');
+  chk('no status line is rendered anywhere', doc.querySelectorAll('#adjRows .adjmsg').length === 0);
+  chk('no row is tinted', doc.querySelectorAll('#adjRows tr[class]').length === 0,
+      [...doc.querySelectorAll('#adjRows tr[class]')].map(t=>t.className).join(','));
+  chk('a blank new row is not flagged', rowOf('n').className === '', rowOf('n').className);
+  chk('the description cell holds only the input',
+      rowOf('z').children[0].children.length === 1 &&
+      rowOf('z').children[0].children[0].className === 'desc');
 
   console.log('\n-- amount normalisation on commit --');
   const amtIn = rowOf('z').querySelector('.amt');
@@ -84,17 +82,14 @@ setTimeout(() => {
   chk('change event normalises to "50"', mid.value === '50', mid.value);
   chk('  …and state follows', S.adjustments.find(a=>a.id==='g').amt === '50');
 
-  console.log('\n-- status repaints in place, without re-rendering the row --');
+  console.log('\n-- editing does not re-render the row (focus is kept) --');
   const before = rowOf('z');
   const descIn = rowOf('n').querySelector('.desc');
   descIn.value = 'Now described';
   fire(descIn, 'input');
-  chk('warn cleared once described', lvlOf('n') === '', lvlOf('n') + ' / ' + msgOf('n'));
-  chk('row element was not replaced (focus kept)', rowOf('z') === before);
-
-  mid.value = '2500';
-  fire(mid, 'change');
-  chk('good row stays clean', lvlOf('g') === '' && msgOf('g') === '');
+  chk('row element was not replaced', rowOf('z') === before);
+  chk('state took the edit', S.adjustments.find(a=>a.id==='n').desc === 'Now described');
+  chk('still no status line after editing', doc.querySelectorAll('#adjRows .adjmsg').length === 0);
 
   console.log('\n-- the note under the table no longer over-promises --');
   const note = doc.querySelector('#adjEditor .note').textContent;

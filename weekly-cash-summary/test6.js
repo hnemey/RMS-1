@@ -64,21 +64,18 @@ const pastItems = () => JSON.stringify(X.state.rolling.weeks.get(X.dateKey(PAST)
   await X.saveToRolling();
   chk('and comes back when zeroed', X.state.rolling.weeks.get(X.dateKey(PAST)).payors.get('CIGNA') === 8000);
 
-  console.log('\n-- adjIssues --');
-  const rk = X.refreshAdjWeekKeys();
-  const iss = a => X.adjIssues(a, rk).map(i => i.level + ':' + i.msg.slice(0, 26));
+  console.log('\n-- adjBlocked --');
+  const rk = new Set([X.dateKey(REPORTWK)]);
   chk('good in-report row is clean',
-      X.adjIssues({desc:'Settlement', cat:'MEDICARE', amt:'500', week: REPORTWK}, rk).length === 0);
+      X.adjBlocked({desc:'Settlement', cat:'MEDICARE', amt:'500', week: REPORTWK}, rk).length === 0);
   chk('zero amount blocks',
-      X.adjBlocked({desc:'X', cat:'MEDICARE', amt:'00', week: REPORTWK}, rk).length === 1, iss({desc:'X',cat:'MEDICARE',amt:'00',week:REPORTWK}));
+      X.adjBlocked({desc:'X', cat:'MEDICARE', amt:'00', week: REPORTWK}, rk).length === 1);
   chk('week in neither report nor ledger blocks',
       X.adjBlocked({desc:'X', cat:'MEDICARE', amt:'5', week:'01/02/99-01/08/99'}, rk).length === 1);
-  chk('earlier ledger week is allowed, flagged info',
-      X.adjBlocked({desc:'X', cat:'MEDICARE', amt:'5', week: PAST}, rk).length === 0 &&
-      X.adjLevel(X.adjIssues({desc:'X', cat:'MEDICARE', amt:'5', week: PAST}, rk)) === 'info');
-  chk('blank description warns but does not block',
-      X.adjBlocked({desc:'', cat:'MEDICARE', amt:'5', week: REPORTWK}, rk).length === 0 &&
-      X.adjLevel(X.adjIssues({desc:'', cat:'MEDICARE', amt:'5', week: REPORTWK}, rk)) === 'warn');
+  chk('earlier ledger week is allowed',
+      X.adjBlocked({desc:'X', cat:'MEDICARE', amt:'5', week: PAST}, rk).length === 0);
+  chk('blank description does not block',
+      X.adjBlocked({desc:'', cat:'MEDICARE', amt:'5', week: REPORTWK}, rk).length === 0);
 
   console.log('\n-- blocked rows are skipped, not silently --');
   X.state.adjustments = [{ id:'a3', desc:'Ghost', cat:'MEDICARE', amt:'999', week:'01/02/99-01/08/99' }];

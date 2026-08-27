@@ -75,23 +75,21 @@ the item row already stored. Re-saving changes nothing, editing the amount
 applies only the difference, and setting it to zero backs the adjustment out and
 removes the item row. That week must already exist in the ledger.
 
-The editor tints rows that need attention:
-
-| Tint | Meaning |
-| --- | --- |
-| red    | not written — no amount, no valid week, or a week in neither the report nor the ledger |
-| amber  | written, but no description, so it saves as `Adjustment` and a second undescribed row on the same week would collide with it |
-| none (with a note) | an earlier week, applied straight to the ledger |
+The editor stays quiet while a row is being filled in — a half-entered row is
+incomplete by definition, so flagging it is just noise. `adjBlocked()` decides
+whether a row would be dropped (no amount, no valid week, or a week in neither
+the report nor the ledger), and the **Save dialog names those** at the moment
+they would otherwise vanish silently. A missing description is not blocking: the
+row saves as `Adjustment`.
 
 Amounts normalise when the field is committed, never while typing: `00` becomes
-empty, `007.500` becomes `7.5`. Blocked rows are named in the Save dialog rather
-than being dropped silently.
+empty, `007.500` becomes `7.5`.
 
 ## The leader report
 
 `buildLeaderReport()` exports the tabbed HTML report. Tabs run **months newest
-first**, with the fiscal-year-to-date summary **last** — and that YTD tab is the
-one the report opens on.
+first**, with the fiscal-year-to-date summary **last**. The report opens on the
+most recent month.
 
 The YTD view covers the **fiscal year to date** (the year starts 1 October;
 `FY_START_MONTH`), not a trailing twelve months. Its table reads newest month on

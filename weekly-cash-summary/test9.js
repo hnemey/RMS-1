@@ -34,15 +34,15 @@ setTimeout(async () => {
   console.log('\n-- report tabs --');
   console.log('       ' + tabs.join(' | '));
   chk('YTD tab is last', /YTD$/.test(tabs[tabs.length-1]), tabs[tabs.length-1]);
-  chk('YTD tab is the one open on load',
-      d2.querySelector('.rtabs button.on').textContent === tabs[tabs.length-1],
+  chk('the report opens on the most recent month',
+      d2.querySelector('.rtabs button.on').textContent === tabs[0],
       d2.querySelector('.rtabs button.on').textContent);
-  chk('its section is the visible one',
-      d2.querySelector('section.rsec.on').dataset.i === String(tabs.length-1));
+  chk('and that is the visible section', d2.querySelector('section.rsec.on').dataset.i === '0');
+  chk('exactly one tab is active', d2.querySelectorAll('.rtabs button.on').length === 1);
   chk('month tabs run newest first', tabs[0] === "Aug ’26" && tabs[1] === "Jul ’26", tabs.slice(0,3).join(','));
   chk('oldest month tab is last before YTD', tabs[tabs.length-2] === "Oct ’25", tabs[tabs.length-2]);
 
-  const ytdSec = d2.querySelector('section.rsec.on');
+  const ytdSec = d2.querySelector('section.rsec[data-i="' + (tabs.length-1) + '"]');
   const hdrs = [...ytdSec.querySelectorAll('table.wcs thead th')].map(t=>t.textContent);
   console.log('\n-- Fiscal YTD table header --');
   console.log('       ' + hdrs.join(' | '));
@@ -93,7 +93,8 @@ setTimeout(async () => {
   const tabs2 = [...d3.querySelectorAll('.rtabs button')].map(b=>b.textContent);
   console.log('       tabs:', tabs2.join(' | '));
   chk('tabs are just the month then October YTD', tabs2.join('|') === "Oct \u201925|October YTD", tabs2.join('|'));
-  const h2 = [...d3.querySelector('section.rsec.on').querySelectorAll('table.wcs thead th')].map(t=>t.textContent);
+  chk('opens on the month, not the YTD tab', d3.querySelector('.rtabs button.on').textContent === "Oct \u201925");
+  const h2 = [...d3.querySelector('section.rsec[data-i="' + (tabs2.length-1) + '"]').querySelectorAll('table.wcs thead th')].map(t=>t.textContent);
   console.log('       header:', h2.join(' | '));
   chk('single month column, then YTD', h2.join('|') === 'Payors|Oct-2025|YTD|Mix', h2.join('|'));
 
