@@ -1,0 +1,2404 @@
+<title>Clinic Coverage Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Loaded without blocking the parser: on a network that blocks font CDNs the
+     dashboard must still come up instantly on the fallback stack. -->
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
+<style>
+:root{
+  color-scheme: light;
+  --plane:#eef3f3; --surface:#ffffff; --surface-2:#f6f9f9; --raised:#ffffff;
+  --ink:#0e1a1d; --ink-2:#41585d; --muted:#71888d; --line:#dde6e6; --line-2:#eaf0f0;
+  --accent:#0a5f73; --accent-ink:#08505f; --wash:#e0eff2; --wash-2:#f0f8f9;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b; --none:#898781;
+  --good-wash:#e6f6e6; --warn-wash:#fdf3dd; --crit-wash:#fae7e7; --none-wash:#eeefed;
+  --good-ink:#0a6b0a; --warn-ink:#8a5d00; --crit-ink:#9e2626; --none-ink:#5d5c58;
+  --grid:#e6ecec; --axis:#c9d6d6;
+  --shadow:0 1px 2px rgba(14,26,29,.05), 0 6px 16px -8px rgba(14,26,29,.10);
+  --ring:rgba(14,26,29,.09);
+  --f-display:"Archivo","Archivo Narrow",system-ui,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --plane:#0a1113; --surface:#141e21; --surface-2:#182427; --raised:#1b282c;
+    --ink:#e9f0f0; --ink-2:#a9bcbf; --muted:#7f9498; --line:#243338; --line-2:#1e2b2f;
+    --accent:#45b3c7; --accent-ink:#63c6d8; --wash:#0f2f38; --wash-2:#12262c;
+    --good-wash:#122a12; --warn-wash:#31240a; --crit-wash:#2e1414; --none-wash:#22262a;
+    --good-ink:#4cc44c; --warn-ink:#fab219; --crit-ink:#e56a6a; --none-ink:#9aa5a5;
+    --grid:#1f2d31; --axis:#2c3d42;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    --ring:rgba(255,255,255,.08);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --plane:#0a1113; --surface:#141e21; --surface-2:#182427; --raised:#1b282c;
+  --ink:#e9f0f0; --ink-2:#a9bcbf; --muted:#7f9498; --line:#243338; --line-2:#1e2b2f;
+  --accent:#45b3c7; --accent-ink:#63c6d8; --wash:#0f2f38; --wash-2:#12262c;
+  --good-wash:#122a12; --warn-wash:#31240a; --crit-wash:#2e1414; --none-wash:#22262a;
+  --good-ink:#4cc44c; --warn-ink:#fab219; --crit-ink:#e56a6a; --none-ink:#9aa5a5;
+  --grid:#1f2d31; --axis:#2c3d42;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  --ring:rgba(255,255,255,.08);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--plane); color:var(--ink);
+  font-family:var(--f-body); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:var(--f-display); margin:0; text-wrap:balance; letter-spacing:-.015em}
+button,input,select{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+.mono{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1440px; margin:0 auto; padding:0 24px 72px}
+.topbar{
+  position:sticky; top:0; z-index:40; background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.topbar-in{
+  max-width:1440px; margin:0 auto; padding:14px 24px;
+  display:flex; align-items:center; gap:20px; flex-wrap:wrap;
+}
+.mark{display:flex; align-items:center; gap:11px; margin-right:auto}
+.mark-glyph{
+  width:30px; height:30px; border-radius:7px; background:var(--accent);
+  display:grid; place-items:center; flex:none;
+}
+.mark-glyph svg{width:17px; height:17px; display:block}
+.mark-name{font-family:var(--f-display); font-weight:700; font-size:16px; letter-spacing:-.02em; line-height:1.1}
+.mark-sub{font-size:11px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; font-weight:500}
+.filemeta{
+  display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--ink-2);
+  padding:5px 11px; border:1px solid var(--line); border-radius:999px; background:var(--surface-2);
+  max-width:340px;
+}
+.filemeta .dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none}
+.filemeta .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.filemeta.is-sample .dot{background:var(--warn)}
+
+.btn{
+  display:inline-flex; align-items:center; gap:7px; padding:8px 14px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:8px; cursor:pointer; font-weight:500; font-size:13.5px;
+  transition:background .15s, border-color .15s;
+}
+.btn:hover{background:var(--surface-2); border-color:var(--axis)}
+.btn svg{width:15px;height:15px;flex:none}
+.btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+:root[data-theme="dark"] .btn-primary, :root:not([data-theme="light"]) .btn-primary{color:#06171b}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .btn-primary{color:#fff} }
+.btn-primary:hover{background:var(--accent-ink); border-color:var(--accent-ink)}
+.btn-icon{padding:8px; border-radius:8px}
+
+/* ---------- empty state ---------- */
+.hero{padding:56px 0 40px; display:grid; gap:34px; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); align-items:start}
+@media (max-width:900px){ .hero{grid-template-columns:1fr; padding-top:34px} }
+.hero-eyebrow{font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600; margin-bottom:14px}
+.hero h1{font-size:clamp(30px,4.4vw,46px); font-weight:700; line-height:1.04; margin-bottom:16px}
+.hero p{color:var(--ink-2); font-size:15.5px; max-width:56ch; margin:0 0 24px}
+.drop{
+  border:1.5px dashed var(--axis); border-radius:14px; background:var(--surface);
+  padding:34px 28px; text-align:center; transition:border-color .18s, background .18s;
+  display:grid; gap:14px; justify-items:center;
+}
+.drop.over{border-color:var(--accent); background:var(--wash)}
+.drop-ico{width:42px;height:42px;color:var(--accent)}
+.drop-t{font-family:var(--f-display); font-weight:600; font-size:17px}
+.drop-s{color:var(--muted); font-size:13px; margin-top:-8px}
+.drop-actions{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+.spec{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px 24px; box-shadow:var(--shadow)}
+.spec h3{font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:14px}
+.spec-group{padding:11px 0; border-top:1px solid var(--line-2)}
+.spec-group:first-of-type{border-top:0; padding-top:0}
+.spec-label{font-size:12.5px; font-weight:600; color:var(--ink); margin-bottom:6px}
+.spec-cols{display:flex; flex-wrap:wrap; gap:5px}
+.tag{
+  font-family:var(--f-mono); font-size:11.5px; padding:2px 7px; border-radius:5px;
+  background:var(--wash-2); color:var(--accent-ink); border:1px solid var(--line);
+}
+.tag-off{background:var(--surface-2); color:var(--muted); text-decoration:line-through; text-decoration-thickness:1px}
+.err{margin-top:16px; padding:12px 14px; border-radius:9px; background:var(--crit-wash); color:var(--crit-ink); border:1px solid var(--crit); font-size:13px}
+
+/* ---------- filters ---------- */
+.filters{
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  padding:14px 0 18px; position:sticky; top:59px; z-index:30;
+  background:var(--plane); box-shadow:0 10px 10px -10px var(--plane);
+}
+/* Wrapped over four rows on a phone, a sticky filter bar eats the screen. */
+@media (max-width:900px){ .filters{position:static; box-shadow:none} }
+.fgroup{display:flex; align-items:center; gap:6px; padding:4px; background:var(--surface); border:1px solid var(--line); border-radius:10px; flex-wrap:wrap; min-width:0; max-width:100%}
+.flabel{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:600; padding:0 6px 0 8px}
+.chip{
+  padding:5px 11px; border-radius:7px; border:1px solid transparent; background:transparent;
+  cursor:pointer; font-size:13px; font-weight:500; color:var(--ink-2); white-space:nowrap;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.chip:hover{background:var(--surface-2)}
+.chip.on{background:var(--wash); color:var(--accent-ink); border-color:var(--accent)}
+.chip .swatch{width:8px;height:8px;border-radius:2px;flex:none}
+.chip .ct{font-family:var(--f-mono); font-size:11.5px; color:var(--muted)}
+.chip.on .ct{color:var(--accent-ink)}
+.search{display:flex; align-items:center; gap:8px; padding:0 12px; background:var(--surface); border:1px solid var(--line); border-radius:10px; height:38px; min-width:210px; flex:1 1 210px; max-width:320px}
+.search svg{width:15px;height:15px;color:var(--muted);flex:none}
+.search input{border:0; background:none; outline:none; width:100%; font-size:13.5px}
+.search input::placeholder{color:var(--muted)}
+.dateflt{min-width:0; flex-shrink:1; display:flex; align-items:center; gap:6px; padding:0 10px; background:var(--surface); border:1px solid var(--line); border-radius:10px; height:38px}
+.dateflt input{border:0; background:none; outline:none; font-family:var(--f-mono); font-size:12.5px; color:var(--ink); width:112px; min-width:0}
+.dateflt span{color:var(--muted); font-size:12px}
+.linkbtn{background:none;border:0;padding:6px 8px;color:var(--accent-ink);cursor:pointer;font-size:13px;font-weight:500;border-radius:6px}
+.linkbtn:hover{background:var(--wash)}
+
+/* ---------- kpis ---------- */
+.kpis{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; margin-bottom:14px}
+@media (max-width:1100px){ .kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media (max-width:640px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.kpi{min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px 18px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:6px; min-width:0}
+.kpi-l{font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:600}
+.kpi-v{font-family:var(--f-display); font-weight:700; font-size:32px; line-height:1; letter-spacing:-.03em}
+.kpi-v .unit{font-size:17px; font-weight:600; color:var(--ink-2); margin-left:2px}
+.kpi-n{font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:6px}
+.kpi-bar{height:4px; border-radius:2px; background:var(--line-2); overflow:hidden; display:flex; gap:2px}
+.kpi-bar i{display:block; height:100%; border-radius:2px}
+.kpi.alert .kpi-v{color:var(--crit-ink)}
+
+/* ---------- panels ---------- */
+.grid{display:grid; grid-template-columns:minmax(0,7fr) minmax(0,5fr); gap:14px; margin-bottom:14px}
+@media (max-width:1000px){ .grid{grid-template-columns:1fr} }
+.stack{display:grid; gap:14px; align-content:start; min-width:0}
+.panel{min-width:0; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden}
+.panel-hd{display:flex; align-items:baseline; gap:12px; padding:16px 18px 4px; flex-wrap:wrap}
+.panel-hd h2{font-size:15px; font-weight:600; letter-spacing:-.01em}
+.panel-hd .sub{font-size:12.5px; color:var(--muted); margin-right:auto}
+.panel-bd{padding:12px 18px 18px; min-width:0}
+.legend{display:flex; gap:14px; flex-wrap:wrap; padding:2px 18px 6px}
+.legend i{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-2); font-style:normal}
+.legend b{width:9px; height:9px; border-radius:2px; display:block}
+.bench{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted)}
+.bench input{width:52px; padding:3px 6px; border:1px solid var(--line); border-radius:6px; background:var(--surface-2); font-family:var(--f-mono); font-size:12.5px; text-align:center}
+.seg{display:inline-flex; padding:2px; gap:2px; background:var(--surface-2); border:1px solid var(--line); border-radius:8px}
+.seg button{padding:3px 10px; border:0; background:none; border-radius:6px; cursor:pointer; font-size:12.5px; font-weight:500; color:var(--muted)}
+.seg button.on{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.07)}
+.sheetsel{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted)}
+.srcbar{display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:14px 0 0; font-size:12.5px; color:var(--muted)}
+.srcbar strong{color:var(--ink); font-weight:600}
+.srcbar .sep{opacity:.5}
+.srcbar .badge{display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px; border:1px solid var(--line); background:var(--surface); font-weight:500; color:var(--ink-2)}
+.srcbar .badge b{width:7px; height:7px; border-radius:50%; display:block; background:var(--good)}
+.srcbar .badge.stale b{background:var(--warn)}
+.srcbar .badge.off b{background:var(--none)}
+.spin{animation:spin .8s linear infinite}
+@media (prefers-reduced-motion:reduce){ .spin{animation-duration:2.4s} }
+.sheetsel select{padding:6px 9px; border:1px solid var(--line); border-radius:8px; background:var(--surface); font-size:13px; max-width:210px}
+.busy{display:inline-flex; align-items:center; gap:8px}
+.busy::before{content:""; width:13px; height:13px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ .busy::before{animation-duration:2.4s} }
+.zero-note{font-size:12px; color:var(--muted); margin-top:9px; padding-top:9px; border-top:1px solid var(--line-2)}
+.empty-note{color:var(--muted); font-size:13px; padding:26px 0; text-align:center}
+
+/* charts */
+.chart{width:100%; display:block; overflow:visible}
+.chart-wide{width:auto; max-width:none; flex:none}
+.chart text{font-family:var(--f-mono); font-size:11px; fill:var(--muted); font-variant-numeric:tabular-nums}
+.chart text.lbl{font-family:var(--f-body); font-size:12px; fill:var(--ink-2); font-weight:500}
+.chart text.val{font-family:var(--f-mono); font-size:11.5px; fill:var(--ink); font-weight:500}
+.chart text.inseg{font-family:var(--f-mono); font-size:10.5px; font-weight:600}
+.chart .gridline{stroke:var(--grid); stroke-width:1}
+.chart .axisline{stroke:var(--axis); stroke-width:1}
+.chart .hit{fill:transparent; cursor:pointer}
+.chart .hit:hover + .mk, .chart .mk.hot{opacity:.82}
+.scrollx{overflow-x:auto; overflow-y:hidden}
+
+.tip{
+  position:fixed; z-index:90; pointer-events:none; opacity:0; transform:translateY(3px);
+  transition:opacity .12s, transform .12s; background:var(--raised); color:var(--ink);
+  border:1px solid var(--line); border-radius:9px; padding:9px 11px; box-shadow:var(--shadow);
+  font-size:12.5px; min-width:132px; max-width:260px;
+}
+.tip.on{opacity:1; transform:translateY(0)}
+.tip .th{font-weight:600; margin-bottom:5px; font-size:13px}
+.tip .tr{display:flex; align-items:center; gap:7px; justify-content:space-between}
+.tip .tr b{width:8px;height:8px;border-radius:2px;flex:none}
+.tip .tr span{color:var(--ink-2); margin-right:auto}
+.tip .tr em{font-family:var(--f-mono); font-style:normal; font-variant-numeric:tabular-nums}
+
+/* workflow tile */
+.meters{display:grid; gap:14px}
+.meter-t{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:6px}
+.meter-t span{font-size:13px; color:var(--ink-2)}
+.meter-t em{font-family:var(--f-mono); font-style:normal; font-size:13px; font-weight:600; font-variant-numeric:tabular-nums}
+.meter-track{height:8px; border-radius:4px; background:var(--line-2); overflow:hidden}
+.meter-fill{height:100%; border-radius:4px}
+.meter-n{font-size:12px; color:var(--muted); margin-top:5px}
+
+/* ---------- table ---------- */
+.tablewrap{overflow:auto; max-height:min(70vh,720px); overscroll-behavior:contain}
+table{border-collapse:separate; border-spacing:0; width:100%; min-width:1080px}
+thead th{
+  position:sticky; top:0; z-index:5; background:var(--surface-2); text-align:left;
+  font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600;
+  padding:10px 12px; border-bottom:1px solid var(--line); white-space:nowrap; cursor:pointer; user-select:none;
+}
+thead th:hover{color:var(--ink)}
+thead th .ar{opacity:0; margin-left:4px; font-size:10px}
+thead th.sorted{color:var(--accent-ink)}
+thead th.sorted .ar{opacity:1}
+thead th.num, td.num{text-align:right}
+tbody td{padding:10px 12px; border-bottom:1px solid var(--line-2); vertical-align:middle; font-size:13.5px}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--wash-2)}
+tbody tr.sel td{background:var(--wash)}
+td.num{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
+td .loc{font-weight:600}
+td .addr{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px}
+.pill{
+  display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px;
+  font-size:12px; font-weight:600; white-space:nowrap; border:1px solid transparent;
+}
+.pill b{width:7px;height:7px;border-radius:50%;flex:none;display:block}
+.p-good{background:var(--good-wash); color:var(--good-ink); border-color:color-mix(in srgb, var(--good) 30%, transparent)}
+.p-warn{background:var(--warn-wash); color:var(--warn-ink); border-color:color-mix(in srgb, var(--warn) 40%, transparent)}
+.p-crit{background:var(--crit-wash); color:var(--crit-ink); border-color:color-mix(in srgb, var(--crit) 32%, transparent)}
+.p-none{background:var(--none-wash); color:var(--none-ink); border-color:var(--line)}
+.urg{display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:600; color:var(--crit-ink); font-family:var(--f-body)}
+.urg svg{width:12px;height:12px}
+.ratio-hi{color:var(--crit-ink); font-weight:600}
+.dash{color:var(--muted)}
+.unassigned{color:var(--muted); font-style:italic}
+.tfoot{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted); flex-wrap:wrap}
+
+/* ---------- detail drawer ---------- */
+.drawer{
+  position:fixed; top:0; right:0; height:100dvh; width:min(430px,100vw); z-index:80;
+  background:var(--surface); border-left:1px solid var(--line); box-shadow:-14px 0 40px -20px rgba(0,0,0,.35);
+  transform:translateX(101%); transition:transform .24s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column;
+}
+.drawer.on{transform:none}
+@media (prefers-reduced-motion:reduce){ .drawer{transition:none} .tip{transition:none} }
+.drawer-hd{padding:20px 22px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:flex-start}
+.drawer-hd h2{font-size:19px; font-weight:700; line-height:1.2}
+.drawer-hd .r{font-size:12.5px; color:var(--muted); margin-top:3px}
+.drawer-bd{padding:6px 22px 30px; overflow-y:auto; flex:1}
+.dl{display:grid; grid-template-columns:118px minmax(0,1fr); gap:0}
+.dl dt{padding:9px 0; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line-2); letter-spacing:.03em}
+.dl dd{padding:9px 0; margin:0; font-size:13.5px; border-bottom:1px solid var(--line-2); word-break:break-word}
+.dl dd.mono{font-family:var(--f-mono); font-variant-numeric:tabular-nums; font-size:13px}
+.dsec{font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink); font-weight:600; margin:22px 0 4px}
+.note{background:var(--surface-2); border:1px solid var(--line); border-radius:9px; padding:12px 13px; font-size:13.5px; color:var(--ink-2); white-space:pre-wrap}
+.scrim{position:fixed; inset:0; background:rgba(10,20,22,.32); z-index:70; opacity:0; pointer-events:none; transition:opacity .24s}
+.scrim.on{opacity:1; pointer-events:auto}
+
+/* ---------- field map ---------- */
+details.fieldmap{background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); margin-top:14px}
+details.fieldmap summary{padding:14px 18px; cursor:pointer; font-weight:600; font-size:14px; display:flex; align-items:center; gap:9px; list-style:none}
+details.fieldmap summary::-webkit-details-marker{display:none}
+details.fieldmap summary::before{content:"›"; font-size:18px; color:var(--muted); transition:transform .2s; display:inline-block}
+details.fieldmap[open] summary::before{transform:rotate(90deg)}
+details.fieldmap summary .sub{font-weight:400; color:var(--muted); font-size:12.5px; margin-left:auto}
+.fm-bd{padding:2px 18px 18px; display:grid; gap:16px; grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:760px){ .fm-bd{grid-template-columns:1fr} }
+.fm-list{display:grid; gap:0}
+.fm-row{display:flex; gap:10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line-2); font-size:13px}
+.fm-row .k{font-family:var(--f-mono); font-size:12px; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fm-row .ar{color:var(--muted)}
+.fm-row .v{color:var(--ink-2); margin-left:auto; white-space:nowrap}
+.fm-h{font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:6px}
+.menuwrap{position:relative}
+.btn .caret{width:13px;height:13px;opacity:.6;margin-left:-2px}
+.menu{
+  position:absolute; right:0; top:calc(100% + 7px); z-index:60; width:288px;
+  background:var(--surface); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,.08), 0 18px 40px -14px rgba(0,0,0,.28);
+  padding:6px; display:none;
+}
+.menu.on{display:block}
+.menu-hd{padding:8px 10px 6px; font-size:11.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); font-weight:600}
+.menu-i{
+  display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left;
+  padding:9px 10px; border:0; background:none; border-radius:8px; cursor:pointer;
+}
+.menu-i:hover{background:var(--wash-2)}
+.menu-i[disabled]{opacity:.42; cursor:not-allowed}
+.menu-i[disabled]:hover{background:none}
+.menu-i svg{width:17px; height:17px; flex:none; color:var(--accent-ink); margin-top:2px}
+.menu-i span{display:flex; flex-direction:column; gap:1px; min-width:0}
+.menu-i b{font-size:13.5px; font-weight:600}
+.menu-i em{font-style:normal; font-size:12px; color:var(--muted)}
+.menu-chk{display:flex; align-items:center; gap:9px; padding:9px 11px; margin-top:4px; border-top:1px solid var(--line-2); font-size:12.5px; color:var(--ink-2); cursor:pointer}
+.menu-chk input{accent-color:var(--accent); width:15px; height:15px}
+.menu-note{padding:0 11px 8px; font-size:12px; color:var(--muted); line-height:1.45}
+.menu-note.warn{color:var(--crit-ink)}
+.printhead{display:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.hide{display:none !important}
+
+/* ---------- print / save as PDF ---------- */
+@media print{
+  :root, :root[data-theme="dark"], :root:not([data-theme="light"]){
+    --plane:#fff; --surface:#fff; --surface-2:#fff; --raised:#fff;
+    --ink:#111; --ink-2:#3a3a3a; --muted:#666; --line:#ccc; --line-2:#e4e4e4;
+    --accent:#0a5f73; --accent-ink:#08505f; --wash:#eaf4f6; --wash-2:#fff;
+    --good-wash:#fff; --warn-wash:#fff; --crit-wash:#fff; --none-wash:#fff;
+    --good-ink:#0a6b0a; --warn-ink:#7a5200; --crit-ink:#9e2626; --none-ink:#555;
+    --grid:#e0e0e0; --axis:#bbb; --shadow:none;
+  }
+  @page{ size:landscape; margin:12mm }
+  body{ background:#fff }
+  .topbar, .filters, #sheetbar, .drawer, .scrim, .tip, details.fieldmap,
+  #btnMore, .tfoot, .seg, .bench, .menuwrap{ display:none !important }
+  /* Without this browsers drop every fill, and the charts print blank. */
+  .chart, .kpi-bar, .kpi-bar i, .meter-track, .meter-fill, .pill, .pill b, .chip .swatch, .legend b{
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  .wrap{ max-width:none; padding:0 }
+  .printhead{ display:block; margin-bottom:14px; padding-bottom:10px; border-bottom:2px solid var(--accent) }
+  .printhead h1{ font-size:19px; font-weight:700 }
+  .printhead p{ margin:4px 0 0; font-size:11.5px; color:var(--ink-2) }
+  .panel, .kpi{ box-shadow:none; break-inside:avoid; page-break-inside:avoid }
+  .kpis{ grid-template-columns:repeat(5,1fr) }
+  .grid{ grid-template-columns:1fr 1fr }
+  .tablewrap{ max-height:none; overflow:visible }
+  thead th{ position:static }
+  table{ min-width:0; font-size:10px }
+  tbody td{ padding:5px 7px; font-size:10px }
+  .panel-bd, .scrollx{ overflow:visible }
+}
+</style>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="mark">
+      <div class="mark-glyph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18M8 3v4M16 3v4"/><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M12 11v6M9 14h6"/></svg>
+      </div>
+      <div>
+        <div class="mark-name">Clinic Coverage Board</div>
+        <div class="mark-sub">Shift request operations</div>
+      </div>
+    </div>
+    <div id="filemeta" class="filemeta hide"><span class="dot"></span><span class="nm" id="fileName"></span><span class="mono" id="fileRows"></span></div>
+    <button class="btn" id="btnTheme" title="Switch light / dark" aria-label="Switch light or dark theme">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <button class="btn hide" id="btnSync" title="Re-read the linked file from disk">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-7.5-4"/><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 7.5 4"/><path d="M19.5 3v4h-4M4.5 21v-4h4"/></svg>
+      <span id="syncLabel">Sync</span>
+    </button>
+    <div class="menuwrap hide" id="exportWrap">
+      <button class="btn" id="btnExport" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Export
+        <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="menu" id="exportMenu" role="menu">
+        <div class="menu-hd" id="exportCount"></div>
+        <button class="menu-i" role="menuitem" data-exp="html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="m8 13-2 2 2 2M16 13l2 2-2 2"/></svg>
+          <span><b>Dashboard as HTML</b><em>.html — one file, data included</em></span>
+        </button>
+        <button class="menu-i" role="menuitem" data-exp="csv">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M20 12V8.5L14.5 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/><path d="M7 13h10M7 17h6"/></svg>
+          <span><b>CSV file</b><em>.csv — opens anywhere</em></span>
+        </button>
+        <button class="menu-i" role="menuitem" data-exp="clip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <span><b>Copy to clipboard</b><em>paste straight into a sheet</em></span>
+        </button>
+        <button class="menu-i" role="menuitem" data-exp="print">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2"/><rect x="8" y="14" width="8" height="7" rx="1"/></svg>
+          <span><b>Print / save as PDF</b><em>the dashboard, not the rows</em></span>
+        </button>
+        <label class="menu-chk"><input type="checkbox" id="expAll"><span>Include all original columns</span></label>
+        <div class="menu-note" id="exportNote"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="btnLoad">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+      Load workbook
+    </button>
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm,.csv" class="sr">
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="printhead" id="printhead"></div>
+  <section id="hero" class="hero">
+    <div>
+      <div class="hero-eyebrow">SharePoint list &rarr; operating picture</div>
+      <h1>Drop in the coverage request export and read the whole queue at once.</h1>
+      <p>The board reads your <span class="mono">.xlsx</span> straight from disk &mdash; nothing is uploaded, nothing leaves this browser. It reads requests dated <strong>2024 onward</strong>, separates the real data from SharePoint&rsquo;s internal plumbing, then reports where coverage is stalling, which sites are running hot on patient load, and which shifts are still unassigned.</p>
+      <div class="drop" id="drop">
+        <svg class="drop-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5a1 1 0 0 0 1 1h5"/><path d="M20 12.5V8.5L14.5 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="M17 15v6M14 18h6"/></svg>
+        <div>
+          <div class="drop-t">Drop the workbook here</div>
+          <div class="drop-s">.xlsx, .xlsm or .csv &mdash; parsed locally in the browser</div>
+        </div>
+        <div class="drop-actions">
+          <button class="btn btn-primary" id="btnLoad2">Choose a file</button>
+          <button class="btn" id="btnSample">See it with sample data</button>
+        </div>
+      </div>
+      <div id="loadErr" class="err hide"></div>
+    </div>
+    <div class="spec">
+      <h3>What it reads</h3>
+      <div class="spec-group">
+        <div class="spec-label">Request identity &amp; status</div>
+        <div class="spec-cols"><span class="tag">Title</span><span class="tag">Status</span></div>
+      </div>
+      <div class="spec-group">
+        <div class="spec-label">Coverage details <span style="font-weight:400;color:var(--muted)">&mdash; 2024 forward only</span></div>
+        <div class="spec-cols"><span class="tag">CoverageDate</span><span class="tag">ShiftHours</span><span class="tag">Within24Hrs</span></div>
+      </div>
+      <div class="spec-group">
+        <div class="spec-label">Clinic &amp; site</div>
+        <div class="spec-cols"><span class="tag">Region</span><span class="tag">ClinicAddress</span><span class="tag">ClinicalStaffinOffice</span><span class="tag">PatientsScheduled</span><span class="tag">Patients/FTE Ratio</span></div>
+      </div>
+      <div class="spec-group">
+        <div class="spec-label">People</div>
+        <div class="spec-cols"><span class="tag">Requestor*</span><span class="tag">Assigned*</span></div>
+      </div>
+      <div class="spec-group">
+        <div class="spec-label">Workflow</div>
+        <div class="spec-cols"><span class="tag">InviteSent</span><span class="tag">SendOutlookInvite</span><span class="tag">AdditionalComments</span></div>
+      </div>
+      <div class="spec-group">
+        <div class="spec-label">Discarded as SharePoint plumbing</div>
+        <div class="spec-cols"><span class="tag tag-off">FileSystemObjectType</span><span class="tag tag-off">Id</span><span class="tag tag-off">ContentTypeId</span><span class="tag tag-off">ComplianceAssetId</span><span class="tag tag-off">GUID</span><span class="tag tag-off">AuthorId</span><span class="tag tag-off">EditorId</span><span class="tag tag-off">&hellip;</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="board" class="hide">
+    <div id="sheetbar"></div>
+    <div class="filters" id="filters"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="grid">
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-hd"><h2>Where requests stall</h2><span class="sub" id="mixSub">Status mix</span><div class="seg" id="mixToggle"><button data-mix="clinic">By clinic</button><button data-mix="region">By region</button></div></div>
+          <div class="legend" id="legend1"></div>
+          <div class="panel-bd"><div id="chartRegion"></div></div>
+        </section>
+        <section class="panel">
+          <div class="panel-hd"><h2>Coverage demand</h2><span class="sub" id="demandSub">Requests by date needed</span></div>
+          <div class="panel-bd"><div class="scrollx" id="chartDemand"></div></div>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-hd">
+            <h2>Staffing pressure</h2><span class="sub">Median patients per FTE</span>
+            <label class="bench" title="Defaults to the 75th percentile of this export — edit to use your own target">Benchmark <input type="number" id="bench" min="1" step="1" value="22"></label>
+          </div>
+          <div class="panel-bd"><div id="chartRatio"></div></div>
+        </section>
+        <section class="panel">
+          <div class="panel-hd"><h2>Workflow</h2><span class="sub">Assignment &amp; notification</span></div>
+          <div class="panel-bd"><div class="meters" id="meters"></div></div>
+        </section>
+      </div>
+    </div>
+    <section class="panel">
+      <div class="panel-hd"><h2>Requests</h2><span class="sub" id="tableSub"></span></div>
+      <div class="tablewrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+      <div class="tfoot"><span id="tfootL"></span><button class="btn hide" id="btnMore">Show 200 more</button><span id="tfootR"></span></div>
+    </section>
+    <details class="fieldmap">
+      <summary>Field map <span class="sub" id="fmSub"></span></summary>
+      <div class="fm-bd" id="fmBody"></div>
+    </details>
+  </div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Request detail">
+  <div class="drawer-hd">
+    <div style="flex:1;min-width:0">
+      <h2 id="dTitle"></h2>
+      <div class="r" id="dSub"></div>
+    </div>
+    <button class="btn btn-icon" id="dClose" aria-label="Close detail">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="drawer-bd" id="dBody"></div>
+</aside>
+<div class="tip" id="tip" role="status"></div>
+
+<script data-app="1">
+"use strict";
+
+/* ============================================================
+   1. WORKBOOK READER  —  self-contained .xlsx / .csv parser.
+   No libraries: the zip container is walked by hand and the
+   deflated members are inflated with DecompressionStream.
+   ============================================================ */
+
+const XLSX = (() => {
+  const dec = new TextDecoder();
+
+  async function inflateRaw(u8){
+    if (typeof DecompressionStream === "undefined")
+      throw new Error("This browser can't unzip .xlsx files. Use Chrome, Edge, Safari 16.4+ or Firefox 113+ — or export the sheet as .csv and drop that instead.");
+    const stream = new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  async function unzip(buf){
+    const dv = new DataView(buf);
+    let eocd = -1;
+    const floor = Math.max(0, buf.byteLength - 66000);
+    for (let i = buf.byteLength - 22; i >= floor; i--)
+      if (dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+    if (eocd < 0) throw new Error("That file isn't a readable .xlsx workbook.");
+
+    let count = dv.getUint16(eocd + 10, true);
+    let cdOff = dv.getUint32(eocd + 16, true);
+    // Zip64: locator sits 20 bytes before the EOCD record.
+    if ((cdOff === 0xffffffff || count === 0xffff) && eocd >= 20 && dv.getUint32(eocd - 20, true) === 0x07064b50){
+      const z64 = Number(dv.getBigUint64(eocd - 20 + 8, true));
+      if (dv.getUint32(z64, true) === 0x06064b50){
+        count = Number(dv.getBigUint64(z64 + 32, true));
+        cdOff = Number(dv.getBigUint64(z64 + 48, true));
+      }
+    }
+
+    const entries = [];
+    let p = cdOff;
+    for (let i = 0; i < count && p + 46 <= buf.byteLength; i++){
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true);
+      let csize   = dv.getUint32(p + 20, true);
+      const nlen  = dv.getUint16(p + 28, true);
+      const elen  = dv.getUint16(p + 30, true);
+      const clen  = dv.getUint16(p + 32, true);
+      let lho     = dv.getUint32(p + 42, true);
+      const name  = dec.decode(new Uint8Array(buf, p + 46, nlen));
+      if (csize === 0xffffffff || lho === 0xffffffff){       // zip64 extra field
+        let q = p + 46 + nlen, end = q + elen;
+        while (q + 4 <= end){
+          const hid = dv.getUint16(q, true), hsz = dv.getUint16(q + 2, true);
+          if (hid === 0x0001){
+            let r = q + 4;
+            if (dv.getUint32(p + 24, true) === 0xffffffff){ r += 8; }
+            if (csize === 0xffffffff){ csize = Number(dv.getBigUint64(r, true)); r += 8; }
+            if (lho   === 0xffffffff){ lho   = Number(dv.getBigUint64(r, true)); }
+            break;
+          }
+          q += 4 + hsz;
+        }
+      }
+      entries.push({ name, method, csize, lho });
+      p += 46 + nlen + elen + clen;
+    }
+
+    const out = {};
+    for (const e of entries){
+      if (e.lho + 30 > buf.byteLength) continue;
+      const lnlen = dv.getUint16(e.lho + 26, true);
+      const lelen = dv.getUint16(e.lho + 28, true);
+      const start = e.lho + 30 + lnlen + lelen;
+      const raw = new Uint8Array(buf, start, Math.min(e.csize, buf.byteLength - start));
+      out[e.name] = e.method === 0 ? raw : await inflateRaw(raw);
+    }
+    return out;
+  }
+
+  const parseXML = (u8) => new DOMParser().parseFromString(dec.decode(u8), "application/xml");
+
+  // Column reference ("BC" in "BC12") -> zero-based index.
+  function colIndex(ref){
+    let n = 0;
+    for (let i = 0; i < ref.length; i++){
+      const c = ref.charCodeAt(i);
+      if (c < 65 || c > 90) break;
+      n = n * 26 + (c - 64);
+    }
+    return n - 1;
+  }
+
+  const BUILTIN_DATE = new Set([14,15,16,17,18,19,20,21,22,27,30,36,45,46,47,50,57]);
+  function styleIsDate(stylesDoc){
+    if (!stylesDoc) return [];
+    const custom = {};
+    for (const nf of stylesDoc.getElementsByTagName("numFmt")){
+      const code = (nf.getAttribute("formatCode") || "").replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "");
+      custom[nf.getAttribute("numFmtId")] = /[ymd]/i.test(code) && !/^general$/i.test(code);
+    }
+    const xfs = stylesDoc.getElementsByTagName("cellXfs")[0];
+    const flags = [];
+    if (!xfs) return flags;
+    for (const xf of xfs.getElementsByTagName("xf")){
+      const id = xf.getAttribute("numFmtId") || "0";
+      flags.push(id in custom ? custom[id] : BUILTIN_DATE.has(+id));
+    }
+    return flags;
+  }
+
+  const EPOCH = Date.UTC(1899, 11, 30);
+  const serialToDate = (n) => new Date(EPOCH + Math.round(n * 86400000));
+
+  function textOf(si){
+    let s = "";
+    for (const t of si.getElementsByTagName("t")){
+      if (t.parentNode && t.parentNode.nodeName === "rPh") continue;
+      s += t.textContent;
+    }
+    return s;
+  }
+
+  function readSheet(doc, shared, dateFlags){
+    const rows = [];
+    for (const row of doc.getElementsByTagName("row")){
+      const cells = [];
+      let width = 0;
+      for (const c of row.getElementsByTagName("c")){
+        const ref = c.getAttribute("r") || "";
+        const idx = ref ? colIndex(ref) : cells.length;
+        const type = c.getAttribute("t");
+        const styleIdx = c.getAttribute("s");
+        let val = null;
+
+        if (type === "inlineStr"){
+          const is = c.getElementsByTagName("is")[0];
+          val = is ? textOf(is) : null;
+        } else {
+          const v = c.getElementsByTagName("v")[0];
+          const raw = v ? v.textContent : null;
+          if (raw === null || raw === "") val = null;
+          else if (type === "s") val = shared[+raw] ?? null;
+          else if (type === "b") val = raw === "1";
+          else if (type === "e") val = null;
+          else if (type === "str") val = raw;
+          else {
+            const num = Number(raw);
+            val = Number.isFinite(num)
+              ? (dateFlags[+styleIdx] && num > 0 ? serialToDate(num) : num)
+              : raw;
+          }
+        }
+        if (idx >= 0){ cells[idx] = val; width = Math.max(width, idx + 1); }
+      }
+      for (let i = 0; i < width; i++) if (cells[i] === undefined) cells[i] = null;
+      rows[+(row.getAttribute("r") || rows.length + 1) - 1] = cells;
+    }
+    for (let i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
+    return rows;
+  }
+
+  async function readWorkbook(buf){
+    const files = await unzip(buf);
+    const get = (path) => files[path] || files[path.replace(/^\//, "")];
+
+    const sharedDoc = get("xl/sharedStrings.xml") ? parseXML(get("xl/sharedStrings.xml")) : null;
+    const shared = sharedDoc ? Array.from(sharedDoc.getElementsByTagName("si")).map(textOf) : [];
+    const dateFlags = styleIsDate(get("xl/styles.xml") ? parseXML(get("xl/styles.xml")) : null);
+
+    // workbook.xml gives sheet names + relationship ids; the rels file maps ids to parts.
+    const wbDoc = parseXML(get("xl/workbook.xml"));
+    const relsDoc = get("xl/_rels/workbook.xml.rels") ? parseXML(get("xl/_rels/workbook.xml.rels")) : null;
+    const rels = {};
+    if (relsDoc) for (const r of relsDoc.getElementsByTagName("Relationship")){
+      let t = r.getAttribute("Target") || "";
+      if (!t.startsWith("/")) t = "xl/" + t.replace(/^\.\//, "");
+      rels[r.getAttribute("Id")] = t.replace(/^\//, "");
+    }
+
+    const sheets = [];
+    for (const s of wbDoc.getElementsByTagName("sheet")){
+      const rid = s.getAttribute("r:id") || s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
+      const path = rels[rid];
+      const part = path && get(path);
+      if (!part) continue;
+      if ((s.getAttribute("state") || "").toLowerCase() === "hidden") continue;
+      sheets.push({ name: s.getAttribute("name") || `Sheet ${sheets.length + 1}`,
+                    rows: readSheet(parseXML(part), shared, dateFlags) });
+    }
+    if (!sheets.length){
+      const fallback = Object.keys(files).find(k => /^xl\/worksheets\/.*\.xml$/.test(k));
+      if (!fallback) throw new Error("No worksheets found in that workbook.");
+      sheets.push({ name: "Sheet1", rows: readSheet(parseXML(files[fallback]), shared, dateFlags) });
+    }
+    return sheets;
+  }
+
+  function readCSV(text){
+    text = text.replace(/^﻿/, "");
+    const rows = [];
+    let row = [], field = "", quoted = false;
+    for (let i = 0; i < text.length; i++){
+      const ch = text[i];
+      if (quoted){
+        if (ch === '"'){ if (text[i + 1] === '"'){ field += '"'; i++; } else quoted = false; }
+        else field += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ","){ row.push(field); field = ""; }
+      else if (ch === "\n"){ row.push(field); rows.push(row); row = []; field = ""; }
+      else if (ch !== "\r") field += ch;
+    }
+    if (field !== "" || row.length){ row.push(field); rows.push(row); }
+    return [{ name: "CSV", rows }];
+  }
+
+  return { readWorkbook, readCSV };
+})();
+</script>
+
+
+<script data-app="1">
+"use strict";
+
+/* ============================================================
+   2. SHAPING  —  turn a raw sheet into coverage requests.
+   Written against a real SharePoint export: sparse columns,
+   numbers stored as text, dates as serials, drifting casing.
+   ============================================================ */
+
+const norm = (s) => String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/* SharePoint's own bookkeeping. Present in every list export, meaningless for reporting. */
+const SYSTEM_FIELDS = new Set([
+  "filesystemobjecttype","id","id1","serverredirectedembeduri","serverredirectedembedurl",
+  "contenttypeid","complianceassetid","odatauiversionstring","uiversionstring","attachments",
+  "guid","authorid","editorid","odataetag","odatatype","odataid","odataeditlink","odatametadata",
+  "odatacolortag","owshiddenversion","versionnumber","itemchildcount","folderchildcount",
+  "appauthorid","appeditorid","checkoutuserid","parentuniqueid","streamhash","instanceid"
+]);
+
+const FIELD_ALIASES = {
+  title:"location", clinic:"location", clinicname:"location", location:"location", sitename:"location",
+  status:"status", requeststatus:"status", approvalstatus:"status",
+  dateneeded:"date", coveragedate:"date", datecovered:"date", coverageday:"date", shiftdate:"date",
+  coverageto:"dateTo", coverageend:"dateTo",
+  shifthours:"shift", shifttime:"shift", hours:"shift", shift:"shift",
+  within24hrs:"urgent", within24hr:"urgent", within24hours:"urgent", urgent:"urgent",
+  clinicaddress:"address", address:"address", siteaddress:"address",
+  region:"region", area:"region", market:"region", division:"region",
+  departmentcode:"dept", deptcode:"dept", department:"dept", costcenter:"dept",
+  clinicalstaffinoffice:"staff", clinicalstaff:"staff", staffinoffice:"staff",
+  patientsscheduled:"patients", scheduledpatients:"patients",
+  patientsfteratio:"ratio", patientfteratio:"ratio", patientsperfte:"ratio", fteratio:"ratio",
+  requestorstringid:"requestor", requestorid:"requestorId", requestor:"requestor", requestedby:"requestor",
+  assignedstringid:"assigned", assignedid:"assignedId", assigned:"assigned", assignedto:"assigned", coveredby:"assigned",
+  secondarycontactstringid:"secondary", secondarycontactid:"secondaryId", secondarycontact:"secondary",
+  invitesent:"inviteSent", sendoutlookinvite:"outlookInvite", outlookinvite:"outlookInvite",
+  incentivepayapproved:"incentive", incentivepay:"incentive",
+  passchedule:"schedule", syncedtoschedule:"synced",
+  additionalcomments:"comments", comments:"comments", notes:"comments",
+  created:"created", modified:"modified"
+};
+
+/* A header carrying a phone/extension is contact info even when it starts with "Requestor". */
+const CONTACT_RE = /^(requestor|contact|caller)\s*(#|no\.?|num|number|phone|ext|extension|cell|tel)/i;
+
+/* Every "date" candidate in preference order — resolved per column by how full it actually is. */
+const DATE_ROLE = "date";
+
+function detectFields(headers, body){
+  const map = {}, detail = [], dateCols = [];
+  const fillOf = (i) => {
+    let n = 0;
+    for (let r = 0; r < body.length; r++){ const v = body[r][i]; if (v !== null && v !== undefined && v !== "") n++; }
+    return n;
+  };
+
+  headers.forEach((h, i) => {
+    const n = norm(h);
+    const fill = fillOf(i);
+    const base = { header:h, col:i, fill };
+    if (!n){ detail.push({ ...base, role:null, kind:"blank" }); return; }
+    if (SYSTEM_FIELDS.has(n)){ detail.push({ ...base, role:null, kind:"system" }); return; }
+    if (fill === 0){ detail.push({ ...base, role:null, kind:"empty" }); return; }
+
+    let role = CONTACT_RE.test(String(h).trim()) ? "requestorContact" : (FIELD_ALIASES[n] || null);
+    if (!role && /^requestor/.test(n)) role = "requestorContact";
+    if (!role && /^assigned/.test(n))  role = "assigned";
+
+    if (role === DATE_ROLE){ dateCols.push({ col:i, fill, header:h }); detail.push({ ...base, role, kind:"mapped" }); return; }
+    if (role){
+      const first = map[role] === undefined;
+      if (first) map[role] = i;
+      detail.push({ ...base, role, kind: first ? "mapped" : "duplicate" });
+    } else {
+      detail.push({ ...base, role:null, kind:"extra" });
+    }
+  });
+
+  /* Exports routinely carry two or three date columns where only one is populated.
+     Rank them by fill and read the first non-empty per row. */
+  dateCols.sort((a, b) => b.fill - a.fill);
+  if (dateCols.length) map.date = dateCols[0].col;
+
+  if (map.requestor === undefined && map.requestorId !== undefined) map.requestor = map.requestorId;
+  if (map.assigned  === undefined && map.assignedId  !== undefined) map.assigned  = map.assignedId;
+  return { map, detail, dateCols };
+}
+
+/* "i:0#.f|membership|dana.reyes@slhs.org" -> "Dana Reyes"; a bare lookup id -> "User #52" */
+function personName(v){
+  if (v == null || v === "" || v instanceof Date) return null;
+  let s = String(v).trim();
+  if (!s || s === "0") return null;
+  if (/^\d+$/.test(s)) return "User #" + s;
+  if (s.includes("|")) s = s.split("|").pop().trim();
+  if (s.includes(",#")) s = s.split(",#")[0].trim();      // "Marcia Cruz,#cruzmarc@slhs.org"
+  if (s.includes("@")) s = s.split("@")[0];
+  if (/^[a-z0-9._-]+$/i.test(s) && /[._-]/.test(s))
+    s = s.split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+  else if (s === s.toLowerCase() && !s.includes(" ")) s = s[0].toUpperCase() + s.slice(1);
+  return s || null;
+}
+
+function toBool(v){
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  const s = String(v).trim().toLowerCase();
+  if (["true","yes","y","1","on","checked","added"].includes(s)) return true;
+  if (["false","no","n","0","off","unchecked"].includes(s)) return false;
+  return null;
+}
+
+function toNum(v){
+  if (v === null || v === undefined || v === "" || v instanceof Date) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const s = String(v).trim().replace(/,/g, "");
+  if (/^\d+:\d+$/.test(s)){ const [a,b] = s.split(":").map(Number); return b ? a/b : null; }
+  if (/^\d+(\.\d+)?\/\d+(\.\d+)?$/.test(s)){ const [a,b] = s.split("/").map(Number); return b ? a/b : null; }
+  const n = Number(s.replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/* Anything dated before this is not loaded at all — not filtered, not counted,
+   not cached. Change the year here and the whole board follows. */
+const DATA_FROM_YEAR = 2024;
+const DATA_FROM = Date.UTC(DATA_FROM_YEAR, 0, 1);
+
+const SERIAL_EPOCH = Date.UTC(1899, 11, 30);
+function toDate(v){
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  const n = typeof v === "number" ? v : (typeof v === "string" && /^\d{5}(\.\d+)?$/.test(v.trim()) ? Number(v) : NaN);
+  if (Number.isFinite(n) && n > 20000 && n < 80000) return new Date(SERIAL_EPOCH + Math.round(n * 86400000));
+  if (typeof v === "string" && v.trim()){
+    const d = new Date(v.trim());
+    if (!isNaN(d)) return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  }
+  return null;
+}
+
+/* Status wording differs list to list ("Assigned", "Approved", "Open Shift", "Denied; Email Sent").
+   Fold it into four operational states — checked most-specific first. */
+const STATUS_BUCKETS = [
+  { key:"denied",  label:"Denied",  color:"var(--crit)", hex:"#d03b3b", pill:"p-crit",
+    test: s => /den(y|ied|ial)|reject|declin|unabl|notfill|nocover/.test(s) },
+  { key:"covered", label:"Covered", color:"var(--good)", hex:"#0ca30c", pill:"p-good",
+    test: s => /assign|appro|filled|covered|complet|confirm|accept/.test(s) },
+  { key:"open",    label:"Open",    color:"var(--warn)", hex:"#fab219", pill:"p-warn",
+    test: s => /open|pend|new|submit|review|await|progress|request|post|track|hold/.test(s) },
+  { key:"other",   label:"Other",   color:"var(--none)", hex:"#898781", pill:"p-none",
+    test: () => true }
+];
+const bucketOf = (k) => STATUS_BUCKETS.find(b => b.key === k) || STATUS_BUCKETS[3];
+/* Matching runs most-specific first; charts read best good -> bad. */
+const STATUS_ORDER = ["covered","open","denied","other"].map(k => STATUS_BUCKETS.find(b => b.key === k));
+const classifyStatus = (raw) => { const s = norm(raw); return s ? STATUS_BUCKETS.find(b => b.test(s)).key : "other"; };
+
+/* Display rule for site/region names: every word starts with a capital, and the
+   word "ed" is always written ED ("meridian ed" -> "Meridian ED"). Letters after
+   the first are left as typed, so "Parkcenter-UC" and "McCall" survive intact. */
+function displayCase(s){
+  return s.replace(/[A-Za-z][A-Za-z0-9'’]*/g, w =>
+    w.toLowerCase() === "ed" ? "ED" : w[0].toUpperCase() + w.slice(1));
+}
+
+/* "Parkcenter-UC ", "parkcenter-uc" and "Parkcenter-UC" are one site. Group on a folded
+   key, display the most common spelling pushed through displayCase(). */
+function canonicaliser(values){
+  const seen = new Map();
+  for (const v of values){
+    if (!v) continue;
+    const disp = String(v).replace(/\s+/g, " ").trim();
+    if (!disp) continue;
+    const k = disp.toLowerCase();
+    if (!seen.has(k)) seen.set(k, new Map());
+    const m = seen.get(k);
+    m.set(disp, (m.get(disp) || 0) + 1);
+  }
+  const best = new Map();
+  for (const [k, m] of seen){
+    let top = null, n = -1;
+    for (const [disp, c] of m) if (c > n || (c === n && disp < top)){ top = disp; n = c; }
+    best.set(k, displayCase(top));
+  }
+  return (v) => {
+    if (!v) return null;
+    const disp = String(v).replace(/\s+/g, " ").trim();
+    return disp ? (best.get(disp.toLowerCase()) || displayCase(disp)) : null;
+  };
+}
+
+function shapeRows(sheet){
+  const rows = sheet.rows.filter(r => r && r.some(c => c !== null && c !== "" && c !== undefined));
+  if (!rows.length) throw new Error("That sheet is empty.");
+
+  let hIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 12); i++){
+    const filled = rows[i].filter(c => c !== null && c !== "").length;
+    if (filled >= Math.min(3, rows[i].length)){ hIdx = i; break; }
+  }
+  const headers = rows[hIdx].map((h, i) => (h === null || h === "" ? `Column ${i+1}` : String(h).trim()));
+  const body = rows.slice(hIdx + 1);
+  const { map, detail, dateCols } = detectFields(headers, body);
+
+  const canonLoc = canonicaliser(map.location === undefined ? [] : body.map(r => r[map.location]));
+  const canonReg = canonicaliser(map.region   === undefined ? [] : body.map(r => r[map.region]));
+
+  const records = [];
+  let skippedOld = 0, undated = 0;
+  for (let i = 0; i < body.length; i++){
+    const r = body[i];
+    const at = (role) => (map[role] === undefined ? null : (r[map[role]] ?? null));
+
+    let date = null;
+    for (const dc of dateCols){ date = toDate(r[dc.col]); if (date) break; }
+    if (date && date.getTime() < DATA_FROM){ skippedOld++; continue; }
+    if (!date) undated++;
+
+    const statusRaw = at("status");
+    let staff = toNum(at("staff")), patients = toNum(at("patients")), ratio = toNum(at("ratio"));
+    /* A zero here means "nobody filled this in", not "zero patients per FTE". */
+    if (ratio === 0) ratio = null;
+    if (ratio === null && patients != null && staff) ratio = patients / staff;
+
+    const rec = {
+      _i: i, _r: r,
+      location: canonLoc(at("location")) || "(no clinic name)",
+      statusRaw: statusRaw == null || statusRaw === "" ? null : String(statusRaw).trim(),
+      status: classifyStatus(statusRaw),
+      date,
+      dateTo: toDate(at("dateTo")),
+      shift: at("shift") ? String(at("shift")).trim() : null,
+      urgent: toBool(at("urgent")),
+      address: at("address") ? String(at("address")).replace(/\s+/g, " ").trim() : null,
+      region: canonReg(at("region")) || "(no region)",
+      dept: at("dept") == null ? null : String(at("dept")).trim(),
+      staff, patients, ratio,
+      requestor: personName(at("requestor")),
+      requestorContact: at("requestorContact") == null ? null : String(at("requestorContact")).trim(),
+      assigned: personName(at("assigned")),
+      secondary: personName(at("secondary")),
+      inviteSent: toBool(at("inviteSent")),
+      outlookInvite: toBool(at("outlookInvite")),
+      incentive: toBool(at("incentive")),
+      schedule: toBool(at("schedule")),
+      comments: at("comments") ? String(at("comments")).replace(/\s+/g, " ").trim() : null,
+      created: toDate(at("created")),
+      modified: toDate(at("modified"))
+    };
+    if (rec.location !== "(no clinic name)" || date || rec.statusRaw) records.push(rec);
+  }
+
+  /* Column fill was counted across the raw sheet; restate it over the rows that
+     actually survived the cutoff, so the field map's percentages match the board. */
+  for (const d of detail){
+    let f = 0;
+    for (const rec of records){ const v = rec._r[d.col]; if (v !== null && v !== undefined && v !== "") f++; }
+    d.fill = f;
+    if (d.kind === "empty" && f > 0) d.kind = "extra";
+  }
+
+  if (!records.length) throw new Error(skippedOld
+    ? `Every dated row in that sheet falls before ${DATA_FROM_YEAR}, so nothing was loaded.`
+    : "No request rows found under the header in that sheet.");
+  return { records, headers, map, detail, dateCols, skippedOld, undated, sheetName: sheet.name };
+}
+</script>
+
+<script data-app="1">
+"use strict";
+
+/* ============================================================
+   3. BOARD  —  state, loading, filters.
+   ============================================================ */
+
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAY = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const dKey   = (d) => `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+const dShort = (d) => `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
+const dMon   = (d) => `${MON[d.getUTCMonth()]} ’${String(d.getUTCFullYear()).slice(2)}`;
+const dFull  = (d) => `${DAY[d.getUTCDay()]} ${MON[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const todayKey = () => isoLocal(new Date());
+/* Presets read off the viewer's calendar, not UTC — otherwise "today" flips
+   early in the evening for anyone west of Greenwich. Weeks run Sunday–Saturday. */
+function rangeFor(kind){
+  const n = new Date(), y = n.getFullYear(), m = n.getMonth(), d = n.getDate();
+  if (kind === "today") return [isoLocal(n), isoLocal(n)];
+  if (kind === "week")  return [isoLocal(new Date(y, m, d - n.getDay())), isoLocal(new Date(y, m, d - n.getDay() + 6))];
+  if (kind === "month") return [isoLocal(new Date(y, m, 1)), isoLocal(new Date(y, m + 1, 0))];
+  return [isoLocal(new Date(y, 0, 1)), isoLocal(new Date(y, 11, 31))];
+}
+const RANGES = [["today","Today"],["week","This week"],["month","This month"],["year","This year"]];
+
+const num    = (n, p = 0) => n == null || !Number.isFinite(n) ? "—" : n.toLocaleString(undefined, { minimumFractionDigits:p, maximumFractionDigits:p });
+const pct    = (a, b) => !b ? "—" : Math.round(a / b * 100) + "%";
+
+const PAGE = 200;
+
+const S = {
+  data:null, rows:[], view:[], sheets:[], sheetIdx:0, shaped:[],
+  filters:{ status:new Set(), region:new Set(), urgent:false, unassigned:false, from:"", to:"", q:"" },
+  sort:{ key:"date", dir:-1 }, bench:22, mix:"clinic", limit:PAGE, sample:false
+};
+
+/* ---------- sample data (deterministic, mirrors the real export's shape) ---------- */
+function sampleWorkbook(){
+  let seed = 20260819;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const sites = [
+    ["Boise Outpatient Department","West","190 E Bannock St, Boise, ID 83712"],
+    ["Boise Emergency Department","West","190 E Bannock St, Boise, ID 83712"],
+    ["Meridian ED","West","3399 E Louise Dr, Meridian, ID 83642"],
+    ["Parkcenter Clinics","West","701 E Parkcenter Blvd, Boise, ID 83706"],
+    ["Parkcenter-UC","West","701 E Parkcenter Blvd, Boise, ID 83706"],
+    ["Nampa Family Medicine","West","9850 W St Lukes Dr, Nampa, ID 83687"],
+    ["Twin Falls Clinic","East","801 Pole Line Rd W, Twin Falls, ID 83301"],
+    ["Jerome Community Clinic","East","1904 S Lincoln Ave, Jerome, ID 83338"],
+    ["McCall Memorial Clinic","East","1000 State St, McCall, ID 83638"],
+    ["Wood River Primary Care","East","100 Hospital Dr, Ketchum, ID 83340"]
+  ];
+  const statuses = [["Assigned",.58],["Open Shift",.72],["Denied; Email Sent",.85],["Posted to Teams",.93],["In Review",.97],["Tracking",1]];
+  const shifts = ["8-5","0800-1700","0800-1630","7a-7p","1200-2000","0700-1530"];
+  const notes = ["We are increasing our volumes from 80 patients per day to 100 patients per day",
+    "Down 2 PAs this week, need float coverage.","Denied — volume below float threshold.",
+    "Provider out on FMLA, no float available in market.",null,null,null,null];
+  const head = ["FileSystemObjectType","Id","Title","Status","AssignedId","AssignedStringId","InviteSent",
+    "CoverageDate","ShiftHours","ClinicalStaffinOffice","PatientsScheduled","Patients/FTE Ratio","DepartmentCode",
+    "RequestorId","RequestorStringId","ClinicAddress","Requestor#","DateNeeded","Region","AdditionalComments",
+    "IncentivePayApproved","Within24Hrs","PASSchedule","Created","Modified","ID.1","AuthorId","EditorId",
+    "OData__UIVersionString","Attachments","GUID","SendOutlookInvite"];
+  const rows = [head];
+  const base = Date.UTC(2025, 8, 1);
+  for (let i = 0; i < 420; i++){
+    const [nm, rg, ad] = pick(sites);
+    const r = rnd();
+    const status = statuses.find(s => r <= s[1])[0];
+    const staff = Math.floor(rnd() * 5);
+    const patients = staff ? Math.round(staff * (18 + rnd() * 60)) : Math.round(rnd() * 40);
+    const assigned = /Assigned/.test(status) ? String(100 + Math.floor(rnd() * 40)) : "";
+    const req = String(2000 + Math.floor(rnd() * 600));
+    const serial = (Date.UTC(2025, 8, 1) - Date.UTC(1899, 11, 30)) / 86400000 + Math.floor(rnd() * 300) + 0.25;
+    rows.push([0, 100 + i, nm, status, assigned, assigned, rnd() < .77,
+      null, pick(shifts), staff, patients, staff ? (patients / staff).toFixed(13) : "0",
+      String(3000000 + Math.floor(rnd() * 999999)), req, req, ad,
+      `208-${300 + Math.floor(rnd() * 600)}-${1000 + Math.floor(rnd() * 8999)}`,
+      serial, rg, pick(notes), rnd() < .04, rnd() < .07, rnd() < .85 ? "Added" : "No",
+      45600 + rnd() * 600, 45700 + rnd() * 500, 100 + i, 62, 7, "1.0", false,
+      `14b72186-8f86-4a30-9519-f1dec29964${String(i).padStart(2,"0")}`, null]);
+  }
+  return [{ name: "PAS Support Requests (sample)", rows }];
+}
+
+/* ---------- loading ---------- */
+function busy(on, msg){
+  const b = el("btnLoad2"), t = document.querySelector(".drop-t");
+  if (on){ b.disabled = true; t.innerHTML = `<span class="busy">${esc(msg)}</span>`; }
+  else { b.disabled = false; t.textContent = "Drop the workbook here"; }
+}
+
+async function loadFile(file, opts){
+  opts = opts || {};
+  const err = el("loadErr");
+  err.classList.add("hide");
+  if (!opts.keep) busy(true, `Reading ${file.name}…`);
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const sheets = /\.csv$|\.txt$/i.test(file.name)
+      ? XLSX.readCSV(await file.text())
+      : await XLSX.readWorkbook(await file.arrayBuffer());
+    adopt(sheets, file.name, false, opts);
+    return true;
+  } catch (e){
+    if (opts.keep) throw e;
+    err.textContent = e.message || "That file couldn't be read.";
+    err.classList.remove("hide");
+    console.error(e);
+    return false;
+  } finally { if (!opts.keep) busy(false); }
+}
+
+function adopt(sheets, fileName, isSample, opts){
+  opts = opts || {};
+  /* Exports often carry pivot tabs alongside the list. Score every sheet and open the
+     one with the most recognised columns; the rest stay available in the picker. */
+  S.shaped = sheets.map(sh => {
+    try { const x = shapeRows(sh); return { ok:true, x, score: Object.keys(x.map).length * 1e6 + x.records.length }; }
+    catch (e){ return { ok:false, name: sh.name, err: e.message, score: -1 }; }
+  });
+  const usable = S.shaped.map((s, i) => ({ ...s, i })).filter(s => s.ok);
+  if (!usable.length) throw new Error("No readable sheet in that workbook.");
+
+  S.sheets = sheets;
+  S.fileName = fileName;
+  S.sample = isSample;
+  /* On a re-sync, stay on the sheet the user was reading rather than re-scoring. */
+  const prev = opts.keep && S.data ? sheets.findIndex(sh => sh.name === S.data.sheetName) : -1;
+  useSheet(prev >= 0 ? prev : usable.sort((a, b) => b.score - a.score)[0].i, opts);
+
+  el("hero").classList.add("hide");
+  el("board").classList.remove("hide");
+  el("exportWrap").classList.remove("hide");
+  el("filemeta").classList.remove("hide");
+  el("filemeta").classList.toggle("is-sample", isSample);
+  el("fileName").textContent = isSample ? "Sample data — not your file" : fileName;
+  if (typeof reflectLink === "function") reflectLink();
+}
+
+function useSheet(idx, opts){
+  opts = opts || {};
+  const shaped = S.shaped[idx];
+  if (!shaped || !shaped.ok) return;
+  S.sheetIdx = idx;
+  S.data = shaped.x;
+  S.rows = shaped.x.records;
+
+  if (!opts.keep){
+    S.limit = PAGE;
+    S.filters = { status:new Set(), region:new Set(), urgent:false, unassigned:false, from:"", to:"", q:"" };
+    S.mix = new Set(S.rows.map(r => r.region)).size > 3 ? "region" : "clinic";
+    const ratios = S.rows.map(r => r.ratio).filter(n => n != null).sort((a, b) => a - b);
+    S.bench = ratios.length ? Math.max(1, Math.round(ratios[Math.floor(ratios.length * .75)])) : 22;
+    el("bench").value = S.bench;
+  } else {
+    /* A refreshed file may no longer contain a value someone had filtered to;
+       drop those so the board doesn't come back mysteriously empty. */
+    const regions = new Set(S.rows.map(r => r.region)), statuses = new Set(S.rows.map(r => r.status));
+    S.filters.region.forEach(v => { if (!regions.has(v)) S.filters.region.delete(v); });
+    S.filters.status.forEach(v => { if (!statuses.has(v)) S.filters.status.delete(v); });
+  }
+  el("fileRows").textContent = `${num(S.rows.length)} rows`;
+
+  renderSourceBar();
+  renderFilters();
+  render();
+}
+
+function renderSourceBar(){
+  const usable = S.shaped.map((s, i) => ({ ...s, i })).filter(s => s.ok);
+  el("sheetbar").innerHTML = (typeof sourceBarHTML === "function" ? sourceBarHTML() : "") + (usable.length < 2 ? "" : `
+    <div class="sheetsel" style="padding:14px 0 0">
+      <label for="sheetPick">Sheet</label>
+      <select id="sheetPick">${usable.map(s =>
+        `<option value="${s.i}"${s.i === S.sheetIdx ? " selected" : ""}>${esc(S.sheets[s.i].name)} — ${num(s.x.records.length)} rows</option>`).join("")}</select>
+      <span>${esc(S.data.dateCols.length ? "dates read from " + S.data.dateCols[0].header : "no date column found")}</span>
+    </div>`);
+  const sel = el("sheetPick");
+  if (sel) sel.addEventListener("change", (e) => { useSheet(+e.target.value); if (typeof cacheSave === "function") cacheSave(); });
+  if (typeof wireSourceBar === "function") wireSourceBar();
+}
+
+/* ---------- filtering ---------- */
+function applyFilters(){
+  const f = S.filters;
+  const q = f.q.trim().toLowerCase();
+  const from = f.from || null, to = f.to || null;
+  S.view = S.rows.filter(r => {
+    if (f.status.size && !f.status.has(r.status)) return false;
+    if (f.region.size && !f.region.has(r.region)) return false;
+    if (f.urgent && r.urgent !== true) return false;
+    if (f.unassigned && r.assigned) return false;
+    if (from || to){
+      if (!r.date) return false;
+      const k = dKey(r.date);
+      if (from && k < from) return false;
+      if (to && k > to) return false;
+    }
+    if (q){
+      const hay = [r.location, r.region, r.statusRaw, r.assigned, r.requestor, r.shift, r.address, r.dept, r.comments]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderFilters(){
+  const counts = {};
+  for (const r of S.rows){ counts[r.status] = (counts[r.status] || 0) + 1; counts["r:" + r.region] = (counts["r:" + r.region] || 0) + 1; }
+  const regions = [...new Set(S.rows.map(r => r.region))].sort((a, b) => counts["r:" + b] - counts["r:" + a]).slice(0, 8);
+  const present = STATUS_ORDER.filter(b => counts[b.key]);
+  const hasUrgent = S.rows.some(r => r.urgent !== null);
+
+  el("filters").innerHTML = `
+    <div class="fgroup"><span class="flabel">Status</span>${
+      present.map(b => `<button class="chip" data-flt="status" data-v="${b.key}"><span class="swatch" style="background:${b.color}"></span>${b.label}<span class="ct">${num(counts[b.key])}</span></button>`).join("")
+    }</div>
+    ${regions.length > 1 ? `<div class="fgroup"><span class="flabel">Region</span>${
+      regions.map(r => `<button class="chip" data-flt="region" data-v="${esc(r)}">${esc(r)}<span class="ct">${num(counts["r:" + r])}</span></button>`).join("")
+    }</div>` : ""}
+    <div class="fgroup">
+      ${hasUrgent ? `<button class="chip" data-flt="urgent"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>Urgent only</button>` : ""}
+      <button class="chip" data-flt="unassigned">Unassigned only</button>
+    </div>
+    <div class="fgroup"><span class="flabel">Range</span>${
+      RANGES.map(([k, label]) => `<button class="chip" data-range="${k}">${label}</button>`).join("")
+    }</div>
+    <div class="dateflt"><input type="date" id="fFrom" aria-label="Date needed from" min="${DATA_FROM_YEAR}-01-01"><span>to</span><input type="date" id="fTo" aria-label="Date needed to" min="${DATA_FROM_YEAR}-01-01"></div>
+    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="fQ" placeholder="Search clinic, dept, note…"><span class="sr">Search requests</span></label>
+    <button class="linkbtn" id="fClear">Clear</button>`;
+
+  el("filters").onclick = (e) => {
+    const r = e.target.closest("[data-range]");
+    if (r){
+      const [from, to] = rangeFor(r.dataset.range);
+      /* Clicking the range you are already in clears it. */
+      const on = S.filters.from === from && S.filters.to === to;
+      S.filters.from = on ? "" : from;
+      S.filters.to = on ? "" : to;
+      el("fFrom").value = S.filters.from;
+      el("fTo").value = S.filters.to;
+      S.limit = PAGE;
+      render();
+      return;
+    }
+    const c = e.target.closest("[data-flt]");
+    if (!c) return;
+    const kind = c.dataset.flt;
+    if (kind === "status" || kind === "region"){
+      const set = S.filters[kind];
+      set.has(c.dataset.v) ? set.delete(c.dataset.v) : set.add(c.dataset.v);
+    } else S.filters[kind] = !S.filters[kind];
+    S.limit = PAGE;
+    render();
+  };
+  let deb;
+  const bind = (id, key, wait) => el(id).addEventListener("input", (e) => {
+    S.filters[key] = e.target.value; S.limit = PAGE;
+    clearTimeout(deb); deb = setTimeout(render, wait);
+  });
+  bind("fFrom", "from", 0); bind("fTo", "to", 0); bind("fQ", "q", 180);
+  el("fClear").onclick = () => {
+    S.filters = { status:new Set(), region:new Set(), urgent:false, unassigned:false, from:"", to:"", q:"" };
+    el("fFrom").value = ""; el("fTo").value = ""; el("fQ").value = "";
+    S.limit = PAGE; render();
+  };
+}
+
+function syncChips(){
+  document.querySelectorAll("#filters [data-flt]").forEach(c => {
+    const k = c.dataset.flt;
+    const on = (k === "status" || k === "region") ? S.filters[k].has(c.dataset.v) : !!S.filters[k];
+    c.classList.toggle("on", on);
+    c.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  document.querySelectorAll("#filters [data-range]").forEach(c => {
+    const [from, to] = rangeFor(c.dataset.range);
+    const on = S.filters.from === from && S.filters.to === to;
+    c.classList.toggle("on", on);
+    c.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+</script>
+
+<script data-app="1">
+"use strict";
+
+/* ============================================================
+   4. CHARTS
+   ============================================================ */
+
+function rr(x, y, w, h, r, side){
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  if (w <= 0 || h <= 0) return "";
+  if (side === "top")
+    return `M${x},${y+h} V${y+r} Q${x},${y} ${x+r},${y} H${x+w-r} Q${x+w},${y} ${x+w},${y+r} V${y+h} Z`;
+  return `M${x},${y} H${x+w-r} Q${x+w},${y} ${x+w},${y+r} V${y+h-r} Q${x+w},${y+h} ${x+w-r},${y+h} H${x} Z`;
+}
+const svgOpen = (w, h, wide) => `<svg class="chart${wide ? " chart-wide" : ""}" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">`;
+
+const tip = el("tip");
+function showTip(html, x, y){
+  tip.innerHTML = html;
+  tip.classList.add("on");
+  const r = tip.getBoundingClientRect();
+  let left = x + 14;
+  if (left + r.width > innerWidth - 10) left = x - r.width - 14;
+  tip.style.left = Math.max(8, left) + "px";
+  tip.style.top = Math.min(Math.max(8, y - r.height / 2), innerHeight - r.height - 8) + "px";
+}
+const hideTip = () => tip.classList.remove("on");
+function wireTips(root){
+  root.addEventListener("mousemove", (e) => {
+    const t = e.target.closest("[data-tip]");
+    if (t) showTip(decodeURIComponent(t.dataset.tip), e.clientX, e.clientY); else hideTip();
+  });
+  root.addEventListener("mouseleave", hideTip);
+}
+const tipRows = (g) => STATUS_ORDER.filter(b => g[b.key] > 0)
+  .map(b => `<div class="tr"><b style="background:${b.hex}"></b><span>${b.label}</span><em>${num(g[b.key])}</em></div>`).join("");
+
+/* ---------- KPIs ---------- */
+function renderKPIs(){
+  const v = S.view, n = v.length;
+  const by = (k) => v.filter(r => r.status === k).length;
+  const covered = by("covered"), open = by("open"), denied = by("denied"), other = by("other");
+  const urgent = v.filter(r => r.urgent === true).length;
+  const hasUrgent = S.rows.some(r => r.urgent !== null);
+  const assigned = v.filter(r => r.assigned).length;
+  const today = todayKey();
+  const openUpcoming = v.filter(r => !r.assigned && r.date && dKey(r.date) >= today && r.status !== "denied").length;
+  const ratios = v.map(r => r.ratio).filter(x => x != null).sort((a, b) => a - b);
+  const med = ratios.length ? ratios[Math.floor(ratios.length / 2)] : null;
+
+  const seg = (c, val) => n ? `<i style="background:${c}; width:${(val / n * 100).toFixed(2)}%"></i>` : "";
+  el("kpis").innerHTML = `
+    <div class="kpi">
+      <div class="kpi-l">Requests in view</div>
+      <div class="kpi-v">${num(n)}</div>
+      <div class="kpi-bar">${seg("var(--good)",covered)}${seg("var(--warn)",open)}${seg("var(--crit)",denied)}${seg("var(--none)",other)}</div>
+      <div class="kpi-n">${n === S.rows.length ? "the whole export" : `filtered from ${num(S.rows.length)}`}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">Covered</div>
+      <div class="kpi-v">${pct(covered, n)}</div>
+      <div class="kpi-n"><span class="pill p-good"><b style="background:var(--good)"></b>${num(covered)} filled</span></div>
+    </div>
+    <div class="kpi${open ? " alert" : ""}">
+      <div class="kpi-l">Still open</div>
+      <div class="kpi-v">${num(open)}</div>
+      <div class="kpi-n">${denied ? `${num(denied)} denied outright` : "none denied"}</div>
+    </div>
+    ${hasUrgent ? `<div class="kpi${urgent ? " alert" : ""}">
+      <div class="kpi-l">Urgent &lt;24 hrs</div>
+      <div class="kpi-v">${num(urgent)}</div>
+      <div class="kpi-n">${pct(urgent, n)} of requests in view</div>
+    </div>` : `<div class="kpi">
+      <div class="kpi-l">Median patients / FTE</div>
+      <div class="kpi-v">${med == null ? "—" : med.toFixed(1)}</div>
+      <div class="kpi-n">${num(ratios.length)} rows report a ratio</div>
+    </div>`}
+    <div class="kpi${openUpcoming ? " alert" : ""}">
+      <div class="kpi-l">Unassigned &amp; upcoming</div>
+      <div class="kpi-v">${num(openUpcoming)}</div>
+      <div class="kpi-n">${num(assigned)} of ${num(n)} shifts have a name</div>
+    </div>`;
+  return { assigned, covered, open, denied };
+}
+
+/* ---------- status mix, by clinic or region ---------- */
+function renderMixChart(){
+  const box = el("chartRegion");
+  const byClinic = S.mix === "clinic";
+  el("mixSub").textContent = byClinic ? "Status mix, busiest clinics" : "Status mix by region";
+  document.querySelectorAll("#mixToggle button").forEach(b => b.classList.toggle("on", b.dataset.mix === S.mix));
+
+  const groups = new Map();
+  for (const r of S.view){
+    const k = byClinic ? r.location : r.region;
+    let g = groups.get(k);
+    if (!g) groups.set(k, g = { k, total:0, covered:0, open:0, denied:0, other:0 });
+    g.total++; g[r.status]++;
+  }
+  let list = [...groups.values()].sort((a, b) => b.total - a.total);
+  const totalGroups = list.length;
+  if (byClinic) list = list.slice(0, 9);
+
+  if (!list.length){ box.innerHTML = `<div class="empty-note">No requests match the current filters.</div>`; el("legend1").innerHTML = ""; return; }
+  el("legend1").innerHTML = STATUS_ORDER.filter(b => list.some(g => g[b.key]))
+    .map(b => `<i><b style="background:${b.color}"></b>${b.label}</i>`).join("");
+
+  const W = Math.max(320, box.clientWidth || 560);
+  const padL = Math.min(160, Math.max(96, W * .26)), padR = 52;
+  const rowH = 22, gapY = 14;
+  const H = list.length * (rowH + gapY) - gapY + 6;
+  const max = Math.max(...list.map(g => g.total));
+  const span = W - padL - padR;
+
+  /* Fit the label to the gutter actually available, not a fixed character count. */
+  const maxChars = Math.max(6, Math.floor((padL - 18) / 6.7));
+  let s = svgOpen(W, H);
+  list.forEach((g, i) => {
+    const y = i * (rowH + gapY);
+    const label = g.k.length > maxChars ? g.k.slice(0, maxChars - 1) + "…" : g.k;
+    const t = encodeURIComponent(`<div class="th">${esc(g.k)}</div>${tipRows(g)}<div class="tr"><b style="background:transparent"></b><span>total</span><em>${num(g.total)}</em></div>`);
+    s += `<text class="lbl" x="${padL - 12}" y="${y + rowH/2 + 4}" text-anchor="end"><title>${esc(g.k)}</title>${esc(label)}</text>`;
+    let x = padL;
+    const parts = STATUS_ORDER.filter(b => g[b.key] > 0);
+    parts.forEach((b, j) => {
+      const full = g[b.key] / max * span;
+      const last = j === parts.length - 1;
+      s += `<path class="mk" d="${rr(x, y, Math.max(2, full - (last ? 0 : 2)), rowH, 4, last ? "right" : "none")}" fill="${b.color}" data-tip="${t}"/>`;
+      if (full > 30) s += `<text class="inseg" x="${x + full/2}" y="${y + rowH/2 + 4}" text-anchor="middle" fill="${b.key === "open" ? "#4a3a05" : "#fff"}" pointer-events="none">${num(g[b.key])}</text>`;
+      x += full;
+    });
+    s += `<text class="val" x="${padL + g.total/max*span + 10}" y="${y + rowH/2 + 4}">${num(g.total)}</text>`;
+  });
+  box.innerHTML = s + "</svg>";
+  if (byClinic && totalGroups > list.length)
+    box.insertAdjacentHTML("beforeend", `<div class="zero-note">Top ${list.length} of ${num(totalGroups)} clinic names in view — search or filter to narrow further.</div>`);
+}
+
+/* ---------- coverage demand over time ---------- */
+function renderDemandChart(){
+  const box = el("chartDemand");
+  const dated = S.view.filter(r => r.date);
+  if (!dated.length){ box.innerHTML = `<div class="empty-note">No dates in the current view.</div>`; el("demandSub").textContent = "Requests by date needed"; return; }
+
+  let lo = Infinity, hi = -Infinity;
+  for (const r of dated){ const t = r.date.getTime(); if (t < lo) lo = t; if (t > hi) hi = t; }
+  const days = Math.round((hi - lo) / 86400000) + 1;
+  const unit = days > 400 ? "month" : days > 45 ? "week" : "day";
+  el("demandSub").textContent = { day:"Requests by date needed", week:"Requests by week needed", month:"Requests by month needed" }[unit];
+
+  const startOf = (d) => {
+    const y = d.getUTCFullYear(), m = d.getUTCMonth(), dd = d.getUTCDate();
+    if (unit === "month") return Date.UTC(y, m, 1);
+    const t = Date.UTC(y, m, dd);
+    return unit === "week" ? t - new Date(t).getUTCDay() * 86400000 : t;
+  };
+  const buckets = [];
+  let cur = startOf(new Date(lo)), last = startOf(new Date(hi));
+  while (cur <= last){
+    buckets.push({ t:cur, total:0, covered:0, open:0, denied:0, other:0 });
+    const d = new Date(cur);
+    cur = unit === "month" ? Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) : cur + (unit === "week" ? 7 : 1) * 86400000;
+    if (buckets.length > 900) break;
+  }
+  const index = new Map(buckets.map((b, i) => [b.t, i]));
+  for (const r of dated){ const b = buckets[index.get(startOf(r.date))]; if (b){ b.total++; b[r.status]++; } }
+
+  const padL = 34, padR = 12, padT = 14, padB = 30;
+  const minCol = unit === "day" ? 15 : 26;
+  const inner = Math.max((box.clientWidth || 560) - padL - padR, buckets.length * minCol);
+  const W = inner + padL + padR, H = 208, plotH = H - padT - padB;
+  const max = Math.max(1, ...buckets.map(b => b.total));
+  const niceMax = max <= 4 ? max : Math.ceil(max / 4) * 4;
+  const colW = Math.min(38, inner / buckets.length);
+  const barW = Math.max(6, colW - (unit === "day" ? 4 : 8));
+  const yOf = (v) => padT + plotH - (v / niceMax) * plotH;
+  const label = (t) => unit === "month" ? dMon(new Date(t)) : dShort(new Date(t));
+
+  let s = svgOpen(W, H, true);
+  (niceMax <= 4 ? Array.from({ length:niceMax + 1 }, (_, i) => i) : [0, niceMax/4, niceMax/2, niceMax*3/4, niceMax]).forEach(v => {
+    s += `<line class="gridline" x1="${padL}" y1="${yOf(v)}" x2="${W - padR}" y2="${yOf(v)}"/>`;
+    s += `<text x="${padL - 7}" y="${yOf(v) + 4}" text-anchor="end">${num(v)}</text>`;
+  });
+  const every = Math.max(1, Math.ceil(buckets.length / Math.max(3, Math.floor(inner / 76))));
+  buckets.forEach((b, i) => {
+    const cx = padL + i * colW + colW / 2;
+    if (i % every === 0) s += `<text x="${cx}" y="${H - 10}" text-anchor="middle">${label(b.t)}</text>`;
+    if (!b.total) return;
+    const t = encodeURIComponent(`<div class="th">${unit === "day" ? dFull(new Date(b.t)) : (unit === "week" ? "Week of " + dFull(new Date(b.t)) : dMon(new Date(b.t)))}</div>${tipRows(b)}`);
+    let yTop = padT + plotH;
+    const parts = STATUS_ORDER.filter(p => b[p.key] > 0);
+    parts.forEach((p, j) => {
+      const full = b[p.key] / niceMax * plotH;
+      const last = j === parts.length - 1;
+      s += `<path class="mk" d="${rr(cx - barW/2, yTop - full + (last ? 0 : 2), barW, Math.max(2, full - (last ? 0 : 2)), 4, last ? "top" : "none")}" fill="${p.color}" data-tip="${t}"/>`;
+      yTop -= full;
+    });
+    s += `<rect class="hit" x="${cx - colW/2}" y="${padT}" width="${colW}" height="${plotH}" data-tip="${t}"/>`;
+  });
+  s += `<line class="axisline" x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}"/>`;
+  box.innerHTML = s + "</svg>";
+}
+
+/* ---------- staffing pressure ---------- */
+function renderRatioChart(){
+  const box = el("chartRatio");
+  const map = new Map();
+  let zeros = 0;
+  for (const r of S.view){
+    if (r.ratio == null){ zeros++; continue; }
+    let g = map.get(r.location);
+    if (!g) map.set(r.location, g = { k:r.location, vals:[] });
+    g.vals.push(r.ratio);
+  }
+  const minN = map.size > 40 ? 3 : 1;
+  const list = [...map.values()].filter(g => g.vals.length >= minN).map(g => {
+    const v = g.vals.sort((a, b) => a - b);
+    const mid = v.length >> 1;
+    return { k:g.k, n:v.length, avg: v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2, peak: v[v.length - 1] };
+  }).sort((a, b) => b.avg - a.avg).slice(0, 8);
+
+  if (!list.length){ box.innerHTML = `<div class="empty-note">No patients-per-FTE figures in the current view.</div>`; return; }
+
+  const W = Math.max(280, box.clientWidth || 420);
+  const padL = Math.min(148, Math.max(84, W * .36)), padR = 46, padT = 4, padB = 22;
+  const rowH = 18, gapY = 13;
+  const H = list.length * (rowH + gapY) - gapY + padT + padB;
+  const max = Math.max(S.bench * 1.12, ...list.map(g => g.avg));
+  const xOf = (v) => padL + (v / max) * (W - padL - padR);
+
+  const maxChars = Math.max(6, Math.floor((padL - 16) / 6.7));
+  let s = svgOpen(W, H);
+  list.forEach((g, i) => {
+    const y = padT + i * (rowH + gapY);
+    const over = g.avg > S.bench;
+    const label = g.k.length > maxChars ? g.k.slice(0, maxChars - 1) + "…" : g.k;
+    const t = encodeURIComponent(`<div class="th">${esc(g.k)}</div><div class="tr"><b style="background:${over ? "#d03b3b" : "#0a5f73"}"></b><span>Median patients / FTE</span><em>${g.avg.toFixed(1)}</em></div><div class="tr"><b style="background:transparent"></b><span>Requests counted</span><em>${num(g.n)}</em></div><div class="tr"><b style="background:transparent"></b><span>Highest single row</span><em>${g.peak.toFixed(1)}</em></div>`);
+    s += `<text class="lbl" x="${padL - 10}" y="${y + rowH/2 + 4}" text-anchor="end"><title>${esc(g.k)}</title>${esc(label)}</text>`;
+    s += `<path class="mk" d="${rr(padL, y, Math.max(2, xOf(g.avg) - padL), rowH, 4, "right")}" fill="${over ? "var(--crit)" : "var(--accent)"}" data-tip="${t}"/>`;
+    s += `<text class="val" x="${xOf(g.avg) + 8}" y="${y + rowH/2 + 4}"${over ? ' fill="var(--crit-ink)"' : ""}>${g.avg.toFixed(1)}${over ? " ▲" : ""}</text>`;
+  });
+  const bx = xOf(S.bench);
+  s += `<line x1="${bx}" y1="${padT - 2}" x2="${bx}" y2="${H - padB + 4}" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  s += `<text x="${bx}" y="${H - 6}" text-anchor="middle" fill="var(--ink-2)">benchmark ${S.bench}</text>`;
+  s += `<line class="axisline" x1="${padL}" y1="${padT - 2}" x2="${padL}" y2="${H - padB + 4}"/>`;
+  /* Count against every rated clinic, not just the eight on screen. */
+  const rated = [...map.values()].filter(g => g.vals.length >= minN);
+  const overAll = rated.filter(g => { const v = g.vals, m = v.length >> 1; return (v.length % 2 ? v[m] : (v[m-1] + v[m]) / 2) > S.bench; }).length;
+  box.innerHTML = s + "</svg>" +
+    `<div class="zero-note">▲ ${num(overAll)} of ${num(rated.length)} clinics run above the benchmark of ${S.bench}; the ${list.length} heaviest are shown.` +
+    (zeros ? ` ${num(zeros)} rows report no ratio (blank or 0) and are excluded.` : "") +
+    (minN > 1 ? ` Clinics with fewer than ${minN} rated rows are left out.` : "") + `</div>`;
+}
+
+/* ---------- workflow meters ---------- */
+function renderMeters(k){
+  const v = S.view, n = v.length;
+  const has = (f) => S.rows.some(r => f(r) !== null);
+  const covered = v.filter(r => r.status === "covered");
+  const meters = [];
+
+  meters.push(["Shifts with someone assigned", k.assigned, n, "var(--accent)",
+    `${pct(k.assigned, n)} of requests in view have a name attached`]);
+
+  if (has(r => r.inviteSent)){
+    const sent = covered.filter(r => r.inviteSent === true).length;
+    meters.push(["Invites sent on covered shifts", sent, covered.length, "var(--good)",
+      covered.length ? `${num(covered.length - sent)} covered shift${covered.length - sent === 1 ? "" : "s"} without an invite` : "no covered shifts in view"]);
+  }
+  if (has(r => r.urgent)){
+    const urgent = v.filter(r => r.urgent === true);
+    meters.push(["Urgent requests still unassigned", urgent.filter(r => !r.assigned).length, urgent.length, "var(--crit)",
+      urgent.length ? `${num(urgent.length)} flagged under 24 hrs` : "nothing flagged urgent in view"]);
+  }
+  if (has(r => r.incentive)){
+    const inc = v.filter(r => r.incentive === true).length;
+    meters.push(["Incentive pay approved", inc, n, "var(--warn)", `${pct(inc, n)} of requests needed incentive pay`]);
+  }
+  if (has(r => r.schedule)){
+    const add = v.filter(r => r.schedule === true).length;
+    meters.push(["Added to the PAS schedule", add, n, "var(--none)", `${pct(add, n)} of requests reached the schedule`]);
+  }
+  if (has(r => r.outlookInvite)){
+    const ol = v.filter(r => r.outlookInvite === true).length;
+    meters.push(["Outlook invite requested", ol, n, "var(--none)", `${pct(ol, n)} of rows asked for a calendar invite`]);
+  }
+
+  el("meters").innerHTML = meters.slice(0, 4).map(([label, a, b, color, note]) => `
+    <div>
+      <div class="meter-t"><span>${label}</span><em>${b ? `${num(a)} / ${num(b)}` : "—"}</em></div>
+      <div class="meter-track"><i class="meter-fill" style="width:${b ? (a/b*100).toFixed(1) : 0}%; background:${color}; display:block"></i></div>
+      <div class="meter-n">${note}</div>
+    </div>`).join("");
+}
+</script>
+
+<script data-app="1">
+"use strict";
+
+/* ============================================================
+   5. TABLE, DETAIL, FIELD MAP, WIRING
+   ============================================================ */
+
+const COLS = [
+  { key:"location", label:"Clinic", sort:r => r.location.toLowerCase(),
+    cell:r => `<div class="loc">${esc(r.location)}</div>${r.address ? `<div class="addr">${esc(r.address)}</div>` : ""}` },
+  { key:"region", label:"Region", sort:r => r.region.toLowerCase(), cell:r => esc(r.region) },
+  { key:"date", label:"Date needed", num:true, sort:r => r.date ? r.date.getTime() : -Infinity,
+    cell:r => r.date ? `<span class="mono">${dShort(r.date)} ${String(r.date.getUTCFullYear()).slice(2)}</span>` : `<span class="dash">—</span>` },
+  { key:"shift", label:"Shift", sort:r => (r.shift || "~").toLowerCase(),
+    cell:r => r.shift ? `<span class="mono">${esc(r.shift)}</span>` : `<span class="dash">—</span>` },
+  { key:"urgent", label:"Urgent", sort:r => (r.urgent === true ? 1 : 0),
+    cell:r => r.urgent === true
+      ? `<span class="urg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>&lt;24 hrs</span>`
+      : `<span class="dash">—</span>` },
+  { key:"status", label:"Status", sort:r => ["covered","open","denied","other"].indexOf(r.status),
+    cell:r => { const b = bucketOf(r.status);
+      return `<span class="pill ${b.pill}"><b style="background:${b.color}"></b>${esc(r.statusRaw || b.label)}</span>`; } },
+  { key:"assigned", label:"Assigned", sort:r => (r.assigned || "~~~").toLowerCase(),
+    cell:r => r.assigned ? esc(r.assigned) : `<span class="unassigned">unassigned</span>` },
+  { key:"requestor", label:"Requestor", sort:r => (r.requestor || "~~~").toLowerCase(),
+    cell:r => r.requestor ? `${esc(r.requestor)}${r.requestorContact ? `<div class="addr">${esc(r.requestorContact)}</div>` : ""}` : `<span class="dash">—</span>` },
+  { key:"staff", label:"Staff", num:true, sort:r => r.staff ?? -1, cell:r => r.staff == null ? `<span class="dash">—</span>` : num(r.staff) },
+  { key:"patients", label:"Patients", num:true, sort:r => r.patients ?? -1, cell:r => r.patients == null ? `<span class="dash">—</span>` : num(r.patients) },
+  { key:"ratio", label:"Pts / FTE", num:true, sort:r => r.ratio ?? -1,
+    cell:r => r.ratio == null ? `<span class="dash">—</span>` : `<span class="${r.ratio > S.bench ? "ratio-hi" : ""}">${r.ratio.toFixed(1)}</span>` },
+  { key:"inviteSent", label:"Invite", sort:r => (r.inviteSent === true ? 1 : r.inviteSent === false ? 0 : -1),
+    cell:r => r.inviteSent === true ? `<span class="pill p-good"><b style="background:var(--good)"></b>Sent</span>`
+            : r.inviteSent === false ? `<span class="pill p-none"><b style="background:var(--none)"></b>Not sent</span>`
+            : `<span class="dash">—</span>` }
+];
+
+function renderTable(){
+  el("thead").innerHTML = `<tr>${COLS.map(c =>
+    `<th data-col="${c.key}" class="${c.num ? "num " : ""}${S.sort.key === c.key ? "sorted" : ""}" title="Sort by ${c.label}" scope="col">${esc(c.label)}<span class="ar">${S.sort.dir > 0 ? "▲" : "▼"}</span></th>`).join("")}</tr>`;
+
+  const col = COLS.find(c => c.key === S.sort.key) || COLS[2];
+  const sorted = S.view.slice().sort((a, b) => {
+    const x = col.sort(a), y = col.sort(b);
+    return x < y ? -S.sort.dir : x > y ? S.sort.dir : a._i - b._i;
+  });
+  const shown = sorted.slice(0, S.limit);
+
+  el("tbody").innerHTML = shown.length
+    ? shown.map(r => `<tr data-i="${r._i}">${COLS.map(c => `<td class="${c.num ? "num" : ""}">${c.cell(r)}</td>`).join("")}</tr>`).join("")
+    : `<tr><td colspan="${COLS.length}"><div class="empty-note">Nothing matches these filters. <button class="linkbtn" id="clrInline">Clear them</button></div></td></tr>`;
+  const ci = el("clrInline");
+  if (ci) ci.onclick = () => el("fClear").click();
+
+  el("tableSub").textContent = `${num(S.view.length)} of ${num(S.rows.length)}`;
+  el("tfootL").textContent = `Showing ${num(shown.length)} of ${num(S.view.length)} matching request${S.view.length === 1 ? "" : "s"}`;
+  el("tfootR").innerHTML = `Sorted by <strong style="color:var(--ink-2)">${esc(col.label)}</strong> &middot; click a row for the full record`;
+  const more = el("btnMore");
+  more.classList.toggle("hide", shown.length >= S.view.length);
+  more.textContent = `Show ${num(Math.min(PAGE, S.view.length - shown.length))} more`;
+}
+
+/* ---------- detail drawer ---------- */
+function openDetail(rec){
+  const b = bucketOf(rec.status);
+  el("dTitle").textContent = rec.location;
+  el("dSub").innerHTML = `${esc(rec.region)}${rec.date ? " &middot; " + dFull(rec.date) : ""}`;
+
+  const row = (k, v, mono) => v == null || v === "" ? "" : `<dt>${esc(k)}</dt><dd class="${mono ? "mono" : ""}">${v}</dd>`;
+  const yn = (v) => v === true ? "Yes" : v === false ? "No" : null;
+  const mappedHeaders = new Set(S.data.detail.filter(d => d.role).map(d => d.header));
+  const skip = (h) => mappedHeaders.has(h) || SYSTEM_FIELDS.has(norm(h));
+
+  const extras = S.data.headers.map((h, c) => {
+    if (skip(h)) return "";
+    let v = rec._r[c];
+    if (v === null || v === undefined || v === "") return "";
+    if (v instanceof Date) v = dFull(v);
+    else if (typeof v === "boolean") v = v ? "Yes" : "No";
+    else if (typeof v === "number" && /date|created|modified|when/i.test(h) && v > 20000 && v < 80000) v = dFull(toDate(v));
+    return row(h, esc(v));
+  }).join("");
+
+  el("dBody").innerHTML = `
+    <div class="dsec">Status</div>
+    <dl class="dl">
+      ${row("Status", `<span class="pill ${b.pill}"><b style="background:${b.color}"></b>${esc(rec.statusRaw || b.label)}</span>`)}
+      ${row("Urgent", rec.urgent === true ? `<span class="urg">flagged under 24 hrs</span>` : yn(rec.urgent))}
+      ${row("Assigned", rec.assigned ? esc(rec.assigned) : `<span class="unassigned">unassigned</span>`)}
+      ${row("Invite sent", yn(rec.inviteSent))}
+      ${row("Outlook invite", yn(rec.outlookInvite))}
+      ${row("Incentive pay", yn(rec.incentive))}
+      ${row("On PAS schedule", yn(rec.schedule))}
+    </dl>
+    <div class="dsec">Coverage</div>
+    <dl class="dl">
+      ${row("Date needed", rec.date ? dFull(rec.date) : null, true)}
+      ${row("Coverage to", rec.dateTo ? dFull(rec.dateTo) : null, true)}
+      ${row("Shift hours", esc(rec.shift), true)}
+      ${row("Department", esc(rec.dept), true)}
+      ${row("Address", esc(rec.address))}
+    </dl>
+    <div class="dsec">Load</div>
+    <dl class="dl">
+      ${row("Clinical staff", rec.staff == null ? null : num(rec.staff), true)}
+      ${row("Patients scheduled", rec.patients == null ? null : num(rec.patients), true)}
+      ${row("Patients / FTE", rec.ratio == null ? "<span style='color:var(--muted)'>not reported</span>"
+        : `<span class="${rec.ratio > S.bench ? "ratio-hi" : ""}">${rec.ratio.toFixed(1)}</span> <span style="color:var(--muted)">vs ${S.bench} benchmark</span>`, true)}
+    </dl>
+    <div class="dsec">People</div>
+    <dl class="dl">
+      ${row("Requestor", esc(rec.requestor))}
+      ${row("Contact", esc(rec.requestorContact), true)}
+      ${row("Secondary contact", esc(rec.secondary))}
+      ${row("Created", rec.created ? dFull(rec.created) : null, true)}
+      ${row("Modified", rec.modified ? dFull(rec.modified) : null, true)}
+    </dl>
+    ${rec.comments ? `<div class="dsec">Additional comments</div><div class="note">${esc(rec.comments)}</div>` : ""}
+    ${extras ? `<div class="dsec">Other columns</div><dl class="dl">${extras}</dl>` : ""}`;
+
+  el("drawer").classList.add("on");
+  el("drawer").setAttribute("aria-hidden", "false");
+  el("scrim").classList.add("on");
+}
+function closeDetail(){
+  el("drawer").classList.remove("on");
+  el("drawer").setAttribute("aria-hidden", "true");
+  el("scrim").classList.remove("on");
+  document.querySelectorAll("#tbody tr.sel").forEach(t => t.classList.remove("sel"));
+}
+
+/* ---------- field map ---------- */
+const ROLE_LABEL = {
+  location:"Clinic / location", status:"Status", date:"Date needed", dateTo:"Coverage end",
+  shift:"Shift hours", urgent:"Urgent under 24 hrs", address:"Clinic address", region:"Region",
+  dept:"Department code", staff:"Clinical staff", patients:"Patients scheduled", ratio:"Patients / FTE",
+  requestor:"Requestor", requestorId:"Requestor (id)", requestorContact:"Requestor contact",
+  assigned:"Assigned to", assignedId:"Assigned (id)", secondary:"Secondary contact", secondaryId:"Secondary (id)",
+  inviteSent:"Invite sent", outlookInvite:"Outlook invite", incentive:"Incentive pay",
+  schedule:"On PAS schedule", synced:"Synced to schedule", comments:"Additional comments",
+  created:"Created", modified:"Modified"
+};
+function renderFieldMap(){
+  const d = S.data.detail;
+  const mapped = d.filter(x => x.kind === "mapped");
+  const system = d.filter(x => x.kind === "system");
+  const empty  = d.filter(x => x.kind === "empty");
+  const extra  = d.filter(x => x.kind === "extra");
+  const dupes  = d.filter(x => x.kind === "duplicate");
+  const total  = S.rows.length;
+
+  const cut = S.data.skippedOld || 0;
+  el("fmSub").textContent = `${mapped.length} read · ${system.length} SharePoint fields dropped · ${empty.length} empty · ${extra.length} passed through`
+    + (cut ? ` · ${num(cut)} rows before ${DATA_FROM_YEAR} not loaded` : "");
+  const list = (items, render) => items.length
+    ? `<div class="fm-list">${items.map(render).join("")}</div>`
+    : `<div class="fm-row" style="border:0;color:var(--muted)">none</div>`;
+  const fill = (x) => `${Math.round(x.fill / total * 100)}% filled`;
+
+  el("fmBody").innerHTML = `
+    <div style="grid-column:1/-1">
+      <div class="fm-h">Rows</div>
+      <div class="fm-row"><span class="k" style="color:var(--ink-2)">Loaded</span><span class="v">${num(total)} rows dated ${DATA_FROM_YEAR} or later${S.data.undated ? `, plus ${num(S.data.undated)} carrying no date` : ""}</span></div>
+      ${cut ? `<div class="fm-row"><span class="k" style="color:var(--muted)">Not loaded</span><span class="v" style="color:var(--muted)">${num(cut)} rows dated before ${DATA_FROM_YEAR}</span></div>` : ""}
+    </div>
+    <div>
+      <div class="fm-h">Read into the dashboard</div>
+      ${list(mapped, x => `<div class="fm-row"><span class="k">${esc(x.header)}</span><span class="ar">&rarr;</span><span class="v">${esc(ROLE_LABEL[x.role] || x.role)} <span style="color:var(--muted)">· ${fill(x)}</span></span></div>`)}
+      ${dupes.length ? `<div class="fm-h" style="margin-top:16px">Same meaning, not used twice</div>
+        ${list(dupes, x => `<div class="fm-row"><span class="k" style="color:var(--ink-2)">${esc(x.header)}</span><span class="v" style="color:var(--muted)">duplicate of ${esc(ROLE_LABEL[x.role] || x.role)}</span></div>`)}` : ""}
+    </div>
+    <div>
+      <div class="fm-h">Dropped as SharePoint plumbing</div>
+      ${list(system, x => `<div class="fm-row"><span class="k" style="color:var(--muted)">${esc(x.header)}</span><span class="v" style="color:var(--muted)">internal metadata</span></div>`)}
+      ${empty.length ? `<div class="fm-h" style="margin-top:16px">Present but never filled in</div>
+        ${list(empty, x => `<div class="fm-row"><span class="k" style="color:var(--muted)">${esc(x.header)}</span><span class="v" style="color:var(--muted)">0 of ${num(total)} rows</span></div>`)}` : ""}
+      ${extra.length ? `<div class="fm-h" style="margin-top:16px">Carried through, not charted</div>
+        ${list(extra, x => `<div class="fm-row"><span class="k" style="color:var(--ink-2)">${esc(x.header)}</span><span class="v" style="color:var(--muted)">${fill(x)} · in row detail</span></div>`)}` : ""}
+    </div>`;
+}
+
+/* ---------- orchestration ---------- */
+function render(){
+  if (!S.data) return;
+  syncChips();
+  applyFilters();
+  const k = renderKPIs();
+  renderMixChart();
+  renderDemandChart();
+  renderRatioChart();
+  renderMeters(k);
+  renderTable();
+  renderFieldMap();
+}
+
+/* ---------- wiring ---------- */
+["chartRegion","chartDemand","chartRatio"].forEach(id => wireTips(el(id)));
+
+el("mixToggle").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-mix]");
+  if (!b) return;
+  S.mix = b.dataset.mix;
+  renderMixChart();
+});
+el("thead").addEventListener("click", (e) => {
+  const th = e.target.closest("[data-col]");
+  if (!th) return;
+  const c = COLS.find(x => x.key === th.dataset.col);
+  S.sort = { key:c.key, dir: S.sort.key === c.key ? -S.sort.dir : (c.num ? -1 : 1) };
+  S.limit = PAGE;
+  renderTable();
+});
+el("tbody").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-i]");
+  if (!tr) return;
+  document.querySelectorAll("#tbody tr.sel").forEach(t => t.classList.remove("sel"));
+  tr.classList.add("sel");
+  openDetail(S.rows.find(r => r._i === +tr.dataset.i));
+});
+el("btnMore").addEventListener("click", () => { S.limit += PAGE; renderTable(); });
+el("dClose").addEventListener("click", closeDetail);
+el("scrim").addEventListener("click", closeDetail);
+addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
+
+el("bench").addEventListener("input", (e) => {
+  const v = Number(e.target.value);
+  if (Number.isFinite(v) && v > 0){ S.bench = v; renderRatioChart(); renderTable(); }
+});
+
+const fileInput = el("fileInput");
+const openPicker = () => (typeof linkFile === "function" ? linkFile() : fileInput.click());
+el("btnLoad").addEventListener("click", openPicker);
+el("btnLoad2").addEventListener("click", openPicker);
+fileInput.addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  fileInput.value = "";
+  if (!f) return;
+  S.restored = null; S.snapshot = false;
+  if (await loadFile(f) && typeof cacheSave === "function"){ await cacheSave(); renderSourceBar(); }
+});
+el("btnSample").addEventListener("click", () => adopt(sampleWorkbook(), "sample.xlsx", true));
+
+const drop = el("drop");
+["dragenter","dragover"].forEach(t => addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+addEventListener("dragleave", (e) => { if (!e.relatedTarget) drop.classList.remove("over"); });
+addEventListener("drop", async (e) => {
+  e.preventDefault(); drop.classList.remove("over");
+  const dt = e.dataTransfer;
+  if (!dt) return;
+  S.restored = null; S.snapshot = false;
+  const item = dt.items && dt.items[0];
+  if (item && item.getAsFileSystemHandle){
+    try {
+      const h = await item.getAsFileSystemHandle();
+      if (h && h.kind === "file"){ await useHandle(h, false); return; }
+    } catch (_){ /* fall back to the plain File below */ }
+  }
+  const f = dt.files[0];
+  if (f && await loadFile(f) && typeof cacheSave === "function"){ await cacheSave(); renderSourceBar(); }
+});
+
+el("btnTheme").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+});
+
+let rt;
+addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => {
+  if (!S.data) return;
+  renderMixChart(); renderDemandChart(); renderRatioChart();
+}, 160); });
+</script>
+
+<script data-app="1">
+"use strict";
+
+/* ============================================================
+   6. EXPORT
+   The headline export is the dashboard itself: this page, with the
+   rows in view embedded, as one self-contained .html file. The page
+   captures its own pristine markup at boot and re-emits it with a
+   compressed snapshot appended, so the copy is the same tool — still
+   filterable, sortable, still able to open a different workbook.
+   ============================================================ */
+
+/* Pristine markup, cloned before any data has touched the DOM. Anything the
+   host injected is dropped; only our own scripts survive. Kept as a detached
+   node, never as a string — appending the snapshot through the DOM avoids
+   splicing text into a document that contains its own closing tags as data. */
+const PRISTINE = (() => {
+  const doc = document.documentElement.cloneNode(true);
+  doc.querySelectorAll("script:not([data-app]), #snapshot").forEach(e => e.remove());
+  doc.removeAttribute("data-theme");
+  return doc;
+})();
+
+const SERIAL_BASE = Date.UTC(1899, 11, 30);
+/* Dates travel as Excel serials — the exact form the reader already understands,
+   and immune to the timezone shift an ISO round-trip would introduce. */
+const encCell = (v) => v instanceof Date ? (v.getTime() - SERIAL_BASE) / 86400000 : v;
+
+const b64encode = (u8) => {
+  let s = "";
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const b64decode = (str) => {
+  const bin = atob(str), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+};
+async function deflate(u8){
+  if (typeof CompressionStream === "undefined") return null;
+  const s = new Blob([u8]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+async function inflate(u8){
+  const s = new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+
+function filterLabel(){
+  const f = S.filters, bits = [];
+  if (f.status.size) bits.push([...f.status].map(k => bucketOf(k).label).join(" + "));
+  if (f.region.size) bits.push([...f.region].join(" + "));
+  if (f.urgent) bits.push("urgent only");
+  if (f.unassigned) bits.push("unassigned only");
+  const preset = (f.from || f.to) && RANGES.find(([k]) => {
+    const [a, b] = rangeFor(k); return f.from === a && f.to === b;
+  });
+  if (preset) bits.push(preset[1].toLowerCase());
+  else { if (f.from) bits.push("from " + f.from); if (f.to) bits.push("to " + f.to); }
+  if (f.q.trim()) bits.push(`matching “${f.q.trim()}”`);
+  return bits.length ? bits.join(", ") : "no filters — the whole export";
+}
+
+async function buildSnapshotHTML(){
+  const payload = {
+    v: 1,
+    file: S.sample ? "Sample data" : (S.fileName || "workbook"),
+    sheet: S.data.sheetName,
+    exported: new Date().toISOString(),
+    filters: filterLabel(),
+    bench: S.bench,
+    headers: S.data.headers,
+    rows: S.view.map(r => r._r.map(encCell))
+  };
+  const json = JSON.stringify(payload);
+  const packed = await deflate(new TextEncoder().encode(json));
+
+  const doc = PRISTINE.cloneNode(true);
+  const tag = document.createElement("script");
+  tag.type = "application/json";
+  tag.id = "snapshot";
+  tag.setAttribute("data-app", "1");
+  if (packed){
+    tag.setAttribute("data-enc", "deflate-base64");
+    tag.textContent = b64encode(packed);          // base64 can't contain "<"
+  } else {
+    tag.textContent = json.replace(/</g, "\\u003c");  // still valid JSON, inert in HTML
+  }
+  doc.querySelector("body").appendChild(tag);
+  return { html: "<!doctype html>\n" + doc.outerHTML, rows: payload.rows.length };
+}
+
+async function readSnapshot(){
+  const tag = document.getElementById("snapshot");
+  if (!tag || !tag.textContent.trim()) return null;
+  try {
+    const raw = tag.textContent.trim();
+    const text = tag.dataset.enc === "deflate-base64"
+      ? new TextDecoder().decode(await inflate(b64decode(raw)))
+      : raw;
+    const p = JSON.parse(text);
+    return p && p.headers && p.rows ? p : null;
+  } catch (e){ console.error("snapshot unreadable", e); return null; }
+}
+
+/* ---------- getting a file to the user ----------
+   Three surfaces, in order of what actually works where:
+   the claude.ai viewer's downloads capability, the browser's save
+   picker, then a plain object-URL download. */
+async function saveFile(filename, data, mime){
+  if (typeof window.claude !== "undefined" && typeof window.claude.use === "function"){
+    const dl = await window.claude.use("downloads").catch(() => null);
+    if (!dl) return { ok:false, code:"unavailable" };
+    try { await dl.save({ filename, data }); return { ok:true }; }
+    catch (e){ return { ok:false, code:(e && e.code) || "unavailable", message:e && e.message }; }
+  }
+  /* Deliberately not showSaveFilePicker: when it can't open it rejects with
+     AbortError, which is indistinguishable from the user cancelling, so a
+     failed picker would silently produce no file. */
+  const blob = new Blob([data], { type: mime });
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.rel = "noopener";
+    /* Keep the synthetic click from bubbling to the outside-click handler,
+       which would close the menu over the confirmation message. */
+    a.addEventListener("click", (ev) => ev.stopPropagation());
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    return { ok:true };
+  } catch (e){ return { ok:false, code:"unavailable" }; }
+}
+
+/* ---------- rows out as text ---------- */
+function buildCSV(allColumns){
+  const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const yn = (v) => v === true ? "Yes" : v === false ? "No" : "";
+  if (allColumns){
+    const keep = S.data.headers.map((h, i) => ({ h, i })).filter(x => !SYSTEM_FIELDS.has(norm(x.h)));
+    return [keep.map(x => q(x.h)).join(","),
+      ...S.view.map(r => keep.map(x => {
+        const v = r._r[x.i];
+        return q(v instanceof Date ? dKey(v) : typeof v === "boolean" ? (v ? "Yes" : "No") : v);
+      }).join(","))].join("\n");
+  }
+  const head = ["Clinic","Region","Department","DateNeeded","ShiftHours","Urgent","Status","Assigned",
+    "Requestor","RequestorContact","ClinicalStaff","PatientsScheduled","PatientsPerFTE","InviteSent","AdditionalComments"];
+  return [head.map(q).join(","),
+    ...S.view.map(r => [r.location, r.region, r.dept, r.date ? dKey(r.date) : "", r.shift, yn(r.urgent),
+      r.statusRaw || bucketOf(r.status).label, r.assigned, r.requestor, r.requestorContact, r.staff, r.patients,
+      r.ratio == null ? "" : r.ratio.toFixed(1), yn(r.inviteSent), r.comments].map(q).join(","))].join("\n");
+}
+
+const slug = (s) => String(s || "coverage").replace(/\.[^.]+$/, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 48).toLowerCase() || "coverage";
+const stamp = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+
+/* ---------- menu ---------- */
+const menu = el("exportMenu"), btnExport = el("btnExport");
+function setMenu(on){
+  menu.classList.toggle("on", on);
+  btnExport.setAttribute("aria-expanded", on ? "true" : "false");
+  if (on){
+    el("exportCount").textContent = `${num(S.view.length)} row${S.view.length === 1 ? "" : "s"} in view`;
+    el("exportNote").className = "menu-note";
+    el("exportNote").textContent = S.view.length === S.rows.length
+      ? "Exports everything in the workbook."
+      : "Exports only the rows your filters leave — " + filterLabel() + ".";
+  }
+}
+btnExport.addEventListener("click", (e) => { e.stopPropagation(); setMenu(!menu.classList.contains("on")); });
+document.addEventListener("click", (e) => { if (!e.target.closest("#exportWrap")) setMenu(false); });
+addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+
+function note(msg, warn){
+  const n = el("exportNote");
+  n.className = "menu-note" + (warn ? " warn" : "");
+  n.textContent = msg;
+}
+const FAIL = {
+  declined: "Save cancelled.",
+  extension_not_enabled: "This shared view can't save that file type. Use the downloaded HTML file for a full export, or copy to the clipboard.",
+  rejected_extension: "This shared view can't save that file type. Use the downloaded HTML file for a full export, or copy to the clipboard.",
+  too_large: "Too big to save here (16 MB limit) — narrow the filters and try again.",
+  rate_limited: "A save prompt is already open. Try again in a moment.",
+  unavailable: "Saving isn't available in this view — copy to the clipboard instead."
+};
+
+menu.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-exp]");
+  if (!b) return;
+  const kind = b.dataset.exp;
+  const allCols = el("expAll").checked;
+  const base = `${slug(S.fileName)}-${stamp()}`;
+
+  if (kind === "print"){
+    setMenu(false);
+    setTimeout(() => print(), 60);
+    return;
+  }
+
+  if (kind === "clip"){
+    try { await navigator.clipboard.writeText(buildCSV(allCols)); note(`Copied ${num(S.view.length)} rows.`); }
+    catch (_){ note("The browser blocked clipboard access here.", true); }
+    return;
+  }
+
+  const label = b.querySelector("b").textContent;
+  b.querySelector("b").textContent = "Preparing…";
+  b.disabled = true;
+  try {
+    let res;
+    if (kind === "html"){
+      const { html, rows } = await buildSnapshotHTML();
+      const mb = new Blob([html]).size / 1048576;
+      res = await saveFile(`${base}-dashboard.html`, html, "text/html");
+      if (res.ok) note(`Saved ${num(rows)} rows into a self-contained dashboard (${mb.toFixed(1)} MB).`);
+    } else {
+      res = await saveFile(`${base}.csv`, buildCSV(allCols), "text/csv");
+      if (res.ok) note(`Saved ${num(S.view.length)} rows.`);
+    }
+    if (!res.ok && res.code !== "declined") note(FAIL[res.code] || FAIL.unavailable, true);
+    else if (!res.ok) note(FAIL.declined);
+  } catch (err){
+    console.error(err);
+    note("That export failed: " + (err && err.message ? err.message : "unknown error"), true);
+  } finally {
+    b.querySelector("b").textContent = label;
+    b.disabled = false;
+  }
+});
+
+/* Ctrl+P should produce the same header the menu item does. */
+function stampPrintHead(){
+  if (!S.data) return;
+  el("printhead").innerHTML =
+    `<h1>Clinic coverage board</h1><p>${esc(S.sample ? "Sample data" : (S.fileName || ""))} · ` +
+    `${num(S.view.length)} of ${num(S.rows.length)} requests · ${esc(filterLabel())} · ` +
+    `printed ${esc(dFull(new Date()))}</p>`;
+}
+addEventListener("beforeprint", stampPrintHead);
+
+/* ---------- boot ---------- */
+addEventListener("DOMContentLoaded", async () => {
+  const snap = await readSnapshot();
+  if (!snap) return;
+  S.snapshot = true;
+  try {
+    adopt([{ name: snap.sheet || "Snapshot", rows: [snap.headers, ...snap.rows] }], snap.file, false);
+    if (snap.bench){ S.bench = snap.bench; el("bench").value = snap.bench; render(); }
+    const when = new Date(snap.exported);
+    el("fileName").textContent = `${snap.file} — snapshot`;
+    el("filemeta").title = `Exported ${isNaN(when) ? "" : dFull(when)} · ${snap.filters}`;
+    el("sheetbar").insertAdjacentHTML("afterbegin",
+      `<div class="sheetsel" style="padding:14px 0 0">Snapshot of <strong style="color:var(--ink)">${esc(snap.file)}</strong>` +
+      `${isNaN(when) ? "" : ` · exported ${esc(dFull(when))}`} · ${esc(snap.filters)}` +
+      ` · <button class="linkbtn" id="snapNew">open a different workbook</button></div>`);
+    const nb = el("snapNew");
+    if (nb) nb.onclick = () => el("fileInput").click();
+  } catch (e){
+    console.error(e);
+    el("loadErr").textContent = "The embedded snapshot in this file couldn't be read.";
+    el("loadErr").classList.remove("hide");
+  }
+});
+</script>
+
+<script data-app="1">
+"use strict";
+
+/* ============================================================
+   7. LINK & SYNC
+   Two things are remembered, and they are deliberately separate:
+
+   • the file handle — lets Sync re-read the workbook from disk. Browsers
+     never hand out a path, so this is an opaque handle, and re-reading it
+     after a browser restart needs the user's permission again.
+   • a compressed copy of the parsed rows — lets the board come back with
+     its data the instant it is reopened, before any permission exists.
+
+   So closing and reopening always shows the data; Sync goes and gets what
+   changed on disk.
+   ============================================================ */
+
+const IDB = { name:"coverage-board", store:"kv", ver:1 };
+const KEY = (k) => `${k}:${location.pathname || "default"}`;
+const CAN_LINK = typeof window.showOpenFilePicker === "function";
+
+function idbOpen(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB.name, IDB.ver);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(IDB.store)) r.result.createObjectStore(IDB.store); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+    r.onblocked = () => rej(new Error("blocked"));
+  });
+}
+const idbDo = (mode, fn) => idbOpen().then(db => new Promise((res, rej) => {
+  const tx = db.transaction(IDB.store, mode);
+  const req = fn(tx.objectStore(IDB.store));
+  /* Resolve the request's value — a miss is undefined. Returning the request
+     itself would read as "found" for every empty key. */
+  tx.oncomplete = () => res(req instanceof IDBRequest ? req.result : undefined);
+  tx.onerror = () => rej(tx.error);
+  tx.onabort = () => rej(tx.error);
+}));
+const idbGet = (k) => idbDo("readonly", st => st.get(k)).catch(() => null);
+const idbPut = (k, v) => idbDo("readwrite", st => st.put(v, k)).catch(e => { console.warn("cache write failed", e); });
+const idbDel = (k) => idbDo("readwrite", st => st.delete(k)).catch(() => {});
+
+let FILE_HANDLE = null;
+let LINK = null;   // { name, lastModified, syncedAt, rows, cached }
+
+function ago(t){
+  if (!t) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 45) return "just now";
+  if (s < 5400) return `${Math.round(s / 60)} min ago`;
+  if (s < 82800) return `${Math.round(s / 3600)} hr ago`;
+  const d = Math.round(s / 86400);
+  return d === 1 ? "yesterday" : d < 30 ? `${d} days ago` : dShort(new Date(t));
+}
+
+/* ---------- the cached copy ---------- */
+async function cacheSave(){
+  if (!S.data || S.sample) return;
+  try {
+    const payload = {
+      v: 1, file: S.fileName, sheet: S.data.sheetName, bench: S.bench,
+      headers: S.data.headers, rows: S.rows.map(r => r._r.map(encCell))
+    };
+    const packed = await deflate(new TextEncoder().encode(JSON.stringify(payload)));
+    await idbPut(KEY("cache"), {
+      bytes: packed || null,
+      json: packed ? null : JSON.stringify(payload),
+      name: S.fileName, rows: S.rows.length,
+      savedAt: Date.now(), lastModified: LINK && LINK.lastModified
+    });
+  } catch (e){ console.warn("could not cache this workbook", e); }
+}
+async function cacheLoad(){
+  const rec = await idbGet(KEY("cache"));
+  if (!rec) return null;
+  try {
+    const text = rec.bytes ? new TextDecoder().decode(await inflate(rec.bytes)) : rec.json;
+    const p = JSON.parse(text);
+    return p && p.headers && p.rows ? { p, rec } : null;
+  } catch (e){ console.warn("cached workbook unreadable", e); return null; }
+}
+
+/* ---------- linking ---------- */
+const PICKER_TYPES = [{ description:"Spreadsheet", accept:{
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx",".xlsm"], "text/csv":[".csv"] } }];
+
+async function linkFile(){
+  if (!CAN_LINK){ el("fileInput").click(); return; }
+  let handle;
+  try {
+    [handle] = await window.showOpenFilePicker({ multiple:false, types:PICKER_TYPES, excludeAcceptAllOption:false });
+  } catch (e){
+    if (e && e.name === "AbortError") return;
+    el("fileInput").click();     // picker unavailable here — plain input still works
+    return;
+  }
+  await useHandle(handle, false);
+}
+
+async function useHandle(handle, keep){
+  const file = await handle.getFile();
+  const ok = await loadFile(file, { keep }).catch(e => { throw e; });
+  if (ok === false) return false;
+  FILE_HANDLE = handle;
+  LINK = { name:handle.name, lastModified:file.lastModified, syncedAt:Date.now(), rows:S.rows.length };
+  await idbPut(KEY("handle"), handle);
+  await cacheSave();
+  reflectLink();
+  return true;
+}
+
+async function forgetFile(){
+  FILE_HANDLE = null; LINK = null;
+  await idbDel(KEY("handle"));
+  await idbDel(KEY("cache"));
+  /* A privacy action: drop the data too, don't leave it on screen with no source. */
+  S.data = null; S.rows = []; S.view = []; S.shaped = []; S.sheets = [];
+  S.restored = null; S.fileName = null; S.sample = false;
+  el("board").classList.add("hide");
+  el("hero").classList.remove("hide");
+  el("filemeta").classList.add("hide");
+  el("exportWrap").classList.add("hide");
+  el("btnSync").classList.add("hide");
+  el("sheetbar").innerHTML = "";
+}
+
+/* ---------- sync ---------- */
+let syncing = false;
+async function syncNow(silent){
+  if (syncing) return;
+  if (!FILE_HANDLE){ if (!silent) linkFile(); return; }
+  syncing = true;
+  const label = el("syncLabel"), icon = el("btnSync").querySelector("svg");
+  const before = S.rows.length;
+  if (!silent){ label.textContent = "Syncing…"; icon.classList.add("spin"); el("btnSync").disabled = true; }
+  try {
+    if (FILE_HANDLE.queryPermission){
+      let perm = await FILE_HANDLE.queryPermission({ mode:"read" });
+      if (perm !== "granted"){
+        if (silent) throw Object.assign(new Error("permission"), { soft:true });
+        perm = await FILE_HANDLE.requestPermission({ mode:"read" });
+      }
+      if (perm !== "granted") throw Object.assign(new Error("Permission to read that file was declined."), { soft:silent });
+    }
+    const file = await FILE_HANDLE.getFile();
+    const unchanged = LINK && LINK.lastModified === file.lastModified;
+    if (!unchanged || !silent){
+      await loadFile(file, { keep:true });
+      LINK = { name:FILE_HANDLE.name, lastModified:file.lastModified, syncedAt:Date.now(), rows:S.rows.length };
+      await cacheSave();
+    } else if (LINK){ LINK.syncedAt = Date.now(); }
+    reflectLink();
+    renderSourceBar();
+    if (!silent){
+      const d = S.rows.length - before;
+      srcMsg(unchanged ? "Already up to date — the file hasn't changed."
+        : d === 0 ? `Reloaded ${num(S.rows.length)} rows.`
+        : `Reloaded — ${d > 0 ? "+" : ""}${num(d)} row${Math.abs(d) === 1 ? "" : "s"}, ${num(S.rows.length)} total.`);
+    }
+  } catch (e){
+    console.warn("sync failed", e);
+    if (!silent) srcMsg(e && e.name === "NotFoundError"
+      ? "That file has moved or been renamed — link it again."
+      : (e && e.message) || "Could not re-read that file.", true);
+  } finally {
+    syncing = false;
+    if (!silent){ label.textContent = "Sync"; icon.classList.remove("spin"); el("btnSync").disabled = false; }
+  }
+}
+
+/* ---------- the source bar ---------- */
+let SRC_MSG = null;
+function srcMsg(text, warn){ SRC_MSG = { text, warn }; renderSourceBar(); setTimeout(() => { SRC_MSG = null; }, 8000); }
+
+function sourceBarHTML(){
+  if (S.snapshot) return "";
+  const cut = S.data && S.data.skippedOld
+    ? ` <span class="sep">·</span> <span title="Rows dated before ${DATA_FROM_YEAR} are never loaded">${DATA_FROM_YEAR}+ only, ${num(S.data.skippedOld)} older rows skipped</span>` : "";
+  const msg = SRC_MSG ? ` <span class="sep">·</span> <span style="color:var(--${SRC_MSG.warn ? "crit" : "accent"}-ink)">${esc(SRC_MSG.text)}</span>` : "";
+  if (S.sample)
+    return `<div class="srcbar"><span class="badge off"><b></b>Sample data</span>` +
+      ` <span class="sep">·</span> <button class="linkbtn" data-src="link">Open your own workbook</button>${cut}</div>`;
+
+  if (LINK){
+    const stale = LINK.syncedAt && Date.now() - LINK.syncedAt > 36e5;
+    return `<div class="srcbar">
+      <span class="badge${stale ? " stale" : ""}"><b></b>Linked to <strong>${esc(LINK.name)}</strong></span>
+      <span>synced ${esc(ago(LINK.syncedAt))}</span>
+      <span class="sep">·</span><button class="linkbtn" data-src="link">Link a different file</button>
+      <span class="sep">·</span><button class="linkbtn" data-src="forget">Forget this file</button>${cut}${msg}
+    </div>`;
+  }
+  if (S.restored)
+    return `<div class="srcbar">
+      <span class="badge off"><b></b>Restored from this browser</span>
+      <span>saved ${esc(ago(S.restored))}</span>
+      <span class="sep">·</span><button class="linkbtn" data-src="link">${CAN_LINK ? "Link the file to enable Sync" : "Open the workbook again"}</button>${cut}${msg}
+    </div>`;
+  return `<div class="srcbar">
+    <span class="badge off"><b></b>Loaded from <strong>${esc(S.fileName || "a file")}</strong></span>
+    <span>${CAN_LINK ? "not linked — Sync needs the file picker" : "this browser can't re-read files on its own"}</span>
+    ${CAN_LINK ? `<span class="sep">·</span><button class="linkbtn" data-src="link">Link it for Sync</button>` : ""}${cut}${msg}
+  </div>`;
+}
+function wireSourceBar(){
+  document.querySelectorAll("#sheetbar [data-src]").forEach(b => {
+    b.onclick = () => b.dataset.src === "link" ? linkFile() : forgetFile();
+  });
+}
+function reflectLink(){
+  const btn = el("btnSync");
+  btn.classList.toggle("hide", !(S.data && !S.sample && !S.snapshot));
+  btn.title = LINK ? `Re-read ${LINK.name} from disk` : "Link a workbook so it can be re-read";
+  el("syncLabel").textContent = "Sync";
+}
+
+/* ---------- boot ---------- */
+addEventListener("DOMContentLoaded", async () => {
+  if (document.getElementById("snapshot")) return;   // an exported file owns its own data
+  let handle = null;
+  try { handle = await idbGet(KEY("handle")); } catch (_){}
+
+  const cached = await cacheLoad();
+  if (cached){
+    try {
+      S.restored = cached.rec.savedAt;
+      adopt([{ name:cached.p.sheet || "Sheet1", rows:[cached.p.headers, ...cached.p.rows] }], cached.p.file, false);
+      if (cached.p.bench){ S.bench = cached.p.bench; el("bench").value = cached.p.bench; render(); }
+    } catch (e){ console.warn("could not restore the cached workbook", e); S.restored = null; }
+  }
+
+  if (handle){
+    FILE_HANDLE = handle;
+    LINK = { name:handle.name, lastModified:cached ? cached.rec.lastModified : null,
+             syncedAt:cached ? cached.rec.savedAt : null, rows:cached ? cached.rec.rows : 0 };
+    S.restored = null;
+    reflectLink();
+    renderSourceBar();
+    /* If the browser still trusts us with this file, refresh without asking. */
+    if (handle.queryPermission){
+      const perm = await handle.queryPermission({ mode:"read" }).catch(() => "prompt");
+      if (perm === "granted") syncNow(true);
+    }
+  } else if (cached){
+    reflectLink();
+    renderSourceBar();
+  }
+});
+
+el("btnSync").addEventListener("click", () => syncNow(false));
+</script>
