@@ -12,7 +12,8 @@ Option Explicit
 '     same two labels back - the existing wording, unchanged
 '   * copies the banner formatting from the banner cells already on the
 '     sheet, so the result is identical to what is there today
-'   * moves the vertical rule that sits between the two banners
+'   * moves the white rule that sits between the two banners, and keeps the
+'     block's own outer rules exactly as they are
 '
 ' It does not add colour, month names, legends or shading, and it never
 ' touches formulas, values, fonts, number formats, row heights or column
@@ -45,10 +46,6 @@ Private Const FY_LABEL        As String = "FY26"
 Private Const BANNER_ROW      As Long = 3    ' "FY26 Actual" / "FY26 Forecast"
 Private Const MONTH_ROW       As Long = 4    ' Oct, Nov, Dec, Q1, ... , Total
 
-' Move the vertical rule between the two banners.  The style is copied from
-' the rule already on the sheet; if there is none, none is drawn.
-Private Const MOVE_SPLIT_LINE As Boolean = True
-
 ' Leave False when this module lives in the forecast workbook itself.  Set to
 ' True if you keep it in PERSONAL.XLSB and run it against whatever workbook
 ' is in front of you.
@@ -69,16 +66,26 @@ Private Type TBlock
     LastMonth()  As Long      ' per column: last fiscal month covered  (0 = spacer)
 End Type
 
-Private Type TBanner
-    ActCell   As String       ' address of the "Actual" banner cell
-    ActText   As String
-    FcstCell  As String       ' address of the "Forecast" banner cell
-    FcstText  As String
-    LineOK    As Boolean      ' a rule exists between the two banners
+Private Type TEdge
+    Has       As Boolean
     LineStyle As Long
-    LineWt    As Long
-    LineClr   As Long
+    Weight    As Long
+    ThemeOK   As Boolean
+    ThemeClr  As Long
+    Tint      As Double
+    Colr      As Long
 End Type
+
+Private Type TBanner
+    ActCell  As String        ' address of the "Actual" banner cell
+    ActText  As String
+    FcstCell As String        ' address of the "Forecast" banner cell
+    FcstText As String
+    Split    As TEdge         ' the white rule drawn between the two banners
+End Type
+
+' One cell edge, remembered well enough to put back exactly - including a
+' theme colour (these rules are white, theme 0) rather than a flat RGB.
 
 
 '============================== Entry points ==============================
@@ -182,8 +189,14 @@ Private Sub MoveSplit(ws As Worksheet, blk As TBlock, ByVal lastActual As Long)
     Dim rng As Range
     Dim c As Long, boundaryCol As Long, actTo As Long
     Dim stashAct As String, stashFcst As String
+    Dim blockLeft As TEdge, blockRight As TEdge
 
     bnr = ReadBanner(ws, blk)
+
+    ' The block's own outer rules, which the format copy below would otherwise
+    ' overwrite with whatever the banner cell happened to carry.
+    blockLeft = CaptureEdge(ws.Cells(BANNER_ROW, blk.StartCol), xlEdgeLeft)
+    blockRight = CaptureEdge(ws.Cells(BANNER_ROW, blk.EndCol), xlEdgeRight)
 
     ' First column that is not fully closed - the forecast banner starts here.
     For c = blk.StartCol To blk.EndCol
@@ -214,7 +227,7 @@ Private Sub MoveSplit(ws As Worksheet, blk As TBlock, ByVal lastActual As Long)
 
     ' Borders while the cells are still separate, merging last - Excel is
     ' happier that way, and a merged block shows its outer cells' edges.
-    If MOVE_SPLIT_LINE Then DrawSplitLine ws, blk, bnr, boundaryCol
+    RedrawRules ws, blk, bnr, boundaryCol, blockLeft, blockRight
     If boundaryCol > blk.StartCol Then MergeBand ws, blk.StartCol, actTo
     If boundaryCol <= blk.EndCol Then MergeBand ws, boundaryCol, blk.EndCol
 End Sub
@@ -252,20 +265,60 @@ Private Sub WriteBanner(ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, _
     ws.Cells(BANNER_ROW, c1).Value = caption
 End Sub
 
-' Clears the leftover vertical rules inside the banner row, then puts the
-' sheet's own rule back between the two banners.
-Private Sub DrawSplitLine(ws As Worksheet, blk As TBlock, bnr As TBanner, ByVal boundaryCol As Long)
-    Dim rng As Range
-    Set rng = ws.Range(ws.Cells(BANNER_ROW, blk.StartCol), ws.Cells(BANNER_ROW, blk.EndCol))
-    rng.Borders(xlInsideVertical).LineStyle = xlLineStyleNone
+' Rebuilds the vertical rules in the banner row: the block's own outer rules,
+' and the rule between the two banners, drawn on both sides of the boundary
+' the way the sheet already does it.  Everything else in the row is interior
+' to a merged banner, so it is cleared.
+Private Sub RedrawRules(ws As Worksheet, blk As TBlock, bnr As TBanner, ByVal boundaryCol As Long, _
+                        blockLeft As TEdge, blockRight As TEdge)
+    ws.Range(ws.Cells(BANNER_ROW, blk.StartCol), ws.Cells(BANNER_ROW, blk.EndCol)) _
+      .Borders(xlInsideVertical).LineStyle = xlLineStyleNone
 
-    If Not bnr.LineOK Then Exit Sub
-    If boundaryCol <= blk.StartCol Or boundaryCol > blk.EndCol Then Exit Sub
+    ApplyEdge ws.Cells(BANNER_ROW, blk.StartCol), xlEdgeLeft, blockLeft
+    ApplyEdge ws.Cells(BANNER_ROW, blk.EndCol), xlEdgeRight, blockRight
 
-    With ws.Cells(BANNER_ROW, boundaryCol).Borders(xlEdgeLeft)
-        .LineStyle = bnr.LineStyle
-        .Weight = bnr.LineWt
-        .Color = bnr.LineClr
+    If boundaryCol > blk.StartCol And boundaryCol <= blk.EndCol Then
+        ApplyEdge ws.Cells(BANNER_ROW, boundaryCol), xlEdgeLeft, bnr.Split
+        ApplyEdge ws.Cells(BANNER_ROW, boundaryCol - 1), xlEdgeRight, bnr.Split
+    End If
+End Sub
+
+Private Function CaptureEdge(cell As Range, ByVal edge As Long) As TEdge
+    Dim e As TEdge
+    With cell.Borders(edge)
+        If .LineStyle = xlLineStyleNone Then
+            CaptureEdge = e
+            Exit Function
+        End If
+        e.Has = True
+        e.LineStyle = .LineStyle
+        e.Weight = .Weight
+        e.Colr = .Color
+        ' ThemeColor errors on a border that is not theme-coloured.
+        On Error Resume Next
+        e.ThemeClr = .ThemeColor
+        e.Tint = .TintAndShade
+        e.ThemeOK = (Err.Number = 0)
+        Err.Clear
+        On Error GoTo 0
+    End With
+    CaptureEdge = e
+End Function
+
+Private Sub ApplyEdge(cell As Range, ByVal edge As Long, e As TEdge)
+    With cell.Borders(edge)
+        If Not e.Has Then
+            .LineStyle = xlLineStyleNone
+            Exit Sub
+        End If
+        .LineStyle = e.LineStyle
+        .Weight = e.Weight
+        If e.ThemeOK Then
+            .ThemeColor = e.ThemeClr
+            .TintAndShade = e.Tint
+        Else
+            .Color = e.Colr
+        End If
     End With
 End Sub
 
@@ -300,16 +353,11 @@ Private Function ReadBanner(ws As Worksheet, blk As TBlock) As TBanner
     If Len(bnr.ActCell) = 0 Then bnr.ActCell = bnr.FcstCell
     If Len(bnr.FcstCell) = 0 Then bnr.FcstCell = bnr.ActCell
 
-    ' The rule between the banners, taken from the forecast banner's left edge.
-    If Len(bnr.FcstCell) > 0 Then
-        With ws.Range(bnr.FcstCell).Borders(xlEdgeLeft)
-            If .LineStyle <> xlLineStyleNone Then
-                bnr.LineOK = True
-                bnr.LineStyle = .LineStyle
-                bnr.LineWt = .Weight
-                bnr.LineClr = .Color
-            End If
-        End With
+    ' The rule between the banners, taken from the forecast banner's left edge
+    ' - white on both tabs today, thick on GAAP and medium on Combined.
+    If Len(bnr.FcstCell) > 0 Then bnr.Split = CaptureEdge(ws.Range(bnr.FcstCell), xlEdgeLeft)
+    If Not bnr.Split.Has And Len(bnr.ActCell) > 0 Then
+        bnr.Split = CaptureEdge(ws.Range(bnr.ActCell), xlEdgeRight)
     End If
 
     ReadBanner = bnr

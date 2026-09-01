@@ -10,13 +10,17 @@ The sheet is left looking exactly as it does today. The macro:
 - puts back **the same two labels already on the sheet**, word for word
 - takes the banner formatting from the banner cells already there, so fill,
   font, alignment and borders are unchanged
-- moves the vertical rule between the two banners, in the sheet's own style —
-  thick on GAAP, medium on Combined
+- moves the white rule between the two banners, in the sheet's own style —
+  thick on GAAP, medium on Combined — and puts it on both sides of the
+  boundary, the way the sheet already draws it
+- keeps the block's own outer white rules exactly as they are
 
 Nothing else is touched. No colours, no month names, no shading, no legend.
 Only row 3 of the FY26 block changes; every other row, the FY25 block, all
 formulas, values, fonts, number formats and column widths are left alone.
-Running it when the split is already right changes nothing at all.
+Running it when the split is already right changes nothing at all — checked
+cell by cell against your file, including every border: on the GAAP tab as it
+stands today, a run alters nothing.
 
 ## Macros
 
@@ -60,8 +64,22 @@ At the top of the module:
 | `MAIN_SHEET` | `"GAAP"` | Tab the plain macros use |
 | `TARGET_SHEETS` | `"GAAP,Combined"` | Tabs the "AllTabs" macros use |
 | `FY_LABEL` | `"FY26"` | Fiscal year to find — change to `FY27` next October |
-| `MOVE_SPLIT_LINE` | `True` | Also move the vertical rule between the banners. `False` moves only the banner |
 | `USE_ACTIVE_WORKBOOK` | `False` | `True` if the module lives in `PERSONAL.XLSB` |
+
+## The white rules
+
+The lines that box in the dark blue header are white borders, not gridlines,
+so they need care. The macro reads the rule the sheet already uses between the
+two banners — thick white on GAAP, medium white on Combined — and redraws it
+at the new boundary, keeping it as a theme colour rather than a flat white, so
+it still follows the workbook theme. The block's outer rules are captured
+before the banner formatting is copied and put back afterwards, since copying
+a banner cell's format would otherwise drag that cell's edges out to the ends
+of the block.
+
+Each banner keeps its own look: on GAAP the Actual banner carries a white rule
+underneath it and the Forecast banner does not, so that underline follows the
+split as it moves.
 
 ## How it finds things
 
