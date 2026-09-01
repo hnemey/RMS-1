@@ -1847,8 +1847,49 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function norm(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]/g, ""); }
   function cleanName(s) { s = String(s == null ? "" : s).trim(); return s.replace(/\s*\[[^\]]*\]\s*$/, "").trim(); }
   // Display names: keep letters, spaces and the Last, First comma — drop IDs, brackets, digits, other punctuation.
+  /* ---- login IDs riding along in the name column ----
+     The same PAS lands on the employee summary twice - "WEAVER, CLAUDIA" carrying most of her warnings
+     and "WEAVER, CLAUDIA CWEAVER" carrying the rest - because some rows write the user's login ID after
+     the name ("WEAVER, CLAUDIA [CWEAVER]") and stripping the punctuation left it behind as a word.
+     A login ID is built out of the very name it is sitting next to: CWEAVER (initial + surname),
+     BRIDGESC (surname + initial), CARLSOCE (surname cut short + the CE of CEcelia), MZIRELLI. So a word
+     after the first name is dropped only when it can be rebuilt from the surname standing right there
+     in the same cell: it contains the whole surname, or - once an initial or two of the first name is
+     peeled off either end - what is left is at least four characters from the start of the surname.
+     A real middle name has nothing to do with the surname and stays (SMITH, JOHN ALLEN), and a word too
+     long to be the surname plus initials is left alone (LEE, CHRIS LEELAND). Names that merge here
+     merge everywhere - the summary, the filters, the trend grid and the exports all group on this. */
+  function looksLikeStaffId(tok, last, first) {
+    tok = String(tok).toUpperCase().replace(/[^A-Z]/g, "");
+    last = String(last).toUpperCase().replace(/[^A-Z]/g, "");
+    first = String(first).toUpperCase().replace(/[^A-Z]/g, "");
+    if (tok.length < 3 || last.length < 3) return false;
+    if (tok.length > last.length + 3) return false;        // an ID is the surname plus initials, not a new word
+    if (tok.indexOf(last) >= 0) return true;               // CWEAVER / BRIDGESC / MZIRELLI
+    var cand = [tok], n, ini;
+    for (n = 1; n <= 3 && n <= first.length; n++) {
+      ini = first.slice(0, n);
+      if (tok.indexOf(ini) === 0) cand.push(tok.slice(n));                                                 // CCARLSO
+      if (tok.length > n && tok.slice(tok.length - n) === ini) cand.push(tok.slice(0, tok.length - n));     // CARLSOCE
+    }
+    for (n = 0; n < cand.length; n++) if (cand[n].length >= 4 && last.indexOf(cand[n]) === 0) return true;  // CARLSO -> CARLSON
+    return false;
+  }
+  /* "WEAVER, CLAUDIA CWEAVER" -> "WEAVER, CLAUDIA". Only the "Last, First ..." form: without the comma
+     there is no telling which word is the surname, and a guess there would merge two real people. */
+  function stripStaffId(name) {
+    var s = String(name); if (s.indexOf(",") < 0) return s;
+    var p = s.split(","), last = p[0].trim(), rest = p.slice(1).join(",").trim();
+    if (!last || !rest) return s;
+    var toks = rest.split(" "); if (toks.length < 2) return s;
+    var keep = [toks[0]];
+    for (var i = 1; i < toks.length; i++) if (!looksLikeStaffId(toks[i], last, toks[0])) keep.push(toks[i]);
+    return keep.length === toks.length ? s : last + ", " + keep.join(" ");
+  }
   function cleanDisplayName(s) { s = String(s == null ? "" : s); if (s === "(blank)") return s;
+    s = s.replace(/[\[(][^\])]*[\])]/g, " ");   // "[CWEAVER]" / "(1234)" - an ID tacked on, not part of the name
     var c = s.replace(/[^A-Za-z, ]+/g, " ").replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").replace(/^[,\s]+|[,\s]+$/g, "").trim();
+    c = stripStaffId(c);
     return c === "" ? "(blank)" : c; }
   function money(v) {
     if (v == null || v === "") return 0;
@@ -3219,8 +3260,49 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function distinctSorted(arr) { var s = {}; arr.forEach(function (v) { if (v !== "" && v != null) s[v] = 1; }); return Object.keys(s).sort(function (a, b) { return String(a).localeCompare(String(b)); }); }
   function bypassDeptHeader() { return (deptSel && deptSel.value) || deptKey || (colMap && (colMap.department || colMap.loginDept)) || null; }
   // Names shown to users: keep letters, spaces and the Last, First comma — drop IDs, brackets, digits, other punctuation.
+  /* ---- login IDs riding along in the name column ----
+     The same PAS lands on the employee summary twice - "WEAVER, CLAUDIA" carrying most of her warnings
+     and "WEAVER, CLAUDIA CWEAVER" carrying the rest - because some rows write the user's login ID after
+     the name ("WEAVER, CLAUDIA [CWEAVER]") and stripping the punctuation left it behind as a word.
+     A login ID is built out of the very name it is sitting next to: CWEAVER (initial + surname),
+     BRIDGESC (surname + initial), CARLSOCE (surname cut short + the CE of CEcelia), MZIRELLI. So a word
+     after the first name is dropped only when it can be rebuilt from the surname standing right there
+     in the same cell: it contains the whole surname, or - once an initial or two of the first name is
+     peeled off either end - what is left is at least four characters from the start of the surname.
+     A real middle name has nothing to do with the surname and stays (SMITH, JOHN ALLEN), and a word too
+     long to be the surname plus initials is left alone (LEE, CHRIS LEELAND). Names that merge here
+     merge everywhere - the summary, the filters, the trend grid and the exports all group on this. */
+  function looksLikeStaffId(tok, last, first) {
+    tok = String(tok).toUpperCase().replace(/[^A-Z]/g, "");
+    last = String(last).toUpperCase().replace(/[^A-Z]/g, "");
+    first = String(first).toUpperCase().replace(/[^A-Z]/g, "");
+    if (tok.length < 3 || last.length < 3) return false;
+    if (tok.length > last.length + 3) return false;        // an ID is the surname plus initials, not a new word
+    if (tok.indexOf(last) >= 0) return true;               // CWEAVER / BRIDGESC / MZIRELLI
+    var cand = [tok], n, ini;
+    for (n = 1; n <= 3 && n <= first.length; n++) {
+      ini = first.slice(0, n);
+      if (tok.indexOf(ini) === 0) cand.push(tok.slice(n));                                                 // CCARLSO
+      if (tok.length > n && tok.slice(tok.length - n) === ini) cand.push(tok.slice(0, tok.length - n));     // CARLSOCE
+    }
+    for (n = 0; n < cand.length; n++) if (cand[n].length >= 4 && last.indexOf(cand[n]) === 0) return true;  // CARLSO -> CARLSON
+    return false;
+  }
+  /* "WEAVER, CLAUDIA CWEAVER" -> "WEAVER, CLAUDIA". Only the "Last, First ..." form: without the comma
+     there is no telling which word is the surname, and a guess there would merge two real people. */
+  function stripStaffId(name) {
+    var s = String(name); if (s.indexOf(",") < 0) return s;
+    var p = s.split(","), last = p[0].trim(), rest = p.slice(1).join(",").trim();
+    if (!last || !rest) return s;
+    var toks = rest.split(" "); if (toks.length < 2) return s;
+    var keep = [toks[0]];
+    for (var i = 1; i < toks.length; i++) if (!looksLikeStaffId(toks[i], last, toks[0])) keep.push(toks[i]);
+    return keep.length === toks.length ? s : last + ", " + keep.join(" ");
+  }
   function cleanDisplayName(s) { s = String(s == null ? "" : s); if (s === "(blank)") return s;
+    s = s.replace(/[\[(][^\])]*[\])]/g, " ");   // "[CWEAVER]" / "(1234)" - an ID tacked on, not part of the name
     var c = s.replace(/[^A-Za-z, ]+/g, " ").replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").replace(/^[,\s]+|[,\s]+$/g, "").trim();
+    c = stripStaffId(c);
     return c === "" ? "(blank)" : c; }
   var PAS_EMP = "__PAS_EMP__";   // injected cleaned employee-name column used for grouping + display
   function bypassEmpOf(r) { if (!empKey) return "(blank)"; return cleanDisplayName(r[empKey]); }
