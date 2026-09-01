@@ -12,8 +12,8 @@ Option Explicit
 '     same two labels back - the existing wording, unchanged
 '   * copies the banner formatting from the banner cells already on the
 '     sheet, so the result is identical to what is there today
-'   * moves the white rule that sits between the two banners, and keeps the
-'     block's own outer rules exactly as they are
+'   * moves the white rule between the two banners, down through the month
+'     header row as well, and keeps every other rule exactly as it is
 '
 ' It does not add colour, month names, legends or shading, and it never
 ' touches formulas, values, fonts, number formats, row heights or column
@@ -81,6 +81,7 @@ Private Type TBanner
     ActText  As String
     FcstCell As String        ' address of the "Forecast" banner cell
     FcstText As String
+    FcstCol  As Long          ' column the split sits on right now
     Split    As TEdge         ' the white rule drawn between the two banners
 End Type
 
@@ -271,17 +272,55 @@ End Sub
 ' to a merged banner, so it is cleared.
 Private Sub RedrawRules(ws As Worksheet, blk As TBlock, bnr As TBanner, ByVal boundaryCol As Long, _
                         blockLeft As TEdge, blockRight As TEdge)
+    Dim onSheet As Boolean
+
+    ' --- banner row: the two banners, and the rule between them -----------
     ws.Range(ws.Cells(BANNER_ROW, blk.StartCol), ws.Cells(BANNER_ROW, blk.EndCol)) _
       .Borders(xlInsideVertical).LineStyle = xlLineStyleNone
 
     ApplyEdge ws.Cells(BANNER_ROW, blk.StartCol), xlEdgeLeft, blockLeft
     ApplyEdge ws.Cells(BANNER_ROW, blk.EndCol), xlEdgeRight, blockRight
 
-    If boundaryCol > blk.StartCol And boundaryCol <= blk.EndCol Then
-        ApplyEdge ws.Cells(BANNER_ROW, boundaryCol), xlEdgeLeft, bnr.Split
-        ApplyEdge ws.Cells(BANNER_ROW, boundaryCol - 1), xlEdgeRight, bnr.Split
+    onSheet = (boundaryCol > blk.StartCol And boundaryCol <= blk.EndCol)
+    If onSheet Then DrawRule ws, BANNER_ROW, boundaryCol, bnr.Split
+
+    ' --- month row: the split rule carries on down through it -------------
+    ' The sheet already rules every quarter and total column, so those lines
+    ' stay put; the split only adds one where it lands mid-quarter, and only
+    ' a line a previous run added mid-quarter is taken away again.
+    If bnr.FcstCol > 0 And bnr.FcstCol <> boundaryCol Then
+        If Not NativeRule(blk, bnr.FcstCol) Then ClearRule ws, MONTH_ROW, bnr.FcstCol
+    End If
+    If onSheet Then
+        If Not NativeRule(blk, boundaryCol) Then DrawRule ws, MONTH_ROW, boundaryCol, bnr.Split
     End If
 End Sub
+
+' A rule sits on both cells that meet at it, the way the sheet draws them.
+Private Sub DrawRule(ws As Worksheet, ByVal r As Long, ByVal c As Long, e As TEdge)
+    If Not e.Has Then Exit Sub
+    ApplyEdge ws.Cells(r, c), xlEdgeLeft, e
+    ApplyEdge ws.Cells(r, c - 1), xlEdgeRight, e
+End Sub
+
+Private Sub ClearRule(ws As Worksheet, ByVal r As Long, ByVal c As Long)
+    Dim none As TEdge
+    ApplyEdge ws.Cells(r, c), xlEdgeLeft, none
+    ApplyEdge ws.Cells(r, c - 1), xlEdgeRight, none
+End Sub
+
+' True where the sheet itself rules the month row: either side of a quarter
+' column, and either side of Total.
+Private Function NativeRule(blk As TBlock, ByVal c As Long) As Boolean
+    If c <= blk.StartCol Or c > blk.EndCol Then Exit Function
+    NativeRule = IsGroupCol(blk, c) Or IsGroupCol(blk, c - 1)
+End Function
+
+Private Function IsGroupCol(blk As TBlock, ByVal c As Long) As Boolean
+    If c < blk.StartCol Or c > blk.EndCol Then Exit Function
+    If blk.LastMonth(c) = 0 Then Exit Function
+    IsGroupCol = (blk.LastMonth(c) - blk.FirstMonth(c) >= 2)     ' quarter or total
+End Function
 
 Private Function CaptureEdge(cell As Range, ByVal edge As Long) As TEdge
     Dim e As TEdge
@@ -336,6 +375,7 @@ Private Function ReadBanner(ws As Worksheet, blk As TBlock) As TBanner
                 If Len(bnr.FcstCell) = 0 Then
                     bnr.FcstCell = area.Cells(1, 1).Address(False, False)
                     bnr.FcstText = txt
+                    bnr.FcstCol = area.Cells(1, 1).Column
                 End If
             ElseIf InStr(1, txt, "Actual", vbTextCompare) > 0 Then
                 If Len(bnr.ActCell) = 0 Then

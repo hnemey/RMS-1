@@ -11,8 +11,9 @@ The sheet is left looking exactly as it does today. The macro:
 - takes the banner formatting from the banner cells already there, so fill,
   font, alignment and borders are unchanged
 - moves the white rule between the two banners, in the sheet's own style —
-  thick on GAAP, medium on Combined — and puts it on both sides of the
-  boundary, the way the sheet already draws it
+  thick on GAAP, medium on Combined — on both sides of the boundary, and
+  **down through the month header row too**, so the line runs the full height
+  of the header the way it does today
 - keeps the block's own outer white rules exactly as they are
 
 Nothing else is touched. No colours, no month names, no shading, no legend.
@@ -81,6 +82,14 @@ Each banner keeps its own look: on GAAP the Actual banner carries a white rule
 underneath it and the Forecast banner does not, so that underline follows the
 split as it moves.
 
+In the month header row the sheet rules both sides of every quarter column and
+of `Total`, and nothing between plain months. Those lines are left exactly
+alone. When the split lands on a quarter boundary — a Mar, Jun, Sep or Dec
+close — the line it needs is already there. When it lands mid-quarter, the
+macro adds one, and takes it away again when the split moves on. After a July
+close the header therefore reads `Q3 | Jul | Aug   Sep | Q4 | Total`: a line
+after Q3, a line after Jul, and none between Aug and Sep.
+
 ## How it finds things
 
 It reads the sheet rather than relying on fixed cell addresses: it looks for
@@ -104,6 +113,12 @@ If a tab does not match, the macro says so and leaves that tab alone.
 The **Combined** tab has the same layout and was marked actual through **Feb**
 while GAAP said **Jun** — the two had drifted. `UpdateAllTabs_Split` asks once
 and applies the same answer to both.
+
+That tab also carries two stray white lines in the month header row, between
+Oct and Nov and between Nov and Dec, left behind by splits that sat there in
+earlier months. The macro does not remove them: it only ever moves the line at
+the split it is working on, so it will not touch a line you put somewhere
+deliberately. Delete them by hand once and they will not come back.
 
 ## Not included
 
