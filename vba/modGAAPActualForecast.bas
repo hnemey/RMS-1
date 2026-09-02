@@ -194,11 +194,6 @@ Private Sub MoveSplit(ws As Worksheet, blk As TBlock, ByVal lastActual As Long)
 
     bnr = ReadBanner(ws, blk)
 
-    ' The block's own outer rules, which the format copy below would otherwise
-    ' overwrite with whatever the banner cell happened to carry.
-    blockLeft = CaptureEdge(ws.Cells(BANNER_ROW, blk.StartCol), xlEdgeLeft)
-    blockRight = CaptureEdge(ws.Cells(BANNER_ROW, blk.EndCol), xlEdgeRight)
-
     ' First column that is not fully closed - the forecast banner starts here.
     For c = blk.StartCol To blk.EndCol
         If blk.LastMonth(c) > 0 Then
@@ -210,14 +205,23 @@ Private Sub MoveSplit(ws As Worksheet, blk As TBlock, ByVal lastActual As Long)
     Next c
     If boundaryCol = 0 Then boundaryCol = blk.EndCol + 1        ' whole year closed
 
-    ' Park a copy of each banner's formatting off to the right first: laying
-    ' down one banner can otherwise land on the cell the other one copies from.
-    stashAct = StashFormat(ws, bnr.ActCell, 2)
-    stashFcst = StashFormat(ws, bnr.FcstCell, 1)
-
+    ' Un-merge before anything is copied.  Copying a cell that belongs to a
+    ' merged range copies the WHOLE merged range, so a copy taken here while
+    ' the banner was still merged would carry all twelve of its columns.
     Set rng = ws.Range(ws.Cells(BANNER_ROW, blk.StartCol), ws.Cells(BANNER_ROW, blk.EndCol))
     rng.UnMerge
     rng.ClearContents
+
+    ' The rule between the banners, and the block's own outer rules, which the
+    ' format copy below would otherwise overwrite.
+    bnr.Split = SplitEdge(ws, bnr)
+    blockLeft = CaptureEdge(ws.Cells(BANNER_ROW, blk.StartCol), xlEdgeLeft)
+    blockRight = CaptureEdge(ws.Cells(BANNER_ROW, blk.EndCol), xlEdgeRight)
+
+    ' Park a copy of each banner's formatting off to the right: laying down one
+    ' banner can otherwise land on the cell the other one copies from.
+    stashAct = StashFormat(ws, bnr.ActCell, 2)
+    stashFcst = StashFormat(ws, bnr.FcstCell, 1)
 
     actTo = MinL(boundaryCol - 1, blk.EndCol)
     If boundaryCol > blk.StartCol Then WriteBanner ws, blk.StartCol, actTo, bnr.ActText, stashAct
@@ -243,8 +247,9 @@ Private Function StashFormat(ws As Worksheet, ByVal srcAddr As String, ByVal slo
     Dim tmp As Range
     If Len(srcAddr) = 0 Then Exit Function
     Set tmp = ws.Cells(BANNER_ROW, ws.Columns.Count - slot)
+    If tmp.MergeCells Then tmp.UnMerge
     tmp.Clear
-    ws.Range(srcAddr).Copy
+    ws.Range(srcAddr).Copy                  ' a single cell by now - see MoveSplit
     tmp.PasteSpecial xlPasteFormats
     Application.CutCopyMode = False
     StashFormat = tmp.Address(False, False)
@@ -393,14 +398,18 @@ Private Function ReadBanner(ws As Worksheet, blk As TBlock) As TBanner
     If Len(bnr.ActCell) = 0 Then bnr.ActCell = bnr.FcstCell
     If Len(bnr.FcstCell) = 0 Then bnr.FcstCell = bnr.ActCell
 
-    ' The rule between the banners, taken from the forecast banner's left edge
-    ' - white on both tabs today, thick on GAAP and medium on Combined.
-    If Len(bnr.FcstCell) > 0 Then bnr.Split = CaptureEdge(ws.Range(bnr.FcstCell), xlEdgeLeft)
-    If Not bnr.Split.Has And Len(bnr.ActCell) > 0 Then
-        bnr.Split = CaptureEdge(ws.Range(bnr.ActCell), xlEdgeRight)
-    End If
-
     ReadBanner = bnr
+End Function
+
+' The rule between the banners, read off the forecast banner's left edge -
+' white on both tabs today, thick on GAAP and medium on Combined.
+Private Function SplitEdge(ws As Worksheet, bnr As TBanner) As TEdge
+    Dim e As TEdge
+    If Len(bnr.FcstCell) > 0 Then e = CaptureEdge(ws.Range(bnr.FcstCell), xlEdgeLeft)
+    If Not e.Has And bnr.FcstCol > 1 Then
+        e = CaptureEdge(ws.Cells(BANNER_ROW, bnr.FcstCol - 1), xlEdgeRight)
+    End If
+    SplitEdge = e
 End Function
 
 
