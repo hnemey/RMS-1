@@ -6,18 +6,19 @@ Option Explicit
 '--------------------------------------------------------------------------
 ' Every month-end one more column moves from forecast to actual, and the
 ' "FY26 Actual" / "FY26 Forecast" banner in row 3 has to be re-split by hand.
-' This module does exactly that and nothing else:
+' This module does that, in three steps:
 '
-'   * un-merges the banner, re-merges it at the correct column, and puts the
-'     same two labels back - the existing wording, unchanged
-'   * copies the banner formatting from the banner cells already on the
-'     sheet, so the result is identical to what is there today
-'   * moves the white rule between the two banners, down through the month
-'     header row as well, and keeps every other rule exactly as it is
+'   1. un-merge the banner row across the FY block
+'   2. merge it again correctly - Actual over the closed months, Forecast
+'      over the rest - reusing the labels and formatting already on the sheet
+'   3. put white rules back on everything in the two header rows
 '
-' It does not add colour, month names, legends or shading, and it never
-' touches formulas, values, fonts, number formats, row heights or column
-' widths.  Everything outside row 3 is left alone.
+' Step 3 paints every edge in the header - around it, between the columns and
+' between the two rows - so the header always comes out consistent and last
+' month's rules cannot be left behind.
+'
+' Nothing outside the two header rows is touched: no formulas, values, fonts,
+' number formats, row heights or column widths.
 '
 ' Macros
 '   UpdateGAAP_Split            GAAP tab, asks which month closed
@@ -25,8 +26,8 @@ Option Explicit
 '   UpdateAllTabs_Split         GAAP + Combined, asks once
 '   UpdateAllTabs_Split_Auto    GAAP + Combined, no prompt
 '
-' There is no undo for macros in Excel, but there is nothing to undo here:
-' run it again with a different month and the banner moves again.
+' Excel has no undo for macros, but there is nothing to undo here: run it
+' again with a different month and the banner moves again.
 '==========================================================================
 
 
@@ -45,6 +46,10 @@ Private Const FY_LABEL        As String = "FY26"
 ' Sheet layout (same on GAAP and Combined).
 Private Const BANNER_ROW      As Long = 3    ' "FY26 Actual" / "FY26 Forecast"
 Private Const MONTH_ROW       As Long = 4    ' Oct, Nov, Dec, Q1, ... , Total
+
+' Weight of the white rules.  Leave 0 to copy the weight the sheet already
+' uses; otherwise set xlThin, xlMedium or xlThick.
+Private Const RULE_WEIGHT     As Long = 0
 
 ' Leave False when this module lives in the forecast workbook itself.  Set to
 ' True if you keep it in PERSONAL.XLSB and run it against whatever workbook
@@ -66,6 +71,8 @@ Private Type TBlock
     LastMonth()  As Long      ' per column: last fiscal month covered  (0 = spacer)
 End Type
 
+' One cell edge, remembered well enough to put back exactly - including a
+' theme colour (these rules are white, theme 0) rather than a flat RGB.
 Private Type TEdge
     Has       As Boolean
     LineStyle As Long
@@ -81,12 +88,7 @@ Private Type TBanner
     ActText  As String
     FcstCell As String        ' address of the "Forecast" banner cell
     FcstText As String
-    FcstCol  As Long          ' column the split sits on right now
-    Split    As TEdge         ' the white rule drawn between the two banners
 End Type
-
-' One cell edge, remembered well enough to put back exactly - including a
-' theme colour (these rules are white, theme 0) rather than a flat RGB.
 
 
 '============================== Entry points ==============================
@@ -185,12 +187,13 @@ End Sub
 
 '============================== The move ==================================
 
+' Un-merge, merge again correctly, then white-rule the whole header.
 Private Sub MoveSplit(ws As Worksheet, blk As TBlock, ByVal lastActual As Long)
     Dim bnr As TBanner
+    Dim rule As TEdge
     Dim rng As Range
     Dim c As Long, boundaryCol As Long, actTo As Long
     Dim stashAct As String, stashFcst As String
-    Dim blockLeft As TEdge, blockRight As TEdge
 
     bnr = ReadBanner(ws, blk)
 
@@ -205,19 +208,18 @@ Private Sub MoveSplit(ws As Worksheet, blk As TBlock, ByVal lastActual As Long)
     Next c
     If boundaryCol = 0 Then boundaryCol = blk.EndCol + 1        ' whole year closed
 
-    ' Un-merge before anything is copied.  Copying a cell that belongs to a
-    ' merged range copies the WHOLE merged range, so a copy taken here while
-    ' the banner was still merged would carry all twelve of its columns.
+    ' --- 1. un-merge -----------------------------------------------------
+    ' Before anything is copied: copying a cell that belongs to a merged range
+    ' copies the WHOLE merged range, not the cell.
     Set rng = ws.Range(ws.Cells(BANNER_ROW, blk.StartCol), ws.Cells(BANNER_ROW, blk.EndCol))
     rng.UnMerge
     rng.ClearContents
 
-    ' The rule between the banners, and the block's own outer rules, which the
-    ' format copy below would otherwise overwrite.
-    bnr.Split = SplitEdge(ws, bnr)
-    blockLeft = CaptureEdge(ws.Cells(BANNER_ROW, blk.StartCol), xlEdgeLeft)
-    blockRight = CaptureEdge(ws.Cells(BANNER_ROW, blk.EndCol), xlEdgeRight)
+    ' The white rule the sheet already uses, read before the format copy below
+    ' can overwrite it.
+    rule = WhiteRule(ws, blk, bnr)
 
+    ' --- 2. merge correctly ----------------------------------------------
     ' Park a copy of each banner's formatting off to the right: laying down one
     ' banner can otherwise land on the cell the other one copies from.
     stashAct = StashFormat(ws, bnr.ActCell, 2)
@@ -230,37 +232,15 @@ Private Sub MoveSplit(ws As Worksheet, blk As TBlock, ByVal lastActual As Long)
     DropStash ws, stashAct
     DropStash ws, stashFcst
 
-    ' Borders while the cells are still separate, merging last - Excel is
-    ' happier that way, and a merged block shows its outer cells' edges.
-    RedrawRules ws, blk, bnr, boundaryCol, blockLeft, blockRight
     If boundaryCol > blk.StartCol Then MergeBand ws, blk.StartCol, actTo
     If boundaryCol <= blk.EndCol Then MergeBand ws, boundaryCol, blk.EndCol
-End Sub
 
-Private Sub MergeBand(ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long)
-    If c2 > c1 Then ws.Range(ws.Cells(BANNER_ROW, c1), ws.Cells(BANNER_ROW, c2)).Merge
-End Sub
-
-' Copies a banner cell's formatting to a scratch cell past the right-hand end
-' of the sheet, and returns its address ("" when there is nothing to copy).
-Private Function StashFormat(ws As Worksheet, ByVal srcAddr As String, ByVal slot As Long) As String
-    Dim tmp As Range
-    If Len(srcAddr) = 0 Then Exit Function
-    Set tmp = ws.Cells(BANNER_ROW, ws.Columns.Count - slot)
-    If tmp.MergeCells Then tmp.UnMerge
-    tmp.Clear
-    ws.Range(srcAddr).Copy                  ' a single cell by now - see MoveSplit
-    tmp.PasteSpecial xlPasteFormats
-    Application.CutCopyMode = False
-    StashFormat = tmp.Address(False, False)
-End Function
-
-Private Sub DropStash(ws As Worksheet, ByVal addr As String)
-    If Len(addr) > 0 Then ws.Range(addr).Clear
+    ' --- 3. white rules on everything ------------------------------------
+    PaintHeaderRules ws, blk, rule
 End Sub
 
 ' Lays one banner over c1..c2, wearing the formatting the sheet's own banner
-' cell had.  Merging happens later, in MergeBand.
+' cell had.  Merging happens after, in MergeBand.
 Private Sub WriteBanner(ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, _
                         ByVal caption As String, ByVal srcAddr As String)
     If Len(srcAddr) > 0 Then
@@ -271,60 +251,49 @@ Private Sub WriteBanner(ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, _
     ws.Cells(BANNER_ROW, c1).Value = caption
 End Sub
 
-' Rebuilds the vertical rules in the banner row: the block's own outer rules,
-' and the rule between the two banners, drawn on both sides of the boundary
-' the way the sheet already does it.  Everything else in the row is interior
-' to a merged banner, so it is cleared.
-Private Sub RedrawRules(ws As Worksheet, blk As TBlock, bnr As TBanner, ByVal boundaryCol As Long, _
-                        blockLeft As TEdge, blockRight As TEdge)
-    Dim onSheet As Boolean
+Private Sub MergeBand(ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long)
+    If c2 > c1 Then ws.Range(ws.Cells(BANNER_ROW, c1), ws.Cells(BANNER_ROW, c2)).Merge
+End Sub
 
-    ' --- banner row: the two banners, and the rule between them -----------
-    ws.Range(ws.Cells(BANNER_ROW, blk.StartCol), ws.Cells(BANNER_ROW, blk.EndCol)) _
-      .Borders(xlInsideVertical).LineStyle = xlLineStyleNone
+' Every edge of the two header rows: outside, between the columns, and between
+' the rows.  Inside a merged banner Excel draws nothing, so the banner row
+' comes out as the two blocks with one rule between them.
+Private Sub PaintHeaderRules(ws As Worksheet, blk As TBlock, rule As TEdge)
+    Dim rng As Range, edges As Variant, i As Long
+    If Not rule.Has Then Exit Sub
 
-    ApplyEdge ws.Cells(BANNER_ROW, blk.StartCol), xlEdgeLeft, blockLeft
-    ApplyEdge ws.Cells(BANNER_ROW, blk.EndCol), xlEdgeRight, blockRight
+    Set rng = ws.Range(ws.Cells(BANNER_ROW, blk.StartCol), ws.Cells(MONTH_ROW, blk.EndCol))
+    edges = Array(xlEdgeLeft, xlEdgeRight, xlEdgeTop, xlEdgeBottom, _
+                  xlInsideVertical, xlInsideHorizontal)
 
-    onSheet = (boundaryCol > blk.StartCol And boundaryCol <= blk.EndCol)
-    If onSheet Then DrawRule ws, BANNER_ROW, boundaryCol, bnr.Split
+    For i = LBound(edges) To UBound(edges)
+        ApplyEdge rng.Borders(CLng(edges(i))), rule
+    Next i
+End Sub
 
-    ' --- month row: the split rule carries on down through it -------------
-    ' The sheet already rules every quarter and total column, so those lines
-    ' stay put; the split only adds one where it lands mid-quarter, and only
-    ' a line a previous run added mid-quarter is taken away again.
-    If bnr.FcstCol > 0 And bnr.FcstCol <> boundaryCol Then
-        If Not NativeRule(blk, bnr.FcstCol) Then ClearRule ws, MONTH_ROW, bnr.FcstCol
+' The white rule to use: the one between the banners, or failing that any
+' vertical rule already in the month row, or plain white.
+Private Function WhiteRule(ws As Worksheet, blk As TBlock, bnr As TBanner) As TEdge
+    Dim e As TEdge, c As Long
+
+    If Len(bnr.FcstCell) > 0 Then e = CaptureEdge(ws.Range(bnr.FcstCell), xlEdgeLeft)
+
+    If Not e.Has Then
+        For c = blk.StartCol + 1 To blk.EndCol
+            e = CaptureEdge(ws.Cells(MONTH_ROW, c), xlEdgeLeft)
+            If e.Has Then Exit For
+        Next c
     End If
-    If onSheet Then
-        If Not NativeRule(blk, boundaryCol) Then DrawRule ws, MONTH_ROW, boundaryCol, bnr.Split
+
+    If Not e.Has Then
+        e.Has = True
+        e.LineStyle = xlContinuous
+        e.Weight = xlMedium
+        e.Colr = RGB(255, 255, 255)
     End If
-End Sub
 
-' A rule sits on both cells that meet at it, the way the sheet draws them.
-Private Sub DrawRule(ws As Worksheet, ByVal r As Long, ByVal c As Long, e As TEdge)
-    If Not e.Has Then Exit Sub
-    ApplyEdge ws.Cells(r, c), xlEdgeLeft, e
-    ApplyEdge ws.Cells(r, c - 1), xlEdgeRight, e
-End Sub
-
-Private Sub ClearRule(ws As Worksheet, ByVal r As Long, ByVal c As Long)
-    Dim none As TEdge
-    ApplyEdge ws.Cells(r, c), xlEdgeLeft, none
-    ApplyEdge ws.Cells(r, c - 1), xlEdgeRight, none
-End Sub
-
-' True where the sheet itself rules the month row: either side of a quarter
-' column, and either side of Total.
-Private Function NativeRule(blk As TBlock, ByVal c As Long) As Boolean
-    If c <= blk.StartCol Or c > blk.EndCol Then Exit Function
-    NativeRule = IsGroupCol(blk, c) Or IsGroupCol(blk, c - 1)
-End Function
-
-Private Function IsGroupCol(blk As TBlock, ByVal c As Long) As Boolean
-    If c < blk.StartCol Or c > blk.EndCol Then Exit Function
-    If blk.LastMonth(c) = 0 Then Exit Function
-    IsGroupCol = (blk.LastMonth(c) - blk.FirstMonth(c) >= 2)     ' quarter or total
+    If RULE_WEIGHT <> 0 Then e.Weight = RULE_WEIGHT
+    WhiteRule = e
 End Function
 
 Private Function CaptureEdge(cell As Range, ByVal edge As Long) As TEdge
@@ -349,8 +318,8 @@ Private Function CaptureEdge(cell As Range, ByVal edge As Long) As TEdge
     CaptureEdge = e
 End Function
 
-Private Sub ApplyEdge(cell As Range, ByVal edge As Long, e As TEdge)
-    With cell.Borders(edge)
+Private Sub ApplyEdge(bd As Border, e As TEdge)
+    With bd
         If Not e.Has Then
             .LineStyle = xlLineStyleNone
             Exit Sub
@@ -366,8 +335,26 @@ Private Sub ApplyEdge(cell As Range, ByVal edge As Long, e As TEdge)
     End With
 End Sub
 
-' Reads the banners that are on the sheet now: their wording, which cell
-' carries their formatting, and the rule drawn between them.
+' Copies a banner cell's formatting to a scratch cell past the right-hand end
+' of the sheet, and returns its address ("" when there is nothing to copy).
+Private Function StashFormat(ws As Worksheet, ByVal srcAddr As String, ByVal slot As Long) As String
+    Dim tmp As Range
+    If Len(srcAddr) = 0 Then Exit Function
+    Set tmp = ws.Cells(BANNER_ROW, ws.Columns.Count - slot)
+    If tmp.MergeCells Then tmp.UnMerge
+    tmp.Clear
+    ws.Range(srcAddr).Copy                  ' a single cell by now - see MoveSplit
+    tmp.PasteSpecial xlPasteFormats
+    Application.CutCopyMode = False
+    StashFormat = tmp.Address(False, False)
+End Function
+
+Private Sub DropStash(ws As Worksheet, ByVal addr As String)
+    If Len(addr) > 0 Then ws.Range(addr).Clear
+End Sub
+
+' Reads the banners on the sheet now: their wording, and which cell carries
+' their formatting.
 Private Function ReadBanner(ws As Worksheet, blk As TBlock) As TBanner
     Dim bnr As TBanner
     Dim c As Long, txt As String, area As Range
@@ -380,7 +367,6 @@ Private Function ReadBanner(ws As Worksheet, blk As TBlock) As TBanner
                 If Len(bnr.FcstCell) = 0 Then
                     bnr.FcstCell = area.Cells(1, 1).Address(False, False)
                     bnr.FcstText = txt
-                    bnr.FcstCol = area.Cells(1, 1).Column
                 End If
             ElseIf InStr(1, txt, "Actual", vbTextCompare) > 0 Then
                 If Len(bnr.ActCell) = 0 Then
@@ -399,17 +385,6 @@ Private Function ReadBanner(ws As Worksheet, blk As TBlock) As TBanner
     If Len(bnr.FcstCell) = 0 Then bnr.FcstCell = bnr.ActCell
 
     ReadBanner = bnr
-End Function
-
-' The rule between the banners, read off the forecast banner's left edge -
-' white on both tabs today, thick on GAAP and medium on Combined.
-Private Function SplitEdge(ws As Worksheet, bnr As TBanner) As TEdge
-    Dim e As TEdge
-    If Len(bnr.FcstCell) > 0 Then e = CaptureEdge(ws.Range(bnr.FcstCell), xlEdgeLeft)
-    If Not e.Has And bnr.FcstCol > 1 Then
-        e = CaptureEdge(ws.Cells(BANNER_ROW, bnr.FcstCol - 1), xlEdgeRight)
-    End If
-    SplitEdge = e
 End Function
 
 

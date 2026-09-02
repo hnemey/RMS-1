@@ -4,24 +4,28 @@
 repeat every month on the **GAAP** tab: moving the `FY26 Actual` /
 `FY26 Forecast` split in row 3 as another month closes.
 
-The sheet is left looking exactly as it does today. The macro:
+It works in three steps:
 
-- un-merges the banner and re-merges it at the correct column
-- puts back **the same two labels already on the sheet**, word for word
-- takes the banner formatting from the banner cells already there, so fill,
-  font, alignment and borders are unchanged
-- moves the white rule between the two banners, in the sheet's own style —
-  thick on GAAP, medium on Combined — on both sides of the boundary, and
-  **down through the month header row too**, so the line runs the full height
-  of the header the way it does today
-- keeps the block's own outer white rules exactly as they are
+1. **Un-merge** the banner row across the FY26 block.
+2. **Merge it again correctly** — Actual over the closed months, Forecast over
+   the rest — reusing the labels already on the sheet, word for word, and the
+   banner formatting from the banner cells already there.
+3. **Put white rules back on everything** in the two header rows: around the
+   outside, between every column, and between the two rows.
 
-Nothing else is touched. No colours, no month names, no shading, no legend.
-Only row 3 of the FY26 block changes; every other row, the FY25 block, all
-formulas, values, fonts, number formats and column widths are left alone.
-Running it when the split is already right changes nothing at all — checked
-cell by cell against your file, including every border: on the GAAP tab as it
-stands today, a run alters nothing.
+Step 3 is why the header always comes out consistent — every edge is painted
+fresh each run, so a rule left behind by last month's split cannot survive,
+and nothing is left without its white outline. Inside a merged banner Excel
+draws nothing, so the banner row reads as the two blocks with a single rule
+between them.
+
+The rule's style is read off the sheet rather than hardcoded — thick white on
+GAAP, medium white on Combined — and kept as a theme colour, so it still
+follows the workbook theme. Set `RULE_WEIGHT` if you want to force one.
+
+Nothing outside the two header rows is touched: no colours, no month names, no
+shading, no legend, and no formulas, values, fonts, number formats or column
+widths.
 
 ## Macros
 
@@ -56,6 +60,11 @@ through, so most months it is just Enter.
 Excel has no undo for macros, but there is nothing to undo here: if you answer
 with the wrong month, run it again with the right one.
 
+Note the pre-filled month is **last calendar month**, which is what the `_Auto`
+macros use with no prompt. Running in September therefore assumes August
+closed, putting Forecast at `Sep | Q4 | Total`. Type a different month if you
+are working a month behind.
+
 ## Settings
 
 At the top of the module:
@@ -66,29 +75,6 @@ At the top of the module:
 | `TARGET_SHEETS` | `"GAAP,Combined"` | Tabs the "AllTabs" macros use |
 | `FY_LABEL` | `"FY26"` | Fiscal year to find — change to `FY27` next October |
 | `USE_ACTIVE_WORKBOOK` | `False` | `True` if the module lives in `PERSONAL.XLSB` |
-
-## The white rules
-
-The lines that box in the dark blue header are white borders, not gridlines,
-so they need care. The macro reads the rule the sheet already uses between the
-two banners — thick white on GAAP, medium white on Combined — and redraws it
-at the new boundary, keeping it as a theme colour rather than a flat white, so
-it still follows the workbook theme. The block's outer rules are captured
-before the banner formatting is copied and put back afterwards, since copying
-a banner cell's format would otherwise drag that cell's edges out to the ends
-of the block.
-
-Each banner keeps its own look: on GAAP the Actual banner carries a white rule
-underneath it and the Forecast banner does not, so that underline follows the
-split as it moves.
-
-In the month header row the sheet rules both sides of every quarter column and
-of `Total`, and nothing between plain months. Those lines are left exactly
-alone. When the split lands on a quarter boundary — a Mar, Jun, Sep or Dec
-close — the line it needs is already there. When it lands mid-quarter, the
-macro adds one, and takes it away again when the split moves on. After a July
-close the header therefore reads `Q3 | Jul | Aug   Sep | Q4 | Total`: a line
-after Q3, a line after Jul, and none between Aug and Sep.
 
 ## How it finds things
 
@@ -114,11 +100,9 @@ The **Combined** tab has the same layout and was marked actual through **Feb**
 while GAAP said **Jun** — the two had drifted. `UpdateAllTabs_Split` asks once
 and applies the same answer to both.
 
-That tab also carries two stray white lines in the month header row, between
-Oct and Nov and between Nov and Dec, left behind by splits that sat there in
-earlier months. The macro does not remove them: it only ever moves the line at
-the split it is working on, so it will not touch a line you put somewhere
-deliberately. Delete them by hand once and they will not come back.
+That tab also carried two stray white lines in the month header row, left
+behind by splits that sat there in earlier months. Since step 3 repaints every
+edge, they are tidied up on the first run.
 
 ## Not included
 
