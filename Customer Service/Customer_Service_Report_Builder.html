@@ -85,13 +85,9 @@ button.act.ghost:hover:not(:disabled){background:rgba(255,255,255,.12)}
 .mtable th,.mtable td{border:1px solid #e3e8f0;padding:4px 5px;text-align:center;vertical-align:top;overflow-wrap:anywhere}
 .mtable td.mt-ly{color:#5c6785}
 .mtable td.mt-calc{color:#005BBB}
-.mtable th:nth-child(1),.mtable td:nth-child(1){width:21%}
-.mtable th:nth-child(2),.mtable td:nth-child(2){width:12%}
-.mtable th:nth-child(3),.mtable td:nth-child(3){width:11%}
-.mtable th:nth-child(4),.mtable td:nth-child(4){width:12%}
-.mtable th:nth-child(5),.mtable td:nth-child(5){width:12%}
-.mtable th:nth-child(6),.mtable td:nth-child(6){width:11%}
-.mtable th:nth-child(7),.mtable td:nth-child(7){width:21%}
+.mtable th:nth-child(1),.mtable td:nth-child(1){width:24%}
+/* every other column shares the rest equally, so the table always fits the pane
+   whether or not the year-over-year pair is present */
 .mtable thead th{background:#eef2f8;color:#00428D;font-weight:800;font-size:10px}
 .mtable td.mt-cat{text-align:left;font-weight:700;color:#005BBB}
 .mtable td.mt-this{font-weight:700}
@@ -108,6 +104,14 @@ button.act.ghost:hover:not(:disabled){background:rgba(255,255,255,.12)}
 .mtable td.mt-edit:empty:before{content:"—";color:#c3ccdb}
 .mt-edithint{font-size:11px;color:#8a7a3a;background:#fffaf0;border:1px solid #f0e2bf;border-radius:6px;padding:5px 9px;margin-bottom:8px;line-height:1.4}
 .mt-empty{color:#8a92a6;font-style:italic;font-size:12px;margin-bottom:8px}
+/* per-row notes live in their own full-width list under the table (they used to be a cramped last column) */
+.rownotes{margin:0 0 14px}
+.rn-hint{font-size:11px;color:#6b7690;margin-bottom:6px;line-height:1.4}
+.rn-row{display:grid;grid-template-columns:minmax(90px,30%) 1fr;gap:6px;align-items:start;margin-bottom:5px}
+.rn-cat{font-size:11px;font-weight:700;color:#005BBB;padding-top:6px;overflow-wrap:anywhere}
+.rn-note{min-height:30px;border:1px solid #cfd6e4;border-radius:6px;padding:5px 8px;font-size:11.5px;line-height:1.45;background:#fffdf3;color:#33384a;outline:none;cursor:text}
+.rn-note:focus{background:#fff;border-color:#005BBB;box-shadow:0 0 0 2px #dbe6fb}
+.rn-note:empty:before{content:attr(data-ph);color:#c3ccdb}
 .gennotes-block{margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid #e3e8f0}
 .gennotes-label{font-size:11px;font-weight:800;color:#00428D;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
 .gennotes{min-height:110px}
@@ -2194,7 +2198,9 @@ function narrativeHTML(text){
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 /* ============================================================================
-   METRICS TABLE  (Category | Last Yr Avg | Target | Last Month | This Month | Δ | Notes)
+   METRICS TABLE  (Category | Last Yr Avg | Target | Last Month | This Month | Δ [| LY month | Δ YoY] | Notes)
+   In the editor the Notes column is left out of the table and rendered as a
+   separate full-width "Row Notes" list beneath it, so the table fits the pane.
    ========================================================================== */
 function metricKey(title,cat,single){ return single?title:(title+" — "+cat); }
 /* parse a value the user typed into an editable table cell, honoring the column format */
@@ -2363,7 +2369,8 @@ function metricsTableHTML(rows,pageN,editable){
   var yoy=hasMultipleYears()&&rp;
   var lyLabel=yoy?(MON[rp.mi]+" '"+String(rp.yr-1).slice(2)):"";
   var head='<tr><th>Category</th><th>Last Yr Avg</th><th>Target</th><th>Last Month</th><th>This Month</th><th>Δ MoM</th>'
-    +(yoy?('<th>'+esc(lyLabel)+'</th><th>Δ YoY</th>'):'')+'<th>Notes</th></tr>';
+    +(yoy?('<th>'+esc(lyLabel)+'</th><th>Δ YoY</th>'):'')+(editable?'':'<th>Notes</th>')+'</tr>';
+  var rowNotes=[];   // editor only: [category, notes-field html]
   var body=rows.map(function(r){
     var d=fmtDelta(r.delta,r.dir);
     var nv=notes[r.key]||"";
@@ -2379,9 +2386,12 @@ function metricsTableHTML(rows,pageN,editable){
     var catCell=editable
       ? '<td class="mt-cat mt-edit" contenteditable="true" data-key="'+keyA+'" data-field="category" data-fmt="text">'+esc(r.category)+'</td>'
       : '<td class="mt-cat">'+esc(r.category)+'</td>';
-    var noteCell=editable
-      ? '<td class="mt-note" contenteditable="true" data-key="'+keyA+'" data-ph="add note…">'+esc(nv)+'</td>'
-      : '<td class="mt-note">'+esc(nv)+'</td>';
+    var noteCell='<td class="mt-note">'+esc(nv)+'</td>';
+    if(editable){
+      noteCell="";
+      rowNotes.push('<div class="rn-row"><div class="rn-cat" data-key="'+keyA+'">'+esc(r.category)+'</div>'
+        +'<div class="mt-note rn-note" contenteditable="true" data-key="'+keyA+'" data-ph="add note…">'+esc(nv)+'</div></div>');
+    }
     var yoyCells="";
     if(yoy){
       var dy=fmtDelta(r.deltaYoY,r.dir);
@@ -2394,7 +2404,11 @@ function metricsTableHTML(rows,pageN,editable){
       +'<td class="mt-delta '+d.cls+'" data-dir="'+esc(r.dir||"up")+'">'+esc(d.text)+'</td>'
       +yoyCells+noteCell+'</tr>';
   }).join("");
-  return '<table class="mtable"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+  var table='<table class="mtable'+(yoy?' mt-yoy':'')+'"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+  if(!editable) return table;
+  return table+'<div class="rownotes"><div class="gennotes-label">Row Notes</div>'
+    +'<div class="rn-hint">One note per table row — these appear in the Notes column of the exported table.</div>'
+    +rowNotes.join("")+'</div>';
 }
 function genNotesHTML(pageN,editable){
   var val=GENNOTES[pageN]||"";
@@ -2772,7 +2786,7 @@ function buildPageEditor(pg){
   var lbl = sl.type==="appendix" ? "Appendix"
     : ((NARRATIVE[n]&&NARRATIVE[n].title&&norm(NARRATIVE[n].title)!==norm(sl.title)) ? sl.title+" — "+NARRATIVE[n].title : sl.title);
   var rows = sl.type==="appendix"?[]:buildPageRows(sl);
-  var tableBlock = rows.length ? '<div class="mt-edithint">Tip: click any table cell to edit it — Category, Last Yr, Target, Last Month or This Month. Δ recalculates automatically. Clear a cell to blank it. Click "Update Previews" to push edits to the slide &amp; HTML views.</div><div class="mtable-wrap">'+metricsTableHTML(rows,n,true)+'</div>'
+  var tableBlock = rows.length ? '<div class="mt-edithint">Tip: click any table cell to edit it — Category, Last Yr, Target, Last Month or This Month. Δ recalculates automatically. Clear a cell to blank it. Per-row notes are in the <b>Row Notes</b> list under the table. Click "Update Previews" to push edits to the slide &amp; HTML views.</div><div class="mtable-wrap">'+metricsTableHTML(rows,n,true)+'</div>'
                                 : '<div class="mt-empty">No metrics on this page.</div>';
   root.innerHTML=RTE_TOOLBAR
     +'<div class="wu-slide focused" data-n="'+n+'"><label>'+esc(lbl)+'</label>'
@@ -2799,6 +2813,7 @@ function buildPageEditor(pg){
       if(!CELLEDITS[n])CELLEDITS[n]={}; if(!CELLEDITS[n][key])CELLEDITS[n][key]={};
       if(field==="category"){
         CELLEDITS[n][key].category=td.innerText.trim();
+        root.querySelectorAll('.rn-cat[data-key]').forEach(function(el){ if(el.getAttribute("data-key")===key) el.textContent=td.innerText.trim(); });
       } else {
         var v=parseCell(td.innerText,fmt);
         CELLEDITS[n][key][field]=v;
